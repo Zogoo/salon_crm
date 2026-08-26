@@ -1,77 +1,81 @@
 # Domain Model & Entity–Relationship Design
 
-**Version:** 1.0 · Companion to `01-business-analysis.md`
+**Version:** 1.0 · Companion to `01-business-analysis.md` · Aligned to FRS v7
 
 ---
 
 ## 1. Bounded Contexts
 
-The system is a **modular monolith**. Ten modules, each owning its tables, exposing a service
-interface, and never reaching into another module's tables directly.
+A **modular monolith**. Each module owns its tables, exposes a service interface, and never reaches
+into another module's tables directly.
 
 ```mermaid
 graph TB
-    IAM[1. Identity & Access]
-    ORG[2. Organization<br/>locations, rooms]
-    CAT[3. Catalogue<br/>services, prices]
-    WF[4. Workforce<br/>staff, shifts, rates]
-    SCH[5. Scheduling<br/>appointments, availability]
-    CRM[6. Customers<br/>profiles, intake, SOAP]
-    SAL[7. Sales<br/>orders, payments]
-    GC[8. Gift Cards & Packages]
-    PAY[9. Payroll]
-    RPT[10. Reporting]
-    NOT[11. Notifications]
-    AUD[12. Audit]
+    IAM[1. Identity & Access<br/>users, roles, client accounts]
+    ORG[2. Organization<br/>locations, typed rooms]
+    CAT[3. Catalogue<br/>services, add-ons, location prices]
+    WF[4. Workforce<br/>staff, shifts, session rates, requests]
+    SCH[5. Scheduling<br/>appointments, participants, availability]
+    CRM[6. Clients<br/>profiles, preferences, care notes, ratings]
+    SAL[7. Sales<br/>orders, payments, refunds, fees]
+    GC[8. Gift Cards]
+    MEM[9. Membership]
+    ERN[10. Earnings & Payout]
+    RPT[11. Reporting]
+    NOT[12. Notifications<br/>email + SMS]
+    AUD[13. Audit]
 
     IAM --> ORG
     IAM --> WF
+    IAM --> CRM
     ORG --> SCH
     CAT --> SCH
     WF --> SCH
     CRM --> SCH
     SCH --> SAL
     GC --> SAL
-    WF --> PAY
+    MEM --> SAL
+    SCH --> ERN
+    WF --> ERN
     SAL --> RPT
     SCH --> RPT
-    PAY --> RPT
+    ERN --> RPT
+    GC --> RPT
+    MEM --> RPT
     SCH --> NOT
+    MEM --> NOT
     SAL --> AUD
     WF --> AUD
     GC --> AUD
+    MEM --> AUD
 ```
 
 **Dependency rule:** arrows point from provider to consumer. Scheduling depends on Organization,
-Catalogue, Workforce and Customers. Nothing depends on Scheduling except Sales, Reporting and
-Notifications. Reporting is read-only and may query across modules via views.
+Catalogue, Workforce and Clients. Nothing depends on Scheduling except Sales, Earnings, Reporting
+and Notifications. Reporting is read-only and may query across modules through views.
 
 ---
 
-## 2. Entity–Relationship Diagram
+## 2. Entity–Relationship Diagrams
 
 ### 2.1 Organization, Identity, Workforce
 
 ```mermaid
 erDiagram
     USER ||--o| STAFF_PROFILE : "has"
-    USER }o--|| ROLE : "assigned"
-    USER ||--o{ USER_LOCATION : "scoped to"
-    LOCATION ||--o{ USER_LOCATION : ""
+    USER ||--o| CLIENT : "may be"
+    LOCATION ||--o{ USER : "manager scoped to"
     LOCATION ||--o{ ROOM : "contains"
     LOCATION ||--o{ LOCATION_BUSINESS_HOUR : "opens"
     LOCATION ||--o{ LOCATION_CLOSURE : "closed on"
 
-    STAFF_PROFILE ||--o{ STAFF_LOCATION : "may work at"
-    LOCATION ||--o{ STAFF_LOCATION : ""
+    STAFF_PROFILE }o--|| LOCATION : "home location"
     STAFF_PROFILE ||--o{ STAFF_QUALIFICATION : "certified for"
     SERVICE ||--o{ STAFF_QUALIFICATION : ""
-    STAFF_PROFILE ||--o{ STAFF_RATE : "paid at"
-    STAFF_PROFILE ||--o{ AVAILABILITY_PATTERN : "recurring"
-    STAFF_PROFILE ||--o{ AVAILABILITY_REQUEST : "submits"
+    STAFF_PROFILE ||--o{ STAFF_SESSION_RATE : "paid at"
     STAFF_PROFILE ||--o{ SHIFT : "assigned"
     LOCATION ||--o{ SHIFT : "hosts"
-    STAFF_PROFILE ||--o{ TIME_OFF_REQUEST : "requests"
+    STAFF_PROFILE ||--o{ STAFF_REQUEST : "submits"
 ```
 
 ### 2.2 Catalogue & Scheduling
@@ -82,67 +86,75 @@ erDiagram
     SERVICE ||--o{ SERVICE_VARIANT : "offered as"
     SERVICE_VARIANT ||--o{ LOCATION_PRICE : "priced at"
     LOCATION ||--o{ LOCATION_PRICE : ""
+    SERVICE_VARIANT ||--o{ SERVICE_VARIANT_ROOM_TYPE : "requires"
 
-    APPOINTMENT }o--|| SERVICE_VARIANT : "of"
     APPOINTMENT }o--|| LOCATION : "at"
     APPOINTMENT }o--|| ROOM : "occupies"
-    APPOINTMENT }o--|| STAFF_PROFILE : "performed by"
-    APPOINTMENT }o--|| CUSTOMER : "for"
+    APPOINTMENT }o--|| CLIENT : "primary client"
+    APPOINTMENT ||--|{ APPOINTMENT_STAFF : "performed by"
+    APPOINTMENT_STAFF }o--|| STAFF_PROFILE : ""
+    APPOINTMENT ||--|{ APPOINTMENT_ITEM : "consists of"
+    APPOINTMENT_ITEM }o--|| SERVICE_VARIANT : "of"
+    APPOINTMENT ||--o{ APPOINTMENT_PARTICIPANT : "seats"
+    APPOINTMENT_PARTICIPANT }o--|| CLIENT : ""
     APPOINTMENT ||--o{ APPOINTMENT_STATUS_EVENT : "transitions"
-    APPOINTMENT ||--o| SOAP_NOTE : "documented by"
+    APPOINTMENT ||--o| APPROVAL_REQUEST : "therapist request"
     APPOINTMENT ||--o| ORDER : "billed as"
     SLOT_HOLD }o--|| ROOM : "reserves"
-    SLOT_HOLD }o--|| STAFF_PROFILE : "reserves"
 ```
 
-### 2.3 Customers
+### 2.3 Clients
 
 ```mermaid
 erDiagram
-    CUSTOMER ||--o{ CUSTOMER_CONTACT : "reachable at"
-    CUSTOMER ||--o{ INTAKE_FORM : "completed"
-    INTAKE_FORM ||--o{ INTAKE_ANSWER : "contains"
-    CUSTOMER ||--o| CUSTOMER_PREFERENCE : "prefers"
-    CUSTOMER ||--o{ APPOINTMENT : "books"
-    CUSTOMER ||--o{ CUSTOMER_NOTE : "annotated"
-    APPOINTMENT ||--o| SOAP_NOTE : ""
-    STAFF_PROFILE ||--o{ SOAP_NOTE : "authored"
+    CLIENT ||--o{ APPOINTMENT : "books"
+    CLIENT ||--o| CLIENT_PREFERENCE : "current form"
+    CLIENT_PREFERENCE ||--o{ CLIENT_PREFERENCE_VERSION : "history"
+    CLIENT ||--o{ CLIENT_NOTE : "annotated"
+    APPOINTMENT ||--o{ CARE_NOTE : "logged"
+    STAFF_PROFILE ||--o{ CARE_NOTE : "authored"
+    APPOINTMENT ||--o| APPOINTMENT_RATING : "rated"
+    APPOINTMENT_RATING }o--|| STAFF_PROFILE : "of therapist"
+    CLIENT ||--o{ GIFT_CARD : "bought / received"
 ```
 
-### 2.4 Sales, Payments, Gift Cards
+### 2.4 Sales, Payments, Gift Cards, Membership
 
 ```mermaid
 erDiagram
     ORDER ||--o{ ORDER_LINE_ITEM : "contains"
     ORDER ||--o{ PAYMENT : "settled by"
-    ORDER }o--|| CUSTOMER : "for"
+    ORDER ||--o{ REFUND : "reversed by"
+    ORDER }o--|| CLIENT : "for"
     ORDER }o--|| LOCATION : "at"
     ORDER ||--o{ ORDER_DISCOUNT : "reduced by"
+    ORDER ||--o{ TIP_ALLOCATION : "tips split by"
+    TIP_ALLOCATION }o--|| STAFF_PROFILE : ""
 
-    ORDER_LINE_ITEM }o--o| SERVICE_VARIANT : "service"
+    ORDER_LINE_ITEM }o--o| SERVICE_VARIANT : "service / add-on / enhancement"
     ORDER_LINE_ITEM }o--o| GIFT_CARD : "gift card sale"
-    ORDER_LINE_ITEM }o--o| PACKAGE_TEMPLATE : "package sale"
+    ORDER_LINE_ITEM }o--o| MEMBERSHIP : "membership charge"
 
     GIFT_CARD ||--o{ GIFT_CARD_TRANSACTION : "ledger"
     GIFT_CARD_TRANSACTION }o--o| ORDER : "applied to"
-    GIFT_CARD }o--o| CUSTOMER : "purchased by"
-    GIFT_CARD }o--o| SERVICE_VARIANT : "entitles (service-specific)"
+    GIFT_CARD_TRANSACTION }o--o| APPOINTMENT : "redeemed at"
 
-    PACKAGE_TEMPLATE ||--o{ CUSTOMER_PACKAGE : "instantiated"
-    CUSTOMER_PACKAGE ||--o{ PACKAGE_CREDIT_TXN : "ledger"
-    CUSTOMER ||--o{ CUSTOMER_PACKAGE : "owns"
+    CLIENT ||--o| MEMBERSHIP : "subscribes"
+    MEMBERSHIP ||--o{ MEMBERSHIP_CYCLE : "billed monthly"
+    MEMBERSHIP ||--o{ MEMBERSHIP_CREDIT_TXN : "credit ledger"
+    MEMBERSHIP_CREDIT_TXN }o--o| APPOINTMENT : "redeemed against"
 ```
 
-### 2.5 Payroll
+### 2.5 Earnings & Payout
 
 ```mermaid
 erDiagram
-    PAY_PERIOD ||--o{ TIMESHEET : "contains"
-    TIMESHEET }o--|| STAFF_PROFILE : "for"
-    TIMESHEET ||--o{ TIMESHEET_LINE : "from shifts"
-    TIMESHEET_LINE }o--|| SHIFT : "derives from"
-    TIMESHEET ||--o{ TIMESHEET_ADJUSTMENT : "corrected by"
-    TIMESHEET ||--o| PAY_STATEMENT : "produces"
+    EARNING_PERIOD ||--o{ EARNING_STATEMENT : "contains"
+    EARNING_STATEMENT }o--|| STAFF_PROFILE : "for"
+    EARNING_STATEMENT ||--o{ EARNING_LINE : "totals"
+    EARNING_LINE }o--o| APPOINTMENT_ITEM : "derives from"
+    EARNING_LINE }o--o| TIP_ALLOCATION : "or from a tip"
+    EARNING_STATEMENT ||--o{ EARNING_ADJUSTMENT : "corrected by"
 ```
 
 ---
@@ -155,38 +167,52 @@ erDiagram
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint PK | |
-| email | citext | unique, login identity |
-| password_digest | string | bcrypt |
+| email | citext | unique where present |
+| phone | string | E.164; **primary identity for clients** |
+| password_digest | string NULL | bcrypt; null for OTP-only client accounts |
 | first_name, last_name | string | |
-| phone | string | |
-| role | enum | `owner`, `manager`, `front_desk`, `therapist`, `customer_portal` |
+| role | enum | `owner`, `manager`, `staff`, `client` |
+| location_id | FK NULL | **required for `manager`** — the single location they are scoped to |
 | status | enum | `invited`, `active`, `suspended`, `disabled` |
 | last_login_at | timestamptz | |
 | failed_login_count | integer | lockout after N |
+| sms_consent_at, email_consent_at | timestamptz NULL | RISK-03 |
 | discarded_at | timestamptz | soft delete |
 
-> **Design note.** One `users` table with a role column, not STI. Roles here are coarse and a person
-> never holds two simultaneously. A separate `permissions` table is over-engineering at this scale;
-> a policy layer (Pundit) maps role + location scope to abilities.
+> **Design note.** There is no separate front-desk role — FRS §16 states Manager and front desk
+> are the same role. Manager scoping is a single `location_id` column rather than a join table,
+> because a manager belongs to exactly one location and cannot switch. Owner ignores the column.
 
-**`user_locations`** — which locations a manager/front-desk user may access.
-`(user_id, location_id)` unique. Owners bypass this check entirely.
+**Client authentication.** FRS §22 leaves the mechanism to us. Chosen: **phone + SMS one-time
+code** as the primary path, with optional email/password. Rationale — the phone number is already
+the client's identity everywhere else in the business, it removes a password to forget and reset,
+and the SMS channel is already being paid for (confirmations, reminders, fee notices, rating links).
 
 ### 3.2 Organization
 
-**`locations`**
+**`locations`** — exactly four rows, seeded.
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint PK | |
-| name, code | string | code unique, used in reports |
+| name, code | string | `lawrence`, `skokie`, `luma`, `belmont` |
 | address_line1/2, city, state, postal_code | string | |
 | phone, email | string | |
-| timezone | string | IANA, e.g. `America/New_York`. **Required.** |
-| cancellation_window_hours | integer | default 24 |
+| timezone | string | IANA. All four are `America/Chicago`. **Not nullable, no default.** |
+| opens_at, closes_at | time | 09:00 / 22:00 default (FRS §6) |
+| slot_granularity_minutes | integer | default 15 |
+| buffer_minutes | integer | default 15 (FRS §21) |
+| booking_horizon_days | integer | default 183 (~6 months) |
+| booking_cutoff_minutes | integer | default 60; Owner sets 15/30/60 (FRS §5.1) |
+| cancellation_window_hours | integer | default 4 (FRS §21) |
+| late_cancel_fee_percent | integer | default 20 |
+| no_show_fee_percent | integer | default 20 |
+| deposit_percent | integer | default 20 |
 | online_booking_enabled | boolean | |
-| booking_lead_time_minutes | integer | default 120 |
-| booking_horizon_days | integer | default 60 |
 | status | enum | `active`, `inactive` |
+
+> Fee, deposit and window values are **per-location columns, not constants**, even though FRS v7
+> gives one number for all four. A policy expressed as a config row is changed by the Owner; a
+> policy expressed as a constant is changed by a deploy.
 
 **`rooms`**
 | Column | Type | Notes |
@@ -194,47 +220,72 @@ erDiagram
 | id | bigint PK | |
 | location_id | FK | |
 | name | string | unique per location |
+| room_type | enum | `single`, `couple`, `three_table`, `head_spa` |
+| table_count | integer | 1 for single, 2 for couple, 3 for three_table |
 | status | enum | `active`, `maintenance`, `retired` |
-| position | integer | display order in the day view |
+| position | integer | row order in the day board |
 
-> Room *types* were explicitly excluded (1 booking = 1 room + 1 therapist, no capability matching).
-> A nullable `room_type` column is nonetheless included in the migration plan as a forward hook —
-> adding it later to a table with live appointments is far more painful than carrying an unused
-> nullable column now.
+Seeded from FRS §20:
 
-**`room_blocks`** — time-bounded unavailability for a single room (deep clean, repair, private event).
+| Location | single | couple | three_table | head_spa | Total |
+|---|--:|--:|--:|--:|--:|
+| Skokie | 3 | 3 | 1 | 0 | 7 |
+| Lawrence | 4 | 4 | 0 | 0 | 8 |
+| Luma | 3 | 3 | 0 | 2 | 8 |
+| Belmont | 2 | 4 | 0 | 0 | 6 |
+
+> **Rooms must be typed.** FRS v7 requires it: couples massage
+> and couple head spa need a couple room; head-spa services need a head-spa room. FRS §20 also
+> states that facial-and-body combinations run in a **single** room, so a combination service does
+> *not* require two rooms.
+
+**`room_blocks`** — time-bounded unavailability for one room (deep clean, repair, private event).
 `(room_id, starts_at, ends_at, during tstzrange GENERATED, reason, created_by_user_id)`.
 Distinct from `rooms.status = 'maintenance'`, which takes a room out of service indefinitely.
 Blocks participate in the availability search exactly like appointments.
 
-**`location_business_hours`** — `(location_id, day_of_week 0–6, opens_at time, closes_at time)`.
-Multiple rows per day permit split hours.
+**`location_business_hours`** — `(location_id, day_of_week 0–6, opens_at, closes_at)`. Multiple
+rows per day permit split hours.
 
 **`location_closures`** — `(location_id, date, reason)` for holidays.
 
 ### 3.3 Catalogue
 
-**`services`** — `id, service_category_id, name, description, active, position`
+**`service_categories`** — `massage`, `facial`, `head_spa`, `bioelectric`, `add_on`, `enhancement`.
+
+**`services`** — `id, service_category_id, name, description, kind, active, position`
+
+`kind` enum: `standard` (a bookable service), `add_on` (a 30-minute extra on the same appointment,
+same therapist), `enhancement` (price only, no duration, no pay — e.g. essential oil).
 
 **`service_variants`** — the bookable unit.
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint PK | |
 | service_id | FK | |
-| duration_minutes | integer | 30/60/90/120 |
-| buffer_minutes | integer | room turnover, default 15 |
-| base_price_cents | integer | company default |
+| duration_minutes | integer | 0 for enhancements; 30/45/60/75/90/120 otherwise |
+| therapist_count | integer | **1 or 2.** 2 for couples massage, four hands, couple head spa |
+| client_capacity | integer | 1, or 2 for couples services |
+| base_price_cents | integer | company default before location override |
 | active | boolean | |
 
-**`location_prices`** — effective-dated per-location override.
-`(location_id, service_variant_id, price_cents, effective_from date, effective_to date NULL)`
+**`service_variant_room_types`** — `(service_variant_id, room_type)`. A variant is bookable into
+any room whose type appears here. Examples: 60-min deep tissue → `single`; couples massage →
+`couple`; single head spa and couple head spa → `head_spa`; facial-and-body combination →
+`single`.
+
+**`location_prices`** — effective-dated per-location price.
+`(location_id, service_variant_id, price_cents, effective_from date, effective_to date NULL, active)`
 
 > **Price resolution order:** location price effective on the booking date → `base_price_cents`.
-> Resolved once at booking and snapshotted (BR-09).
+> Resolved once at booking and snapshotted (BR-11).
 
-**`staff_qualifications`** — `(staff_profile_id, service_id, certified_on, active)`.
-Qualification is at **service** level, not variant — a therapist certified in Deep Tissue can do all
-its durations.
+Seeded from FRS §19.2–§19.11. Belmont sits $10–$40 above the other three on every line; Luma
+carries a facial menu the others do not have, plus head spa and bioelectric.
+
+**`staff_qualifications`** — `(staff_profile_id, service_id, certified_on, active)`. Qualification
+is at **service** level, not variant — a therapist certified in Deep Tissue can perform all its
+durations.
 
 ### 3.4 Workforce
 
@@ -243,61 +294,80 @@ its durations.
 |---|---|---|
 | id | bigint PK | |
 | user_id | FK unique | |
-| employee_code | string | unique |
-| employment_type | enum | `employee`, `contractor` |
-| hire_date | date | |
-| termination_date | date NULL | |
+| location_id | FK | **home location**; changed only via an approved request |
+| employee_code | string unique | |
+| engagement_type | enum | `contractor_1099` (therapists), `manager_flat` (managers) |
+| hire_date, termination_date | date | |
 | status | enum | `onboarding`, `active`, `on_leave`, `terminated` |
-| bio, photo_url | text/string | shown in online booking |
-| display_name | string | first name only for customer-facing views |
+| display_name | string | first name only — used in client-facing search results |
+| can_edit_service_menu | boolean | default false; Owner-granted (FRS §2, §19.1) |
+| bio, photo_url | text/string | |
 
-**`staff_locations`** — `(staff_profile_id, location_id, is_home)` — many-to-many, confirmed.
-
-**`staff_rates`** — **effective-dated. Never updated in place.**
+**`staff_session_rates`** — **the six-rung ladder. Effective-dated. Never updated in place.**
 | Column | Type | Notes |
 |---|---|---|
 | staff_profile_id | FK | |
-| hourly_rate_cents | integer | |
+| duration_minutes | integer | one of 30, 45, 60, 75, 90, 120 |
+| rate_cents | integer | what the therapist earns for one session of that length |
 | effective_from | date | |
 | effective_to | date NULL | NULL = current |
 | created_by_user_id | FK | audit |
 | note | text | reason for change |
 
-> Constraint: no overlapping `[effective_from, effective_to]` ranges per staff. Enforced with a
-> Postgres `EXCLUDE` constraint on `daterange`. This is what makes BR-24 true by construction.
+> Constraint: no overlapping `[effective_from, effective_to]` ranges per `(staff_profile_id,
+> duration_minutes)`, enforced with a Postgres `EXCLUDE` on `daterange`. This makes BR-35 true by
+> construction rather than by discipline.
+>
+> Not every length is used by every menu — only Luma's anti-aging facial uses 75 minutes, and no
+> current service uses 45. FRS §4 is explicit that the ladder covers all six regardless.
 
-**`availability_patterns`** — recurring weekly template.
-`(staff_profile_id, day_of_week, start_time, end_time, preferred_location_id NULL,
-effective_from, effective_to NULL, active)`
+**`staff_monthly_rates`** — managers only.
+`(staff_profile_id, amount_cents, effective_from, effective_to NULL, created_by_user_id, note)`
+Same non-overlap constraint.
 
-**`availability_requests`** — one-off submissions.
-`(staff_profile_id, date, start_time, end_time, preferred_location_id NULL,
-status enum{submitted,approved,rejected,withdrawn}, reviewed_by_user_id, reviewed_at, note)`
-
-**`shifts`** — **the authoritative scheduling and payroll record.**
+**`shifts`** — **authoritative for availability. Does not drive pay.**
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint PK | |
 | staff_profile_id | FK | |
 | location_id | FK | |
+| work_date | date | in the location's timezone |
 | starts_at, ends_at | timestamptz | |
-| during | tstzrange GENERATED | `tstzrange(starts_at, ends_at, '[)')` — used by the exclusion constraint |
+| during | tstzrange GENERATED | `tstzrange(starts_at, ends_at, '[)')` |
 | status | enum | `draft`, `published`, `cancelled` |
-| source | enum | `manual`, `pattern`, `request` |
-| availability_pattern_id | FK NULL | provenance |
-| break_starts_at, break_ends_at | timestamptz NULL | positioned break — blocks booking during it |
-| break_minutes | integer | unpaid break deducted from payroll hours (derived from the break window when set) |
-| locked | boolean | true once the pay period closes |
-
-> The break is stored as an **interval, not just a duration**, because it must do two jobs: subtract
-> from payable hours *and* remove the therapist from availability during lunch. A scalar minute
-> count cannot do the second.
+| notes | text | FRS §3 |
+| created_by_user_id | FK | |
 
 > **Critical constraint (BR-04):**
 > `EXCLUDE USING gist (staff_profile_id WITH =, during WITH &&) WHERE (status = 'published')`
-> Company-wide, because staff work at any location.
+> No location predicate — a therapist cannot be on shift at two locations at once.
+>
+> **Payroll note.** This table is deliberately **not** the payroll source. Therapists are 1099
+> contractors paid per completed session (FRS §4, §18), so shifts answer "who is working" and
+> nothing else. There is no `break_minutes` column and no period `locked` flag — an unpaid break
+> has no meaning under piece rate. Breaks that must block bookings are modelled as
+> `room_blocks`-style `shift_breaks` rows instead.
 
-**`time_off_requests`** — `(staff_profile_id, starts_on, ends_on, kind enum{vacation,sick,unpaid,other}, status, reviewed_by, note)`
+**`shift_breaks`** — `(shift_id, starts_at, ends_at, during GENERATED, reason)`. Removes the
+therapist from availability during the window. No payroll effect.
+
+**`staff_requests`** — the approval workflow (FRS §2, §3).
+| Column | Type | Notes |
+|---|---|---|
+| id | bigint PK | |
+| staff_profile_id | FK | |
+| kind | enum | `shift_change`, `location_change` |
+| shift_id | FK NULL | for `shift_change` |
+| requested_payload | jsonb | proposed date/start/end, or proposed location_id |
+| status | enum | `submitted`, `approved`, `rejected`, `withdrawn` |
+| reviewed_by_user_id | FK NULL | |
+| reviewed_at | timestamptz | |
+| note, review_note | text | |
+
+> **BR-06 is enforced here:** a `location_change` request may be reviewed only by a user with role
+> `owner`. A `shift_change` may be reviewed by `owner` or `manager`. Checked in the policy layer
+> *and* asserted by a database `CHECK` on `reviewer_role`, because this is the one approval rule
+> the Owner explicitly carved out from the Manager.
 
 ### 3.5 Scheduling
 
@@ -305,86 +375,148 @@ status enum{submitted,approved,rejected,withdrawn}, reviewed_by_user_id, reviewe
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint PK | |
-| reference | string | human-friendly, e.g. `APT-2026-084213` |
-| customer_id | FK | |
+| reference | string unique | e.g. `APT-2026-084213` |
+| client_id | FK | the booking client (primary participant) |
 | location_id | FK | |
 | room_id | FK | |
-| staff_profile_id | FK | |
-| service_variant_id | FK | |
-| starts_at, ends_at | timestamptz | `ends_at = starts_at + duration + buffer` |
-| service_ends_at | timestamptz | end of the massage itself, excluding buffer |
-| during | tstzrange GENERATED | for exclusion constraints |
-| status | enum | `scheduled, checked_in, in_progress, completed, cancelled, late_cancelled, no_show` |
-| price_cents | integer | **snapshot** (BR-09) |
-| booking_channel | enum | `phone, walk_in, online, staff, manager` |
-| created_by_user_id | FK NULL | null for online self-service |
-| customer_note | text | requests from the customer |
-| internal_note | text | staff-only |
+| starts_at | timestamptz | |
+| service_ends_at | timestamptz | end of the service itself |
+| ends_at | timestamptz | `service_ends_at + location.buffer_minutes` |
+| during | tstzrange GENERATED | `tstzrange(starts_at, ends_at, '[)')` — includes the buffer |
+| status | enum | `pending_approval, scheduled, checked_in, in_progress, completed, cancelled, late_cancelled, no_show` |
+| total_price_cents | integer | **snapshot**, sum of item prices (BR-11) |
+| booking_channel | enum | `phone`, `walk_in`, `online`, `manager`, `owner` |
+| created_by_user_id | FK NULL | null for client self-service |
+| requested_staff_profile_id | FK NULL | the specific therapist asked for (BR-15) |
+| client_note | text | the client's note to their therapist (FRS §5.1, §6) |
+| appointment_note | text | staff-only |
+| deposit_cents | integer | collected at booking, 0 for in-salon |
+| prepaid_in_full | boolean | |
 | cancelled_at, cancellation_reason | | |
+| fee_charged_cents | integer | 20% no-show / late-cancel fee actually taken |
 | rescheduled_from_id | FK NULL | reschedule chain |
 
-> **Two exclusion constraints, both partial on active statuses**
-> (`scheduled, checked_in, in_progress, completed`):
-> - `EXCLUDE USING gist (room_id WITH =, during WITH &&)` — BR-08
-> - `EXCLUDE USING gist (staff_profile_id WITH =, during WITH &&)` — BR-07
->
-> These make double-booking **impossible at the storage layer**, independent of application logic,
-> race conditions, or a buggy front end. Everything else in the scheduling module is an optimisation
-> on top of this guarantee.
+> **The 15-minute buffer lives in `ends_at`.** `during` therefore spans service + buffer, which is
+> what makes BR-10 fall out of the exclusion constraints for free — no separate gap check anywhere
+> in the application. This is the single most important modelling decision in this table.
+
+**`appointment_staff`** — **the therapist-conflict constraint lives here, not on `appointments`.**
+| Column | Type | Notes |
+|---|---|---|
+| id | bigint PK | |
+| appointment_id | FK | |
+| staff_profile_id | FK | |
+| role | enum | `primary`, `secondary` |
+| during | tstzrange | **denormalised copy** of `appointments.during`, maintained by trigger |
+| status | enum | denormalised copy of `appointments.status`, maintained by trigger |
+
+> **Why the denormalised columns.** A Postgres exclusion constraint can only read columns on its
+> own table. To keep "no therapist is in two appointments at once" a *database* guarantee rather
+> than an application check, the interval and status must sit on this row. A trigger on
+> `appointments` keeps them in step. The alternative — checking in Ruby — reintroduces exactly the
+> race condition the whole design exists to prevent. See doc 03 §4.
+
+**`appointment_items`** — what is actually being delivered and billed.
+| Column | Type | Notes |
+|---|---|---|
+| id | bigint PK | |
+| appointment_id | FK | |
+| service_variant_id | FK | |
+| kind | enum | `service`, `add_on`, `enhancement` |
+| duration_minutes | integer | snapshot |
+| price_cents | integer | **snapshot** of the resolved location price |
+| position | integer | order of delivery |
+
+> One appointment, many items: a 60-min deep tissue **plus** a 30-min scalp add-on **plus** an
+> essential-oil enhancement is three rows. Appointment duration is the sum of item durations;
+> price is the sum of item prices. Each `service` or `add_on` item produces its **own earnings
+> line** at its own duration bucket (BR-33).
+
+**`appointment_participants`** — for couples services.
+`(appointment_id, client_id, position)`. The booking client is always participant 1.
 
 **`appointment_status_events`** — append-only transition log.
 `(appointment_id, from_status, to_status, actor_user_id, occurred_at, reason)`
 
+**`approval_requests`** — specific-therapist approvals (FRS §5).
+`(appointment_id, requested_staff_profile_id, status enum{pending,approved,rejected},
+requested_by_user_id, reviewed_by_user_id, reviewed_at, note)`
+Reviewable by `owner` or `manager`.
+
 **`slot_holds`** — transient reservations during online checkout.
-`(room_id, staff_profile_id, during tstzrange, session_token, expires_at)` — swept by a job.
-Participates in the same exclusion checks as appointments via the availability query.
+`(room_id, staff_profile_ids bigint[], during tstzrange, session_token, expires_at)` — swept by a
+job every minute. Advisory only; the appointment constraints are authoritative.
 
-### 3.6 Customers
+### 3.6 Clients
 
-**`customers`**
+**`clients`**
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint PK | |
-| user_id | FK NULL | set only if they have a portal login |
+| user_id | FK NULL | set only when they have a portal account |
 | first_name, last_name | string | |
-| email | citext | indexed, not necessarily unique (couples share) |
 | phone | string | **primary search key** — normalise to E.164 |
-| date_of_birth | date NULL | birthday campaigns |
-| gender | string NULL | free text / optional |
+| email | citext NULL | indexed, not unique (couples share) |
+| date_of_birth | date NULL | FRS §11 |
 | preferred_location_id | FK NULL | |
-| marketing_opt_in | boolean | |
-| no_show_count, late_cancel_count | integer | denormalised counters (BR-13) |
+| no_show_count, late_cancel_count, cancel_count | integer | maintained counters (BR-20) |
 | first_visit_at, last_visit_at | timestamptz | maintained aggregates |
 | lifetime_value_cents | integer | maintained aggregate |
 | status | enum | `active`, `blocked`, `merged` |
-| merged_into_customer_id | FK NULL | duplicate resolution |
+| merged_into_client_id | FK NULL | duplicate resolution |
 | discarded_at | timestamptz | soft delete |
 
-> **Duplicate customers are inevitable** with phone bookings. Ship a merge tool in v1: merging
-> repoints appointments/orders and sets `merged_into_customer_id`, never deletes.
+> **Clients are company-wide** (BR-42) — one profile across all four locations, because gift cards
+> and memberships cross locations and the whole point of the client log is a single history.
+>
+> **Duplicates are inevitable** with phone bookings and an "Add New Client" button on the
+> appointment screen. Ship the merge tool in v1: merging repoints appointments, orders, gift cards
+> and memberships, then sets `merged_into_client_id`. Never deletes.
 
-**`customer_preferences`** — `(customer_id, preferred_staff_profile_id, pressure enum, room_temperature, music, aromatherapy, notes)`
-
-**`intake_forms`** — **encrypted health data.**
-`(customer_id, version, submitted_at, signature_data, signed_by_name, ip_address, locale)`
-
-**`intake_answers`** — `(intake_form_id, question_key, answer_value ENCRYPTED, answer_type)`
-
-> Answers stored as encrypted key/value rather than fixed columns so the questionnaire can evolve
-> without migrations, and so a version bump doesn't invalidate old submissions.
-
-**`soap_notes`** — **append-only clinical record (BR-16).**
+**`client_preferences`** — the Form of FRS §11.1, current state.
 | Column | Type | Notes |
 |---|---|---|
+| client_id | FK unique | |
+| attention_areas | text ENCRYPTED | "Areas to Pay More Attention To" |
+| avoid_areas | text ENCRYPTED | "Areas to Avoid" |
+| pressure | enum | `light`, `medium`, `firm` |
+| other_requests | text ENCRYPTED | |
+| updated_by_user_id | FK | |
+| updated_at | timestamptz | |
+
+**`client_preference_versions`** — full prior state on every update (BR-43). Same columns plus
+`superseded_at`.
+
+**`care_notes`** — **append-only, per appointment (BR-44).**
+| Column | Type | Notes |
+|---|---|---|
+| id | bigint PK | |
 | appointment_id | FK | |
 | staff_profile_id | FK | author |
-| subjective, objective, assessment, plan | text ENCRYPTED | |
-| areas_worked | jsonb | structured body-map data |
-| pressure_used | string | |
+| body | text ENCRYPTED | what to avoid, what needed attention, what to consider next time |
 | supersedes_note_id | FK NULL | corrections chain to the original |
 | created_at | timestamptz | no `updated_at` — rows are never modified |
 
-**`customer_notes`** — non-clinical front-desk notes, separately permissioned from SOAP.
+> **Scope note.** Confirmed 2026-08-26: this replaces the intake form, consent signature and SOAP
+> note structure, none of which FRS v7 asks for. What remains is the therapist's working
+> log — areas to avoid, areas needing attention, considerations for the session. It is not a
+> clinical record and is not presented as one. It is still body-related information about an
+> identifiable person, so it keeps column-level encryption, role restriction (Owner, Manager, and
+> the therapist assigned to that appointment) and read-access audit logging.
+
+**`client_notes`** — non-sensitive front-desk notes, separately permissioned from care notes.
+
+**`appointment_ratings`** — FRS §11.2.
+| Column | Type | Notes |
+|---|---|---|
+| appointment_id | FK unique | one rating per appointment (BR-45) |
+| staff_profile_id | FK | the therapist rated |
+| score | integer | `CHECK (score BETWEEN 1 AND 10)` |
+| feedback | text NULL | optional written feedback |
+| improvement | text NULL | "What could we improve?" |
+| would_recommend | boolean NULL | "Would you recommend us?" |
+| channel | enum | `kiosk`, `sms_link` |
+| submitted_at | timestamptz | |
 
 ### 3.7 Sales & Payments
 
@@ -393,95 +525,179 @@ Participates in the same exclusion checks as appointments via the availability q
 |---|---|---|
 | id | bigint PK | |
 | number | string unique | receipt number |
-| customer_id | FK NULL | walk-in gift card purchase may be anonymous |
+| client_id | FK NULL | anonymous walk-in gift card purchase |
 | location_id | FK | |
-| appointment_id | FK NULL | null for standalone gift card / package sales |
-| subtotal_cents, discount_cents, tax_cents, tip_cents, total_cents | integer | |
-| status | enum | `open`, `paid`, `voided`, `refunded` |
+| appointment_id | FK NULL | null for standalone gift card / membership sales |
+| subtotal_cents, discount_cents, tax_cents, tip_cents, total_cents | integer | `tax_cents` is present and always 0 — see A-06 |
+| status | enum | `open`, `paid`, `voided`, `refunded`, `partially_refunded` |
 | opened_by_user_id, closed_by_user_id | FK | |
 | closed_at | timestamptz | |
 
 **`order_line_items`** — polymorphic on `purchasable`.
-`(order_id, purchasable_type, purchasable_id, description, quantity, unit_price_cents, line_total_cents, staff_profile_id NULL)`
-`purchasable_type ∈ {ServiceVariant, GiftCard, PackageTemplate}`.
-`staff_profile_id` on the line attributes the sale to the performing therapist.
+`(order_id, purchasable_type, purchasable_id, description, quantity, unit_price_cents,
+line_total_cents, revenue_category)`
+`purchasable_type ∈ {ServiceVariant, GiftCard, Membership, Fee}`.
+`revenue_category ∈ {service, add_on, enhancement, gift_card_liability, membership_liability, fee}`.
 
-> **BR-19 lives here.** A `GiftCard` line item posts to a **liability** account, not revenue. The
-> reporting layer must classify line items by `purchasable_type`, never sum `orders.total_cents` as
-> revenue.
+> **BR-26 and BR-48 live here.** A `GiftCard` or `Membership` line posts to a **liability**
+> category, never to revenue. A `Fee` line is its own category — it is neither. The reporting layer
+> classifies by `revenue_category` and must never sum `orders.total_cents` and call it revenue.
 
-**`payments`** — **immutable (BR-17).**
+**`payments`** — **immutable (BR-23).**
 | Column | Type | Notes |
 |---|---|---|
 | order_id | FK | |
-| method | enum | `cash`, `card`, `zelle`, `online` |
+| method | enum | `card`, `cash`, `zelle`, `online`, `other` |
+| processing | enum | `recorded` (terminal / cash / Zelle) or `gateway` (Stripe) |
 | amount_cents | integer | |
 | reference | string | last-4, Zelle confirmation ID, transfer note |
+| stripe_payment_intent_id | string NULL | gateway only |
 | received_at | timestamptz | |
-| received_by_user_id | FK | |
-| status | enum | `captured`, `voided` |
+| received_by_user_id | FK NULL | null for online |
+| status | enum | `captured`, `voided`, `refunded`, `partially_refunded` |
 | voided_by_user_id, voided_at, void_reason | | |
 
-> Gift card redemptions are **not** payments — they live in `gift_card_transactions` and are joined
-> into the settlement calculation. Keeping them separate is what allows the liability to be tracked
-> correctly.
+> Gift card redemptions and membership credits are **not** payments. They live in their own
+> ledgers and are joined into the settlement calculation. Keeping them separate is what allows the
+> liabilities to be tracked correctly.
+>
+> `processing` is the column that keeps PCI scope at SAQ-A. `recorded` rows are typed in by a
+> Manager after the existing terminal has done its job; `gateway` rows carry a Stripe reference and
+> no card data whatsoever.
 
-**`order_discounts`** — `(order_id, kind enum{manual,promo_code,package}, code, amount_cents, applied_by_user_id, reason)`
+**`refunds`** — `(order_id, payment_id, amount_cents, reason enum{fee_free_cancellation, owner_discretion, error}, stripe_refund_id, issued_by_user_id, issued_at)`
 
-### 3.8 Gift Cards & Packages
+**`order_discounts`** — `(order_id, kind enum{manual, membership_upgrade_credit}, amount_cents, applied_by_user_id, reason)`
+
+**`tip_allocations`** — FRS §21, BR-24.
+`(order_id, appointment_id, staff_profile_id, amount_cents, allocated_by enum{system_even_split, manual})`
+For a single-therapist appointment the whole tip goes to that therapist. For a two-therapist
+appointment it splits evenly unless a Manager overrides.
+
+**`stripe_customers`** — `(client_id, stripe_customer_id, default_payment_method_id,
+cancellation_policy_agreed_at)`. The consent timestamp is required before any off-session charge
+(RISK-02).
+
+### 3.8 Gift Cards
 
 **`gift_cards`**
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint PK | |
-| code | string unique | printed on the card; generate collision-resistant, non-sequential |
-| card_type | enum | `stored_value`, `fixed_denomination`, `service_specific` |
+| code | string unique | printed barcode, or generated for a digital card. Collision-resistant, non-sequential |
+| origin | enum | `physical` (sold in salon), `digital` (bought online) |
 | initial_value_cents | integer | |
-| current_balance_cents | integer | **cache** of the ledger (BR-18) |
-| service_variant_id | FK NULL | required when `service_specific` |
-| purchaser_customer_id | FK NULL | |
-| recipient_name, recipient_email | string NULL | |
-| issued_at, expires_at | timestamptz | |
-| issued_at_location_id | FK | |
-| status | enum | `issued`, `active`, `depleted`, `expired`, `void` |
+| current_balance_cents | integer | **cache** of the ledger (BR-25) |
+| purchase_payment_method | enum | `card`, `cash`, `zelle`, `online`, `other` (FRS §12) |
+| buyer_client_id | FK NULL | |
+| buyer_name, buyer_phone | string | recorded even when there is no client record |
+| recipient_client_id | FK NULL | |
+| recipient_name, recipient_phone | string NULL | |
+| sold_at | timestamptz | |
+| sold_by_user_id | FK NULL | null for online purchases |
+| sold_at_location_id | FK | **revenue attribution stays here forever** (BR-27) |
+| expires_at | timestamptz | `sold_at + location.gift_card_expiry_months` |
+| status | enum | `active`, `depleted`, `expired`, `void` |
 
-**`gift_card_transactions`** — **the source of truth (BR-18).**
-`(gift_card_id, kind enum{issue,redeem,refund,adjust,expire}, amount_cents signed,
-balance_after_cents, order_id NULL, appointment_id NULL, redeemed_by_customer_id NULL,
-performed_by_user_id, location_id, occurred_at, note)`
+**`gift_card_transactions`** — **the source of truth (BR-25).**
+`(gift_card_id, kind enum{issue, redeem, refund, adjust, expire}, amount_cents signed,
+balance_after_cents, order_id NULL, appointment_id NULL, redeemed_by_client_id NULL,
+performed_by_user_id NULL, location_id, occurred_at, note)`
 
 > `balance_after_cents` is written on insert inside the same transaction that takes a row lock on
 > the card. That gives a self-verifying ledger: a nightly job asserts
 > `sum(amount_cents) == current_balance_cents` for every card and alerts on drift.
+>
+> `location_id` on the transaction is the **redeeming** location, which differs from the card's
+> `sold_at_location_id` whenever a card crosses locations — exactly the case FRS §12 and §16
+> describe. Revenue is recognised at redemption; the liability was booked at the selling location.
 
-**`package_templates`** — `(name, service_variant_id NULL, credit_count, price_cents, validity_days, active)`
+> **No `card_type` discriminator.** FRS v7 describes one product — a dollar balance, partially
+> redeemable across visits and locations. Fixed-denomination cards are just a constrained initial
+> value, and service-specific cards are not in the spec at all, so a discriminator column would
+> carry no weight.
 
-**`customer_packages`** — `(customer_id, package_template_id, purchased_order_id, credits_total, credits_remaining, expires_at, status)`
+### 3.9 Membership
 
-**`package_credit_transactions`** — same ledger pattern as gift cards.
+**`memberships`** — FRS §23.
+| Column | Type | Notes |
+|---|---|---|
+| id | bigint PK | |
+| client_id | FK | |
+| status | enum | `active`, `pending_cancellation`, `cancelled`, `past_due` |
+| price_cents | integer | 8000 |
+| stripe_subscription_id | string | |
+| enrolled_at | timestamptz | |
+| current_period_start, current_period_end | timestamptz | renewal date |
+| credits_balance | integer | **cache** of the credit ledger, `CHECK (0 <= credits_balance <= 3)` |
+| default_service_variant_id | FK | the member's chosen 60-min massage: deep tissue, Swedish or sport |
+| cancellation_requested_at | timestamptz NULL | |
+| cancellation_effective_at | timestamptz NULL | computed by the 15-day rule (BR-40) |
 
-### 3.9 Payroll
+**`membership_cycles`** — `(membership_id, period_start, period_end, charged_at, amount_cents, stripe_invoice_id, credit_granted boolean, forfeited_to_cap boolean, status)`
 
-**`pay_periods`** — `(starts_on, ends_on, status enum{open,in_review,locked}, locked_at, locked_by_user_id)`
+**`membership_credit_transactions`** — same ledger pattern as gift cards.
+`(membership_id, kind enum{grant, redeem, expire, adjust}, amount signed, balance_after,
+appointment_id NULL, membership_cycle_id NULL, performed_by_user_id NULL, occurred_at, note)`
 
-**`timesheets`** — `(pay_period_id, staff_profile_id, scheduled_minutes, adjustment_minutes, payable_minutes, status)`
+> **BR-38 in practice.** On each successful monthly charge the billing job attempts a `grant`. If
+> `balance_after` would exceed 3, no credit row is written and the cycle is marked
+> `forfeited_to_cap`. The member is still charged — that is what "rollover up to a maximum of 3"
+> means — and the cap is visible in the membership report so the Owner can see who is accumulating.
 
-**`timesheet_lines`** — `(timesheet_id, shift_id, work_date, minutes, hourly_rate_cents, amount_cents)`
+> **No package tables.** FRS §26 removes Service Packages from scope entirely — not deferred.
+> Membership (§3.9) is the only recurring-entitlement product.
 
-> The **rate is snapshotted onto each line** at generation time, resolved from `staff_rates` by
-> `work_date`. This is what makes BR-24 hold even if someone later edits rate history.
+### 3.10 Earnings & Payout
 
-**`timesheet_adjustments`** — `(timesheet_id, work_date, minutes signed, reason, created_by_user_id)`
+**`earning_periods`** — `(location_id NULL, starts_on, ends_on, kind enum{semi_monthly, custom}, status enum{open, in_review, locked}, locked_at, locked_by_user_id)`
 
-**`pay_statements`** — `(timesheet_id, total_hours, gross_amount_cents, generated_at, approved_by_user_id, document_url)`
+Semi-monthly periods are the 1st–15th and the 16th–end of month (FRS §8), generated by a job.
 
-### 3.10 Cross-cutting
+**`earning_lines`** — **one row per completed service line, or per tip.**
+| Column | Type | Notes |
+|---|---|---|
+| id | bigint PK | |
+| staff_profile_id | FK | |
+| location_id | FK | |
+| service_date | date | in the location's timezone |
+| source | enum | `service_item`, `tip`, `manual` |
+| appointment_item_id | FK NULL | for `service_item` |
+| tip_allocation_id | FK NULL | for `tip` |
+| duration_minutes | integer NULL | the pay ladder bucket; null for tips |
+| quantity | integer | normally 1; >1 only for manual bulk entries |
+| rate_cents | integer NULL | **snapshot** of the effective rate on `service_date` |
+| amount_cents | integer | |
+| created_by_user_id | FK NULL | set for `manual` (FRS §4) |
+| note | text | reason, for manual lines |
+
+> The **rate is snapshotted onto each line** at generation, resolved from `staff_session_rates` by
+> `service_date`. This is what makes BR-35 hold even if someone later edits rate history.
+>
+> This table is the direct answer to the FRS §4 / §8 report: group by `duration_minutes` for the
+> quantity-and-earnings table, sum `source = 'tip'` for the tips row, and the total is the sum of
+> everything.
+
+**`earning_statements`** — `(earning_period_id, staff_profile_id, total_sessions, service_earnings_cents, tips_cents, adjustments_cents, gross_amount_cents, generated_at, approved_by_user_id, document_url)`
+
+**`earning_adjustments`** — `(earning_statement_id, service_date, amount_cents signed, reason, created_by_user_id)`
+
+**`manager_payouts`** — `(staff_profile_id, month, amount_cents, monthly_rate_id, status, paid_at)`
+Managers are flat-monthly (BR-36) and never appear in `earning_lines`.
+
+### 3.11 Cross-cutting
 
 **`audit_logs`** — `(auditable_type, auditable_id, action, actor_user_id, actor_role, changes jsonb, ip_address, occurred_at)`
-Written for every change to rates, payments, gift cards, appointment status, pay periods, and every
-**read** of intake forms and SOAP notes.
+Written for every change to rates, payments, refunds, fees, gift cards, membership state,
+appointment status, approvals and locked periods — and for every **read** of care notes and
+preference forms.
 
-**`notifications`** — `(recipient_type, recipient_id, channel, template_key, payload jsonb, scheduled_for, sent_at, status, error)`
+**`notifications`** — `(recipient_type, recipient_id, channel enum{email, sms}, template_key, payload jsonb, scheduled_for, sent_at, status, provider_message_id, error)`
+
+Template keys in scope (FRS §22): `booking_confirmation`, `appointment_reminder`,
+`fee_charged`, `therapist_request_approved`, `therapist_request_rejected`, `rating_request`,
+`gift_card_delivered`. **Explicitly not in scope:** membership renewal reminder, cancellation-window
+reminder.
 
 ---
 
@@ -489,36 +705,47 @@ Written for every change to rates, payments, gift cards, appointment status, pay
 
 | # | Invariant | Mechanism |
 |---|---|---|
-| 1 | No two active appointments share a room in overlapping time | `EXCLUDE USING gist` on `(room_id, during)` |
-| 2 | No two active appointments share a therapist in overlapping time | `EXCLUDE USING gist` on `(staff_profile_id, during)` |
-| 3 | No two published shifts overlap for one therapist | `EXCLUDE USING gist` on `(staff_profile_id, during)` |
-| 4 | Staff rate periods never overlap | `EXCLUDE USING gist` on `(staff_profile_id, daterange)` |
+| 1 | No two active appointments share a room in overlapping time **including buffer** | `EXCLUDE USING gist` on `appointments (room_id, during)` |
+| 2 | No therapist is in two active appointments at once, **at any location** | `EXCLUDE USING gist` on `appointment_staff (staff_profile_id, during)` |
+| 3 | No two published shifts overlap for one therapist, company-wide | `EXCLUDE USING gist` on `shifts (staff_profile_id, during)` |
+| 4 | Session rate periods never overlap per staff **per duration** | `EXCLUDE USING gist` on `(staff_profile_id, duration_minutes, daterange)` |
 | 5 | Location price periods never overlap per variant | `EXCLUDE USING gist` |
 | 6 | Gift card balance never negative | `CHECK (current_balance_cents >= 0)` + ledger row lock |
-| 7 | Order total = subtotal − discount + tax + tip | `CHECK` constraint |
-| 8 | Payments never exceed order total | application-level, inside a serialisable transaction |
-| 9 | Appointment room and staff belong to `appointment.location_id` | trigger or model validation + FK composite |
-| 10 | `ends_at > starts_at` everywhere | `CHECK` constraints |
-| 11 | A service-specific gift card has `service_variant_id NOT NULL` | `CHECK` on card_type |
-| 12 | Terminated staff have no future published shifts | application guard at offboarding (BR-02) |
+| 7 | Membership credit balance is between 0 and 3 | `CHECK (credits_balance BETWEEN 0 AND 3)` |
+| 8 | Order total = subtotal − discount + tax + tip | `CHECK` constraint |
+| 9 | Payments + redemptions + credits never exceed order total | application-level, inside a serialisable transaction |
+| 10 | Appointment room belongs to `appointment.location_id` | composite FK `(room_id, location_id)` |
+| 11 | Every therapist on an appointment is qualified for every `service`/`add_on` item | trigger; also validated in the booking service |
+| 12 | Appointment therapist count matches the variant's `therapist_count` | trigger on `appointment_staff` |
+| 13 | Appointment room type is in the variant's allowed room types | trigger; also validated in the booking service |
+| 14 | `ends_at > service_ends_at > starts_at` everywhere | `CHECK` constraints |
+| 15 | Only an `owner` may review a `location_change` request | `CHECK (kind <> 'location_change' OR reviewer_role = 'owner')` |
+| 16 | Exactly one manager per location | partial unique index on `users (location_id) WHERE role = 'manager'` |
+| 17 | Terminated staff have no future shifts or appointments | application guard at offboarding (BR-02) |
+| 18 | One rating per appointment | unique index on `appointment_ratings (appointment_id)` |
 
-Requires the `btree_gist` extension: `CREATE EXTENSION IF NOT EXISTS btree_gist;`
+Requires `btree_gist`: `CREATE EXTENSION IF NOT EXISTS btree_gist;`
 
 ---
 
 ## 5. Money, Time and Identity Conventions
 
-- **Money:** integer `_cents` columns everywhere. No `decimal`, no `float`. One currency (USD) in
-  v1; a `currency` column is deliberately omitted — adding it later is a mechanical migration,
-  whereas float rounding errors are unrecoverable.
-- **Time:** all timestamps `timestamptz` (stored UTC). Business-hour columns are naked `time`
-  interpreted in the **location's** timezone. Never store local time in a `timestamp` column.
+- **Money:** integer `_cents` columns everywhere. No `decimal`, no `float`. USD only; a `currency`
+  column is deliberately omitted — adding it later is a mechanical migration, whereas float
+  rounding errors are unrecoverable.
+- **Time:** all instants are `timestamptz` (stored UTC). Business-hour columns are naked `time`
+  interpreted in the **location's** timezone. All four locations are `America/Chicago`; the column
+  stays anyway.
 - **Durations:** integer minutes, never intervals.
-- **Public identifiers:** appointments, orders, and gift cards carry a human-readable `reference` /
-  `number` / `code` separate from the numeric PK. Never expose sequential PKs in URLs or on
-  printed cards.
-- **Soft delete:** `discarded_at` on customers, staff, and users. Catalogue entities use
-  `active: false`. Financial and clinical records are never deleted.
+- **Percentages:** deposit and fee percentages are stored as integers (20 = 20%) on `locations`,
+  not as constants in code.
+- **Public identifiers:** appointments, orders and gift cards carry a human-readable `reference` /
+  `number` / `code` separate from the numeric PK. Never expose sequential PKs in URLs or on printed
+  cards.
+- **Soft delete:** `discarded_at` on clients, staff and users. Catalogue entities use
+  `active: false`. Financial records are never deleted.
+- **Phone numbers:** normalised to E.164 on write. It is the client's identity, the login handle,
+  the SMS destination and the front desk's search key.
 
 ---
 
@@ -526,21 +753,27 @@ Requires the `btree_gist` extension: `CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 ```sql
 -- Availability search: the hottest path
-CREATE INDEX idx_appt_loc_time     ON appointments (location_id, starts_at)
-  WHERE status IN ('scheduled','checked_in','in_progress','completed');
-CREATE INDEX idx_appt_staff_time   ON appointments (staff_profile_id, starts_at);
-CREATE INDEX idx_appt_room_time    ON appointments (room_id, starts_at);
-CREATE INDEX idx_shift_loc_time    ON shifts (location_id, starts_at) WHERE status = 'published';
-CREATE INDEX idx_shift_staff_time  ON shifts (staff_profile_id, starts_at) WHERE status = 'published';
+CREATE INDEX idx_appt_loc_time   ON appointments (location_id, starts_at)
+  WHERE status IN ('pending_approval','scheduled','checked_in','in_progress','completed');
+CREATE INDEX idx_appt_room_time  ON appointments (room_id, starts_at);
+CREATE INDEX idx_as_staff_time   ON appointment_staff USING gist (staff_profile_id, during);
+CREATE INDEX idx_shift_loc_date  ON shifts (location_id, work_date) WHERE status = 'published';
+CREATE INDEX idx_shift_staff_time ON shifts (staff_profile_id, starts_at) WHERE status = 'published';
 
--- Front desk customer lookup
-CREATE INDEX idx_cust_phone        ON customers (phone);
-CREATE INDEX idx_cust_email        ON customers (email);
-CREATE INDEX idx_cust_name_trgm    ON customers USING gin ((first_name || ' ' || last_name) gin_trgm_ops);
+-- Front desk client lookup, and the client-facing therapist search (BR-13)
+CREATE INDEX idx_client_phone    ON clients (phone);
+CREATE INDEX idx_client_email    ON clients (email);
+CREATE INDEX idx_client_name_trgm ON clients USING gin ((first_name || ' ' || last_name) gin_trgm_ops);
+CREATE INDEX idx_staff_name_trgm ON staff_profiles USING gin (display_name gin_trgm_ops)
+  WHERE status = 'active';
 
--- Reporting
-CREATE INDEX idx_appt_cust_time    ON appointments (customer_id, starts_at DESC);
-CREATE INDEX idx_payment_received  ON payments (received_at, method) WHERE status = 'captured';
-CREATE INDEX idx_gct_card_time     ON gift_card_transactions (gift_card_id, occurred_at);
-CREATE UNIQUE INDEX idx_gc_code    ON gift_cards (code);
+-- Earnings and reporting
+CREATE INDEX idx_earn_staff_date ON earning_lines (staff_profile_id, service_date);
+CREATE INDEX idx_earn_period     ON earning_lines (location_id, service_date, duration_minutes);
+CREATE INDEX idx_appt_client_time ON appointments (client_id, starts_at DESC);
+CREATE INDEX idx_payment_received ON payments (received_at, method) WHERE status = 'captured';
+CREATE INDEX idx_gct_card_time   ON gift_card_transactions (gift_card_id, occurred_at);
+CREATE UNIQUE INDEX idx_gc_code  ON gift_cards (code);
+CREATE INDEX idx_rating_staff    ON appointment_ratings (staff_profile_id, submitted_at);
+CREATE INDEX idx_mem_renewal     ON memberships (current_period_end) WHERE status = 'active';
 ```

@@ -1,6 +1,7 @@
 # API Design
 
 **Version:** 1.0 · `/api/v1` · JSON · session-cookie authenticated · same-origin
+**Aligned to:** FRS v7
 
 ---
 
@@ -11,13 +12,15 @@
 | Base path | `/api/v1` |
 | Content type | `application/json` |
 | Auth | httpOnly session cookie + `X-CSRF-Token` header on writes |
-| Timestamps | ISO 8601 **with offset**: `2026-08-15T15:30:00-04:00` |
+| Timestamps | ISO 8601 **with offset**: `2026-08-15T15:30:00-05:00` |
 | Money | integer cents, field suffix `_cents` |
+| Percentages | integers (`20` = 20%) |
 | IDs | numeric internally; public-facing objects also expose `reference` / `code` |
-| Pagination | `?page=1&per_page=25`; response envelope carries `meta.total`, `meta.pages` |
+| Pagination | `?page=1&per_page=25`; envelope carries `meta.total`, `meta.pages` |
 | Filtering | explicit query params only, no generic query DSL |
 | Errors | RFC 7807-ish body, see §2 |
-| Idempotency | `Idempotency-Key` header honoured on `POST /appointments`, `/payments`, `/gift_cards` |
+| Idempotency | `Idempotency-Key` honoured on `POST /appointments`, `/payments`, `/gift_cards`, `/memberships` |
+| Location scope | Owner may pass `location_id`; Manager's is implied and a mismatched value returns 404 |
 
 ### Response envelope
 
@@ -37,7 +40,7 @@
   "error": {
     "code": "slot_taken",
     "message": "That time was just booked by someone else.",
-    "details": { "suggested_slots": ["2026-08-15T16:00:00-04:00"] }
+    "details": { "suggested_slots": ["2026-08-15T16:00:00-05:00"] }
   }
 }
 ```
@@ -47,27 +50,49 @@
 | 400 | `bad_request` | Malformed input |
 | 401 | `unauthenticated` | No/expired session |
 | 403 | `forbidden` | Authenticated but not permitted (role or location scope) |
+| 403 | `owner_approval_required` | Manager attempted to approve a location-change request (BR-06) |
 | 404 | `not_found` | Also returned instead of 403 for out-of-scope records, to avoid leaking existence |
 | 409 | `slot_taken` | Exclusion constraint hit — expected, routine |
 | 409 | `shift_conflict` | Overlapping published shift |
 | 422 | `validation_failed` | Field errors in `details.fields` |
-| 422 | `insufficient_balance` | Gift card / package redemption exceeds balance |
-| 422 | `period_locked` | Edit attempted on a locked pay period |
+| 422 | `insufficient_therapists` | Two-therapist service, only one free (C12) |
+| 422 | `room_type_unavailable` | No room of a type this service requires |
+| 422 | `insufficient_balance` | Gift card redemption exceeds balance |
+| 422 | `no_membership_credit` | Credit redemption with a zero balance |
+| 422 | `credit_cap_reached` | Grant would exceed the 3-credit cap (BR-38) |
+| 422 | `outside_booking_window` | Inside the cut-off, or beyond the 6-month horizon |
+| 422 | `period_locked` | Edit attempted on a locked earnings period |
+| 422 | `query_too_short` | Therapist name search below 2 characters (BR-13) |
+| 422 | `payment_required` | Deposit or full payment not completed |
 | 423 | `offboard_blocked` | Staff has future appointments |
-| 429 | `rate_limited` | Public booking endpoints |
+| 429 | `rate_limited` | Public endpoints |
 
 ---
 
 ## 3. Authentication
 
+### Staff (Owner, Manager, Staff)
+
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/api/v1/session` | Login. Body `{email, password, otp_code?}`. Sets cookie. |
-| DELETE | `/api/v1/session` | Logout |
-| GET | `/api/v1/me` | Current user, role, accessible locations, feature flags |
-| POST | `/api/v1/password_resets` | Request reset email |
-| PUT | `/api/v1/password_resets/:token` | Complete reset |
-| POST | `/api/v1/me/otp` | Enrol TOTP (required for owner/manager) |
+| POST | `/session` | Login. `{email, password, otp_code?}`. Sets the staff cookie. |
+| DELETE | `/session` | Logout |
+| GET | `/me` | Current user, role, location scope, granted permissions |
+| POST | `/password_resets` · PUT `/password_resets/:token` | Reset flow |
+| POST | `/me/otp` | Enrol TOTP (required for Owner) |
+
+`GET /me` returns the flags the console needs, including `can_edit_service_menu` for a Staff user
+whom the Owner has granted menu access (FRS §2, §19.1).
+
+### Client
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/public/auth/request_code` | `{phone}` → sends a 6-digit SMS code. Rate-limited per phone and per IP. |
+| POST | `/public/auth/verify_code` | `{phone, code}` → sets the **client** cookie (separate key and scope) |
+| POST | `/public/auth/register` | `{first_name, last_name, phone, email, sms_consent, email_consent}` |
+| DELETE | `/public/session` | Logout |
+| GET | `/public/me` | Client profile, membership summary, gift card balances |
 
 ---
 
@@ -75,13 +100,12 @@
 
 | Method | Path | Roles |
 |---|---|---|
-| GET | `/locations` | all authenticated (scoped) |
-| POST/PATCH | `/locations/:id` | owner |
-| GET | `/locations/:id/business_hours` | all |
-| PUT | `/locations/:id/business_hours` | owner, manager |
-| GET/POST | `/locations/:id/closures` | owner, manager |
-| GET | `/locations/:id/rooms` | all |
-| POST/PATCH | `/locations/:id/rooms/:room_id` | owner, manager |
+| GET | `/locations` | all authenticated (Owner sees 4, Manager sees 1) |
+| PATCH | `/locations/:id` | **owner** — booking cut-off, horizon, fee and deposit percentages, hours |
+| GET | `/locations/:id/business_hours` · PUT | all read · owner write |
+| GET/POST/DELETE | `/locations/:id/closures` | owner, manager |
+| GET | `/locations/:id/rooms` | all — includes `room_type` and `table_count` |
+| POST/PATCH | `/locations/:id/rooms/:room_id` | owner |
 | GET/POST/DELETE | `/rooms/:id/blocks` | owner, manager — time-bounded room unavailability |
 
 ---
@@ -91,27 +115,45 @@
 | Method | Path | Roles |
 |---|---|---|
 | GET | `/service_categories` | all |
-| GET | `/services?active=true&location_id=` | all + **public** |
-| POST/PATCH | `/services/:id` | owner, manager |
+| GET | `/services?active=true&location_id=&kind=` | all + **public** |
+| POST/PATCH/DELETE | `/services/:id` | **owner**; staff only with `can_edit_service_menu` |
+| POST | `/services/:id/activate` · `/deactivate` | owner — FRS §19.1, deactivate without deleting |
 | GET | `/services/:id/variants` | all + **public** |
-| POST/PATCH | `/service_variants/:id` | owner, manager |
-| GET | `/service_variants/:id/prices?location_id=` | owner, manager |
-| POST | `/service_variants/:id/prices` | owner, manager — creates a new effective-dated row, never updates |
+| POST/PATCH | `/service_variants/:id` | owner |
+| GET | `/service_variants/:id/prices?location_id=` | owner |
+| POST | `/service_variants/:id/prices` | owner — creates a new effective-dated row, never updates |
 
 `GET /services?location_id=3` returns each variant with the **resolved price for today at that
-location**, so the booking UI never has to implement price resolution.
+location**, so no client ever implements price resolution.
 
 ```json
 {
   "data": [{
-    "id": 4, "name": "Deep Tissue", "category": "Therapeutic",
+    "id": 4, "name": "Deep Tissue / Sport / Swedish", "category": "massage", "kind": "standard",
     "variants": [
-      { "id": 11, "duration_minutes": 60, "buffer_minutes": 15, "price_cents": 12000 },
-      { "id": 12, "duration_minutes": 90, "buffer_minutes": 15, "price_cents": 16500 }
+      { "id": 11, "duration_minutes": 60, "price_cents": 8000,
+        "therapist_count": 1, "client_capacity": 1, "allowed_room_types": ["single"] },
+      { "id": 12, "duration_minutes": 90, "price_cents": 11500,
+        "therapist_count": 1, "client_capacity": 1, "allowed_room_types": ["single"] }
+    ]
+  }, {
+    "id": 8, "name": "Couples massage", "category": "massage", "kind": "standard",
+    "variants": [
+      { "id": 31, "duration_minutes": 60, "price_cents": 16000,
+        "therapist_count": 2, "client_capacity": 2, "allowed_room_types": ["couple"] }
+    ]
+  }, {
+    "id": 22, "name": "Scalp massage", "category": "add_on", "kind": "add_on",
+    "variants": [
+      { "id": 77, "duration_minutes": 30, "price_cents": 3500,
+        "therapist_count": 1, "client_capacity": 1, "allowed_room_types": ["single","couple"] }
     ]
   }]
 }
 ```
+
+`therapist_count`, `client_capacity` and `allowed_room_types` are on every variant so the booking
+UI can tell a couples massage from a single one without a second call.
 
 ---
 
@@ -119,32 +161,58 @@ location**, so the booking UI never has to implement price resolution.
 
 | Method | Path | Roles | Notes |
 |---|---|---|---|
-| GET | `/staff?location_id=&status=` | owner, manager, front_desk | front_desk gets no rate fields |
-| POST | `/staff` | owner, manager | onboarding: user + profile + locations + qualifications |
-| GET | `/staff/:id` | owner, manager; therapist (self) | |
-| PATCH | `/staff/:id` | owner, manager | |
-| POST | `/staff/:id/offboard` | owner, manager | 423 `offboard_blocked` with the conflicting appointment list |
-| GET/PUT | `/staff/:id/locations` | owner, manager | |
-| GET/PUT | `/staff/:id/qualifications` | owner, manager | |
-| GET | `/staff/:id/rates` | owner, manager; therapist (self, read-only) | full effective-dated history |
-| POST | `/staff/:id/rates` | owner, manager | `{hourly_rate_cents, effective_from, note}` — new row |
+| GET | `/staff?location_id=&status=` | owner, manager | **manager gets no rate fields at all** |
+| POST | `/staff` | **owner** | user + profile + location + qualifications + rate ladder |
+| GET | `/staff/:id` | owner; manager (no rates); staff (self) | |
+| PATCH | `/staff/:id` | owner | includes `can_edit_service_menu` |
+| POST | `/staff/:id/offboard` | **owner** | 423 `offboard_blocked` with the conflicting appointment list |
+| GET/PUT | `/staff/:id/qualifications` | owner | |
+| GET | `/staff/:id/session_rates` | **owner**; staff (self, read-only) | full effective-dated ladder |
+| POST | `/staff/:id/session_rates` | **owner** | `{rates: [{duration_minutes, rate_cents}], effective_from, note}` — writes six new rows |
+| GET/POST | `/staff/:id/monthly_rate` | **owner** | managers only (BR-36) |
 
-### Availability & shifts
+```jsonc
+// POST /staff/7/session_rates — the six-rung ladder, FRS §4
+{
+  "effective_from": "2026-09-01",
+  "note": "Annual review",
+  "rates": [
+    { "duration_minutes": 30,  "rate_cents": 2500 },
+    { "duration_minutes": 45,  "rate_cents": 3500 },
+    { "duration_minutes": 60,  "rate_cents": 4500 },
+    { "duration_minutes": 75,  "rate_cents": 5500 },
+    { "duration_minutes": 90,  "rate_cents": 6500 },
+    { "duration_minutes": 120, "rate_cents": 8500 }
+  ]
+}
+```
+
+All six rungs must be supplied together. A partial ladder is 422 — a therapist with a gap in the
+ladder is a therapist whose pay silently fails on some booking.
+
+### Shifts and requests
 
 | Method | Path | Roles |
 |---|---|---|
-| GET | `/availability_requests?staff_id=&status=&from=&to=` | owner, manager; therapist (self) |
-| POST | `/availability_requests` | therapist |
-| POST | `/availability_requests/:id/approve` | owner, manager — creates the Shift |
-| POST | `/availability_requests/:id/reject` | owner, manager |
-| GET/POST/PATCH/DELETE | `/availability_patterns` | therapist (own); manager |
-| GET | `/shifts?location_id=&staff_id=&from=&to=&status=` | owner, manager, front_desk (read); therapist (own) |
+| GET | `/shifts?location_id=&staff_id=&from=&to=&status=` | owner, manager; staff (own) |
 | POST | `/shifts` | owner, manager — 409 `shift_conflict` on overlap |
-| PATCH | `/shifts/:id` | owner, manager — 422 if it would orphan appointments |
-| POST | `/shifts/publish` | owner, manager — bulk publish `{shift_ids[]}` |
-| DELETE | `/shifts/:id` | owner, manager |
-| GET/POST | `/time_off_requests` | therapist (own); manager (all) |
-| POST | `/time_off_requests/:id/approve` \| `/reject` | owner, manager |
+| PATCH | `/shifts/:id` | owner, manager — 422 if it would orphan appointments (BR-07) |
+| DELETE | `/shifts/:id` | owner, manager — same guard |
+| POST | `/shifts/publish` | owner, manager — bulk `{shift_ids[]}` |
+| GET/POST/DELETE | `/shifts/:id/breaks` | owner, manager |
+| GET | `/shifts/day?location_id=&date=` | owner, manager — who is working, who is not (FRS §3, §15) |
+
+| Method | Path | Roles |
+|---|---|---|
+| GET | `/staff_requests?kind=&status=&staff_id=` | owner, manager (own location); staff (own) |
+| POST | `/staff_requests` | **staff** — `{kind: shift_change\|location_change, shift_id?, requested_payload, note}` |
+| POST | `/staff_requests/:id/approve` | `shift_change`: owner, manager · **`location_change`: owner only** |
+| POST | `/staff_requests/:id/reject` | same |
+| POST | `/staff_requests/:id/withdraw` | staff (own) |
+
+A Manager calling approve on a `location_change` gets **403 `owner_approval_required`** — a
+distinct code, not a generic forbidden, because the console shows a specific message for it
+(BR-06).
 
 ---
 
@@ -155,26 +223,27 @@ location**, so the booking UI never has to implement price resolution.
 ```http
 GET /api/v1/availability
       ?location_id=3
-      &service_variant_id=11
+      &service_variant_ids[]=11&service_variant_ids[]=77   # service + add-ons
       &date_from=2026-08-15
       &date_to=2026-08-21
-      &staff_profile_id=7        # optional
-      &channel=online            # applies lead time + horizon
+      &requested_staff_profile_id=7        # optional
+      &channel=client                      # applies cut-off + 6-month horizon
 ```
 
 ```json
 {
   "data": {
     "location_id": 3,
-    "timezone": "America/New_York",
-    "service_variant_id": 11,
-    "duration_minutes": 60,
+    "timezone": "America/Chicago",
+    "duration_minutes": 90,
     "buffer_minutes": 15,
+    "therapists_required": 1,
+    "allowed_room_types": ["single"],
     "days": [{
       "date": "2026-08-15",
       "slots": [{
-        "start_at": "2026-08-15T09:00:00-04:00",
-        "end_at":   "2026-08-15T10:00:00-04:00",
+        "start_at":       "2026-08-15T09:00:00-05:00",
+        "service_end_at": "2026-08-15T10:30:00-05:00",
         "staff": [{ "id": 7, "display_name": "Anna" }, { "id": 9, "display_name": "Bek" }],
         "room_available_count": 3
       }]
@@ -183,73 +252,126 @@ GET /api/v1/availability
 }
 ```
 
-Public (unauthenticated) callers get the same shape **without** `room_available_count` and with
-staff limited to `id` + `display_name`. Rate-limited by IP.
+- `duration_minutes` is the **sum of all requested variants** — a 60-min massage plus a 30-min
+  add-on is 90.
+- Slots are on the location's 15-minute grid (C13).
+- **Public callers** get the same shape **without** `room_available_count` and **without** the
+  `staff` array, unless they named a therapist. Rate-limited by IP.
 
-### 7.2 Booking
+### 7.2 Next available time for a specific therapist (FRS §5)
+
+```http
+GET /api/v1/availability/next_for_therapist
+      ?staff_profile_id=7&location_id=3&service_variant_ids[]=11&after=2026-08-15T15:30:00-05:00&limit=3
+```
+
+Returns that therapist's next times only. **It never returns a different therapist** — FRS §5 is
+explicit that the system does not suggest alternatives.
+
+### 7.3 Booking
 
 | Method | Path | Roles |
 |---|---|---|
-| POST | `/appointments` | owner, manager, front_desk, **public** (online channel) |
+| POST | `/appointments` | owner, manager · **not staff** (BR-14) |
 | GET | `/appointments?location_id=&date=&staff_id=&room_id=&status=` | scoped |
 | GET | `/appointments/:id` | scoped |
-| PATCH | `/appointments/:id` | owner, manager, front_desk — notes and internal fields only |
-| POST | `/appointments/:id/reschedule` | owner, manager, front_desk |
-| POST | `/appointments/:id/cancel` | owner, manager, front_desk, customer (own) |
+| PATCH | `/appointments/:id` | owner, manager — notes and internal fields only |
+| POST | `/appointments/:id/items` · DELETE `/items/:item_id` | owner, manager — add-ons and enhancements before start |
+| POST | `/appointments/:id/reschedule` | owner, manager |
+| POST | `/appointments/:id/cancel` | owner, manager, client (own) — applies the 4-hour fee rule |
 | POST | `/appointments/:id/transition` | `{to: checked_in\|in_progress\|completed\|no_show}` |
-| GET | `/appointments/calendar?location_id=&date=` | day board: rooms × time grid, one query |
+| GET | `/appointments/calendar?location_id=&date=` | day board: rooms × time, 09:00–22:00, one query |
 
 ```jsonc
 // POST /appointments
 {
   "location_id": 3,
-  "service_variant_id": 11,
-  "start_at": "2026-08-15T09:00:00-04:00",
-  "customer_id": 412,              // or "customer": {…} to create inline
-  "staff_profile_id": 7,           // optional — engine assigns if omitted
-  "room_id": null,                 // optional — engine assigns if omitted
+  "items": [
+    { "service_variant_id": 11 },          // 60-min deep tissue
+    { "service_variant_id": 77 },          // 30-min scalp add-on
+    { "service_variant_id": 91 }           // essential oil enhancement, 0 min
+  ],
+  "start_at": "2026-08-15T09:00:00-05:00",
+  "client_id": 412,                        // or "client": {…} for "Add New Client" (FRS §5)
+  "participant_client_ids": [],            // second client for a couples service
+  "staff_profile_ids": [7],                // omit and the engine assigns; 2 ids for couples
+  "requested_staff_profile_id": 7,         // triggers pending_approval (BR-15)
+  "room_id": null,                         // optional — engine assigns
   "booking_channel": "phone",
-  "customer_note": "Prefers firm pressure, left shoulder",
-  "hold_token": "abc123"           // online flow only
+  "client_note": "Prefers firm pressure, avoid lower back",
+  "appointment_note": "",
+  "hold_token": "abc123"                   // online flow only
 }
 ```
 
-Returns **201** with the appointment, or **409 `slot_taken`** with `details.suggested_slots`.
+Returns **201** with the appointment, or:
+- **409 `slot_taken`** with `details.suggested_slots`,
+- **422 `insufficient_therapists`** when a two-therapist service has only one free,
+- **422 `room_type_unavailable`** when no room of a required type is free.
 
-### 7.3 Slot holds (online flow only)
+The response carries `status`, which is `pending_approval` when `requested_staff_profile_id` was
+set, plus `deposit_due_cents` and `total_cents`.
 
-| Method | Path |
-|---|---|
-| POST | `/slot_holds` → `{hold_token, expires_at}` (10 min TTL) |
-| DELETE | `/slot_holds/:token` |
-
----
-
-## 8. Customers
-
-| Method | Path | Roles | Notes |
-|---|---|---|---|
-| GET | `/customers?q=&phone=&location_id=` | owner, manager, front_desk | `q` searches name/phone/email |
-| POST | `/customers` | owner, manager, front_desk, public |
-| GET | `/customers/:id` | owner, manager, front_desk | **no health fields** in payload for front_desk |
-| PATCH | `/customers/:id` | owner, manager, front_desk |
-| POST | `/customers/:id/merge` | owner, manager — `{into_customer_id}` |
-| GET | `/customers/:id/appointments` | scoped |
-| GET | `/customers/:id/orders` | owner, manager, front_desk |
-| GET/PUT | `/customers/:id/preferences` | owner, manager, front_desk |
-| GET | `/customers/:id/history_summary` | owner, manager | visits, spend, favourite service/therapist, no-shows, days since last visit |
-
-### Health data — separately routed and separately permissioned
+### 7.4 Therapist-request approval (FRS §5)
 
 | Method | Path | Roles |
 |---|---|---|
-| GET | `/customers/:id/intake_forms` | owner, manager; therapist with an appointment for this customer |
-| POST | `/customers/:id/intake_forms` | front_desk (submit on behalf), public (self-serve link) |
-| GET | `/appointments/:id/soap_note` | owner, manager; authoring therapist |
-| POST | `/appointments/:id/soap_note` | therapist (own appointment) |
-| POST | `/soap_notes/:id/supersede` | therapist (author) — creates a correcting note, never edits |
+| GET | `/approval_requests?status=pending&location_id=` | owner, manager — the queue, with an age counter |
+| POST | `/approval_requests/:id/approve` | owner, manager — appointment → `scheduled`, notifies client |
+| POST | `/approval_requests/:id/reject` | owner, manager — appointment → `cancelled`, **full refund**, notifies client |
 
-Every `GET` on these two groups writes an `audit_logs` row recording who read it.
+### 7.5 Slot holds (online flow only)
+
+| Method | Path |
+|---|---|
+| POST | `/public/slot_holds` → `{hold_token, expires_at}` (10 min TTL) |
+| DELETE | `/public/slot_holds/:token` |
+
+---
+
+## 8. Clients
+
+| Method | Path | Roles | Notes |
+|---|---|---|---|
+| GET | `/clients?q=&phone=` | owner, manager | `q` searches name / phone / email |
+| POST | `/clients` | owner, manager | also used by "Add New Client" on the appointment screen |
+| GET | `/clients/:id` | owner, manager | includes no-show and cancellation counters |
+| PATCH | `/clients/:id` | owner, manager |
+| POST | `/clients/:id/merge` | **owner** — `{into_client_id}` |
+| GET | `/clients/:id/appointments` | owner, manager; staff (shared appts only) |
+| GET | `/clients/:id/orders` | owner, manager |
+| GET | `/clients/:id/gift_cards` | owner, manager — FRS §12, cards shown on the profile |
+| GET | `/clients/:id/ratings` | owner, manager |
+| GET | `/clients/:id/history_summary` | owner, manager | visits, spend, favourite service/therapist, no-shows, days since last visit |
+
+### Preferences and care notes — separately routed, separately permissioned
+
+| Method | Path | Roles |
+|---|---|---|
+| GET | `/clients/:id/preferences` | owner, manager; staff with an appointment for this client |
+| PUT | `/clients/:id/preferences` | owner, manager, staff — writes a new version, never destroys |
+| GET | `/clients/:id/preferences/versions` | owner, manager |
+| GET | `/appointments/:id/care_notes` | owner, manager; staff on that appointment |
+| POST | `/appointments/:id/care_notes` | **staff on that appointment** |
+| POST | `/care_notes/:id/supersede` | staff (author) — creates a correcting note, never edits |
+
+Every `GET` on these two groups writes an `audit_logs` row recording who read it (doc 04 §5).
+
+### Ratings (FRS §11.2)
+
+| Method | Path | Roles |
+|---|---|---|
+| POST | `/public/ratings/:token` | **public** — signed token from the SMS link, tied to the appointment and therapist |
+| POST | `/kiosk/ratings` | kiosk bundle — `{appointment_id}` selected on the in-location screen |
+| GET | `/reports/ratings?from=&to=&location_id=&staff_id=` | owner |
+
+```jsonc
+// POST /public/ratings/:token
+{ "score": 9, "feedback": "Great pressure", "improvement": "Warmer room",
+  "would_recommend": true }
+```
+
+`score` must be 1–10. A second submission for the same appointment returns 422 (BR-45).
 
 ---
 
@@ -257,19 +379,38 @@ Every `GET` on these two groups writes an `audit_logs` row recording who read it
 
 | Method | Path | Roles |
 |---|---|---|
-| POST | `/orders` | owner, manager, front_desk — `{location_id, customer_id?, appointment_id?}` |
+| POST | `/orders` | owner, manager — `{location_id, client_id?, appointment_id?}` |
 | GET | `/orders/:id` | scoped |
-| POST | `/orders/:id/line_items` | front_desk+ — `{purchasable_type, purchasable_id, quantity}` |
-| DELETE | `/orders/:id/line_items/:lid` | front_desk+ (open orders only) |
-| POST | `/orders/:id/discounts` | manager+ (front_desk up to a configurable cap) |
-| POST | `/orders/:id/payments` | front_desk+ — `{method, amount_cents, reference}` |
-| POST | `/orders/:id/gift_card_redemptions` | front_desk+ — `{code, amount_cents}` |
-| POST | `/orders/:id/settle` | front_desk+ — validates coverage (BR-15), closes the order |
-| POST | `/payments/:id/void` | manager, owner — `{reason}` (BR-17) |
+| POST | `/orders/:id/line_items` · DELETE `/line_items/:lid` | owner, manager (open orders only) |
+| POST | `/orders/:id/discounts` | **owner** |
+| POST | `/orders/:id/payments` | owner, manager — `{method, amount_cents, reference}` → `processing: "recorded"` |
+| POST | `/orders/:id/gift_card_redemptions` | owner, manager — `{code, amount_cents}` |
+| POST | `/orders/:id/membership_credit` | owner, manager — applies one credit, charges any upgrade difference |
+| POST | `/orders/:id/tips` | owner, manager — `{amount_cents, allocations?: [{staff_profile_id, amount_cents}]}` |
+| POST | `/orders/:id/settle` | owner, manager — validates coverage (BR-22), closes the order |
+| POST | `/payments/:id/void` | **owner** — `{reason}` (BR-23) |
+| POST | `/orders/:id/refunds` | **owner** — `{amount_cents, reason}` |
 | GET | `/orders/:id/receipt.pdf` | scoped |
 
-An order can carry **multiple payments of different methods plus gift card redemptions**. `settle`
-enforces `sum(captured payments) + sum(redemptions) >= total_cents` and rejects overpayment.
+An order can carry **multiple payments of different methods, plus gift card redemptions, plus a
+membership credit**. `settle` enforces
+`sum(captured payments) + sum(redemptions) + sum(credits) >= total_cents` and rejects overpayment;
+the surplus must be entered as a tip.
+
+`POST /orders/:id/tips` with no `allocations` splits evenly across the appointment's therapists
+(BR-24). Supplying `allocations` lets a Manager override the split; the amounts must sum to
+`amount_cents`.
+
+### Gateway payments (online only)
+
+| Method | Path | Roles |
+|---|---|---|
+| POST | `/public/appointments/:id/payment_intent` | client — `{amount_choice: "deposit"\|"full"}` → `{client_secret, amount_cents}` |
+| POST | `/public/setup_intent` | client — save a card for future fee charges; records policy consent |
+| POST | `/webhooks/stripe` | **unauthenticated, signature-verified** — idempotent by event id |
+
+The browser never advances local state. `payment_intent.succeeded` on the webhook is what moves an
+appointment out of pending payment (ADR-11).
 
 ---
 
@@ -277,90 +418,186 @@ enforces `sum(captured payments) + sum(redemptions) >= total_cents` and rejects 
 
 | Method | Path | Roles |
 |---|---|---|
-| POST | `/gift_cards` | front_desk+ — issue. `{card_type, initial_value_cents \| service_variant_id, purchaser_customer_id, recipient_*, expires_at}` |
-| GET | `/gift_cards?code=&purchaser_customer_id=&status=` | front_desk+ |
-| GET | `/gift_cards/:code` | front_desk+ — balance, status, full ledger |
-| GET | `/gift_cards/:code/lookup` | **public** — balance only, rate-limited, no PII |
-| POST | `/gift_cards/:code/redeem` | front_desk+ — normally called via the order endpoint |
-| POST | `/gift_cards/:id/adjust` | **owner, manager only** — `{amount_cents, reason}`, audit-logged |
-| POST | `/gift_cards/:id/void` | owner |
-| GET | `/reports/gift_card_liability?as_of=` | owner, manager |
+| POST | `/gift_cards` | **owner, manager** — issue. `{code?, initial_value_cents, purchase_payment_method, buyer_*, recipient_*}` |
+| GET | `/gift_cards?code=&buyer_client_id=&status=&sold_at_location_id=` | owner, manager |
+| GET | `/gift_cards/:code` | owner, manager — balance, status, full ledger |
+| GET | `/gift_cards/scan/:barcode` | owner, manager — barcode lookup (FRS §12) |
+| POST | `/gift_cards/:code/redeem` | owner, manager — normally called via the order endpoint |
+| POST | `/gift_cards/:id/adjust` | **owner only** — `{amount_cents, reason}`, audit-logged |
+| POST | `/gift_cards/:id/void` | **owner** |
+| GET | `/public/gift_cards/:code/balance` | **public** — balance only, rate-limited, no PII |
+| POST | `/public/gift_cards` | **client** — buy a digital card online; Stripe-paid, code generated |
+| GET | `/reports/gift_card_liability?as_of=&location_id=` | **owner** |
+
+**Staff have no access to any of these** (BR-31, FRS §2, §12).
 
 Redemption returns **422 `insufficient_balance`** with `details.available_cents` when short, so the
-UI can prompt for a second payment method rather than failing the sale.
+UI can prompt for a second method rather than failing the sale.
 
-### Packages / memberships (phase 3)
-
-| Method | Path |
-|---|---|
-| GET/POST/PATCH | `/package_templates` |
-| POST | `/customers/:id/packages` (purchase) |
-| GET | `/customers/:id/packages` |
-| POST | `/customer_packages/:id/redeem` |
+Every card response carries `sold_at_location_id` (liability attribution, BR-27) separately from
+the redeeming location on each ledger entry — these must never be conflated in reporting.
 
 ---
 
-## 11. Payroll
+## 11. Membership
 
 | Method | Path | Roles |
 |---|---|---|
-| GET | `/pay_periods` | owner, manager |
-| POST | `/pay_periods/:id/generate` | owner, manager — build timesheets from published shifts |
-| GET | `/pay_periods/:id/timesheets?location_id=` | owner, manager |
-| GET | `/timesheets/:id` | owner, manager; therapist (own) |
-| POST | `/timesheets/:id/adjustments` | owner, manager — `{work_date, minutes, reason}` |
-| POST | `/pay_periods/:id/lock` | **owner only** (BR-25) |
-| GET | `/pay_periods/:id/statements` | owner, manager |
-| GET | `/pay_statements/:id.pdf` | owner, manager; therapist (own) |
-| GET | `/reports/salary_summary?from=&to=&location_id=` | owner, manager (own locations) |
+| GET | `/memberships?status=&location_id=` | owner, manager |
+| POST | `/memberships` | owner, manager, client — `{client_id, default_service_variant_id}`, $80/mo via Stripe |
+| GET | `/memberships/:id` | owner, manager; client (own) |
+| PATCH | `/memberships/:id` | owner, manager, client (own) — change the chosen 60-min service |
+| GET | `/memberships/:id/credits` | owner, manager; client (own) — the credit ledger |
+| POST | `/memberships/:id/request_cancellation` | owner, manager, client (own) — applies the 15-day rule |
+| POST | `/memberships/:id/adjust_credits` | **owner** — `{amount, reason}`, audit-logged |
+| GET | `/reports/membership?from=&to=` | **owner** |
 
-Any write to a locked period returns **422 `period_locked`**.
+`POST /memberships/:id/request_cancellation` returns `cancellation_effective_at`. When the request
+lands inside the 15-day window, that date is the **end of the following period**, and the response
+says so explicitly so the client is not surprised by one more charge (BR-40).
+
+```jsonc
+// GET /memberships/42
+{
+  "data": {
+    "id": 42, "status": "active", "price_cents": 8000,
+    "credits_balance": 2, "credits_cap": 3,
+    "default_service_variant_id": 11,
+    "current_period_end": "2026-09-15T00:00:00-05:00",
+    "cancellation_requested_at": null,
+    "cancellation_effective_at": null
+  }
+}
+```
+
+**No membership renewal reminder and no cancellation-window reminder are sent** (FRS §22).
 
 ---
 
-## 12. Reporting
+## 12. Earnings & Payout
 
-All accept `from`, `to`, `location_id[]`, and `format=json|xlsx|pdf`. Non-JSON formats return
-**202 Accepted** with a job id and later a signed download URL.
+| Method | Path | Roles |
+|---|---|---|
+| GET | `/earning_periods?kind=semi_monthly&year=` | **owner** |
+| POST | `/earning_periods/:id/build` | **owner** — build statements from completed service lines |
+| GET | `/earning_periods/:id/statements?location_id=` | **owner** |
+| GET | `/earning_statements/:id` | **owner**; staff (own) |
+| POST | `/earning_statements/:id/adjustments` | **owner** — `{service_date, amount_cents, reason}` |
+| POST | `/earning_lines` | **owner** — manual session/tip entry (FRS §4) |
+| POST | `/earning_periods/:id/lock` | **owner** (BR-37) |
+| GET | `/earning_statements/:id.pdf` | owner; staff (own) |
+| GET | `/reports/staff_earnings?from=&to=&staff_id=&location_id=` | **owner**; staff (own) |
+| GET | `/manager_payouts?month=` | **owner** — flat monthly (BR-36) |
 
-| Path | Contents |
-|---|---|
-| `/reports/revenue` | By location, service, category, payment method, day/week/month. Service revenue and gift card liability strictly separated (BR-19). |
-| `/reports/utilization` | Room and staff utilisation with the denominators from BR-28 |
-| `/reports/staff_performance` | Appointments, hours, revenue generated, repeat-customer rate per therapist |
-| `/reports/customer_retention` | New vs returning, frequency, lapsed list, LTV, no-show rate |
-| `/reports/salary_summary` | Hours × effective rate per staff per period |
-| `/reports/gift_card_liability` | Outstanding balance by issue month and location |
-| `/reports/no_shows` | No-show and late-cancel rates by location, therapist, weekday, channel |
+**Manager has no access to any endpoint in this section.** This is the single hardest boundary in
+the permission model (FRS §2).
+
+```jsonc
+// GET /reports/staff_earnings?from=2026-08-01&to=2026-08-15&staff_id=7
+// The shape of the FRS §4 / §8 table, verbatim.
+{
+  "data": {
+    "staff_profile_id": 7, "display_name": "Anna",
+    "period": { "from": "2026-08-01", "to": "2026-08-15", "kind": "semi_monthly" },
+    "sessions": [
+      { "duration_minutes": 30,  "quantity": 12, "earnings_cents": 30000 },
+      { "duration_minutes": 45,  "quantity": 0,  "earnings_cents": 0 },
+      { "duration_minutes": 60,  "quantity": 34, "earnings_cents": 153000 },
+      { "duration_minutes": 75,  "quantity": 2,  "earnings_cents": 11000 },
+      { "duration_minutes": 90,  "quantity": 18, "earnings_cents": 117000 },
+      { "duration_minutes": 120, "quantity": 5,  "earnings_cents": 42500 }
+    ],
+    "tips_cents": 48200,
+    "adjustments_cents": 0,
+    "total_cents": 401700
+  }
+}
+```
+
+`from`/`to` accept any date, week, month or custom range; `kind=semi_monthly` selects the standing
+1st–15th and 16th–EOM periods.
 
 ---
 
-## 13. Public (Unauthenticated) Endpoints
+## 13. Reporting
 
-Strictly limited, aggressively rate-limited (Rack::Attack), and served only from the public bundle:
+All accept `from`, `to`, `location_id[]` and `format=json|xlsx|pdf`. Non-JSON returns **202
+Accepted** with a job id and later a signed download URL.
+
+| Path | Contents | Roles | FRS |
+|---|---|---|---|
+| `/reports/dashboard?location_id=&date=` | Appointments, completed, revenue, tips, staff working / not working, available rooms, gift cards sold and redeemed | owner; manager (own location, **no money fields**) | §15 |
+| `/reports/daily_revenue` | Card, Cash, Zelle, Online, Other, Tips, Total | **owner** | §10 |
+| `/reports/client_log?date=` | Time, client, therapist, service, length, price, tip, total paid, method | owner, manager | §9 |
+| `/reports/staff_earnings` | §12 above | owner; staff (own) | §4, §8 |
+| `/reports/gift_card_liability` | Outstanding balance by issue month and **selling** location | **owner** | §12 |
+| `/reports/membership` | Active members, credits outstanding, at-cap, upgrades, pending cancellations | **owner** | §23 |
+| `/reports/ratings` | Average and distribution per therapist, per location; recommend rate | **owner** | §11.2 |
+| `/reports/utilization` | Room and therapist utilisation | **owner** | — |
+| `/reports/no_shows` | No-show and late-cancel rates by location, therapist, weekday, channel; fees collected | **owner** | §21 |
+| `/reports/client_retention` | New vs returning, frequency, lapsed, LTV | **owner** | §11 |
+
+Owner-scoped reports accept multiple `location_id[]` values or none at all, which is how FRS §16's
+"Owner-level reports can combine information from all four locations" is served.
+
+The Manager's dashboard response is the same endpoint with money fields omitted at the serialiser
+layer, not merely hidden in the UI.
+
+---
+
+## 14. Public & Client Endpoints
+
+Served only from the client bundle, aggressively rate-limited (Rack::Attack):
 
 ```
+POST /api/v1/public/auth/request_code
+POST /api/v1/public/auth/verify_code
+POST /api/v1/public/auth/register
 GET  /api/v1/public/locations
 GET  /api/v1/public/services?location_id=
 GET  /api/v1/public/availability
+GET  /api/v1/public/therapists/search?q=          # min 2 chars, max 5 results, no roster
 POST /api/v1/public/slot_holds
-POST /api/v1/public/appointments
-GET  /api/v1/public/gift_cards/:code/lookup
-POST /api/v1/public/customers/:token/intake_forms   # signed one-time link
-GET  /api/v1/public/appointments/:token             # signed manage-my-booking link
-POST /api/v1/public/appointments/:token/cancel
+POST /api/v1/public/appointments                  # authenticated client only
+POST /api/v1/public/appointments/:id/payment_intent
+GET  /api/v1/public/appointments                  # my bookings
+POST /api/v1/public/appointments/:id/cancel
+GET  /api/v1/public/gift_cards/:code/balance
+POST /api/v1/public/gift_cards                    # buy a digital card
+GET  /api/v1/public/memberships/mine
+POST /api/v1/public/ratings/:token                # signed link from SMS
+POST /api/v1/webhooks/stripe                      # signature-verified
 ```
 
-- No customer login required in v1 — access to an existing booking is via a **signed, expiring
-  token** emailed in the confirmation. This avoids building a full customer account system while
-  still allowing self-service cancellation.
-- Rate limits: 30 availability calls/min/IP, 5 booking attempts/min/IP, 10 gift card lookups/hour/IP.
-- Bot protection (Turnstile/reCAPTCHA) on `POST /public/appointments`.
+- **Booking requires a client account** (FRS §5.1) — there is no guest booking flow.
+- **`/public/therapists/search` is the only therapist endpoint on this surface**, and it cannot
+  enumerate. `q` shorter than 2 characters returns **422 `query_too_short`** — never a full list
+  (BR-13). Responses carry `id` and `display_name` (first name) only.
+- Rate limits: 30 availability calls/min/IP, 5 booking attempts/min/IP, 10 auth-code requests/hour/
+  phone, 20 therapist searches/min/session, 10 gift card lookups/hour/IP.
+- Bot protection (Turnstile / reCAPTCHA) on `POST /public/auth/request_code` and
+  `POST /public/appointments`.
 
 ---
 
-## 14. Webhooks / Integrations (out of scope for v1)
+## 15. Capabilities Deliberately Not Exposed
 
-Deliberately none. Recorded here so it is a decision, not an omission. Likely phase-4 candidates:
-accounting export (QuickBooks), SMS provider, marketing platform, card gateway if payment
-processing is later brought in-house.
+Recorded so each absence reads as a decision, not an omission:
+
+| Not built | Why |
+|---|---|
+| Service packages / prepaid session bundles | Removed from scope entirely by FRS §26 — not deferred. Membership (§11) is the only recurring-entitlement product. |
+| Health intake questionnaire, consent waiver | Not in FRS v7. The Client Preferences form (§8) is the only structured health-adjacent input. |
+| Clinical SOAP notes | Not in FRS v7. `/appointments/:id/care_notes` carries the therapist's "avoid / attend to / consider" log instead — see doc 04 §5. |
+| Recurring availability patterns | FRS §3 describes concrete shift records and a request-and-approve workflow, not weekly templates. Shifts are created directly; `/staff_requests` handles changes. |
+| Time-off requests | Not in FRS v7 — an absence is handled by editing or removing the shift (FRS §3). |
+| Hourly rates, timesheets, pay periods | Therapists are 1099 contractors paid per completed session (FRS §4, §18). `/staff/:id/session_rates` and `/earning_periods` replace the hourly model entirely. |
+| Guest booking by signed email link | FRS §5.1 requires a client account for self-service booking. Owner and Manager book on behalf of account-less clients instead. |
+| Therapist roster listing on the public surface | FRS §5.1 forbids it. `/public/therapists/search` cannot enumerate — see §14 and BR-13. |
+
+## 16. Integrations Beyond v1
+
+Stripe (payments, subscriptions) and Twilio (SMS) are in v1. Deliberately **not** in v1, recorded
+as decisions: accounting export (QuickBooks), marketing platform, loyalty programme, Google/Yelp
+review syndication from the rating flow, and card processing for in-salon checkout (which would
+replace the existing terminal — see ADR-10).

@@ -1,43 +1,65 @@
-# Massage Salon CRM — Business Analysis
+# Mongolian Massagelab — Business Analysis
 
-**Version:** 1.0 · **Date:** 2026-08-14 · **Status:** For review, pre-implementation
+**Version:** 1.0 · **Date:** 2026-08-26 · **Status:** For review, pre-implementation
+**Source of truth:** `business_requirement.md` (FRS v7, 2026-08-21)
 
 ---
 
 ## 1. Business Context
 
-A single massage salon company operating **2–10 physical locations**. Each location contains a
-number of **massage rooms**. Revenue comes from **massage services** delivered by **therapists**
-in those rooms, plus **gift card** sales.
+Mongolian Massagelab operates **four fixed locations** in the Chicago area:
 
-The scarce resources of the business are:
+| Location | Massage menu | Facial menu | Head spa / Bioelectric | Add-on price |
+|---|---|---|---|---|
+| **Lawrence** | Standard | Standard | — | $35 |
+| **Skokie** | Standard | Standard | — | $35 |
+| **Luma** | Standard | Extended (own menu) | Yes | $35 |
+| **Belmont** | Premium (+$10–$40) | Premium | — | $40 |
 
-1. **Therapist time** — a qualified, scheduled, on-shift therapist.
-2. **Room time** — a physical room at that location.
+All four operate in **US Central time (America/Chicago)**. The schedule day runs
+**09:00 – 22:00**.
 
-Every appointment consumes exactly one of each, simultaneously. The entire commercial performance
-of the business is a function of how well those two resources are matched to demand. This is why
-the scheduling engine (doc 03) is the architectural centre of gravity, not the CRM record-keeping.
+Revenue comes from massage, facial, head-spa and bioelectric services delivered by therapists in
+rooms, plus add-ons, enhancements, gift card sales and a monthly membership subscription.
+
+The scarce resources are:
+
+1. **Therapist time** — a scheduled, on-shift therapist. Some services consume *two* therapists.
+2. **Room time** — a physical room *of the right type* at that location.
+
+Every appointment consumes exactly one room and **one or more** therapists simultaneously. This is
+why the scheduling engine (doc 03) is the architectural centre of gravity.
 
 ### 1.1 Confirmed scope decisions
 
-| Decision | Answer |
-|---|---|
-| Booking channels | Phone (manager), walk-in, customer self-service online, staff self-service |
-| Payments | **Recorded, not processed.** No card gateway in v1. |
-| Payment methods | Cash, Card, Zelle, Online |
-| Scale | Single company, 2–10 locations |
-| Stack | Rails API + AngularJS SPA, served from one Rails project |
-| Resource model | 1 appointment = 1 room + 1 therapist |
-| Staff pay | Hourly rate × **scheduled shift hours** |
-| Staff ↔ location | Many-to-many; a therapist may work at any location |
-| Shift workflow | Staff submit availability → manager approves; recurring weekly patterns; time-off requests |
-| Roles | Owner/Admin, Location Manager, Front Desk, Therapist |
-| Customer record | Profile + visit history, health intake + consent, per-visit SOAP notes, preferences, no-show history |
-| Gift cards | Stored-balance (partial redemption), fixed denomination, and service-specific variants |
-| Pricing | Per service, varying by duration and by location; packages/memberships in scope |
-| Notifications | Email confirmations + reminders; cancellation window + no-show tracking |
-| Deployment | Single cloud server + Postgres |
+| Decision | Answer | Source |
+|---|---|---|
+| Locations | Exactly 4 — Lawrence, Skokie, Luma, Belmont | FRS §1, §16 |
+| Timezone | US Central, all locations | FRS §25 |
+| Roles | Owner, Manager (= front desk), Staff (therapist), Client | FRS §2 |
+| Manager accounts | **One per location, 4 total**, scoped to that location | Confirmed 2026-08-26 |
+| Therapist accounts | Up to **30 per location** | FRS §16 |
+| Employment | Therapists are **1099 independent contractors** | FRS §18 |
+| Therapist pay | **Per completed service line**, by session length (30/45/60/75/90/120 min) | FRS §4 |
+| Manager pay | **Flat monthly rate**, not per session | FRS §4, §18 |
+| Booking channels | Owner, Manager, **client self-service online**, walk-in | FRS §5, §5.1, §21 |
+| Payments in salon | **Recorded**, via the existing card terminal | FRS §21 |
+| Payments online | **Processed via Stripe** — deposits, prepayment, fees, membership | Confirmed 2026-08-26 |
+| Payment methods | Card, Cash, Zelle, Online, Gift Card, Other | FRS §5, §7 |
+| Split payment | Yes — one appointment across two methods | FRS §5, §21 |
+| Deposit | 20% or full payment at online booking | FRS §5.1 |
+| No-show / late cancel | 20% fee; free ≥ 4 hours before | FRS §21 |
+| Multi-therapist services | Appointment → 1..N therapists (couples, four hands, couple head spa) | Confirmed 2026-08-26 |
+| Booking grid | 15-minute increments | FRS §5.1, §21 |
+| Buffer | Minimum 15-minute gap, same room **and** same therapist | FRS §21 |
+| Booking horizon | 6 months; cut-off configurable (15/30/60 min before start) | FRS §5.1, §21 |
+| Gift cards | Sold in salon and online; cross-location redemption; 12-month expiry (**see RISK-01**) | FRS §12 |
+| Membership | $80/month, one 60-min massage, rollover cap 3, 15-day cancellation notice | FRS §23 |
+| Client accounts | Required for self-service booking only | FRS §22 |
+| Notifications | Email **and** SMS: confirmation, reminder, fee notice | FRS §22 |
+| Clinical records | **No** intake questionnaire, **no** consent form, **no** SOAP notes. Care logs kept — see §3.10 | Confirmed 2026-08-26 |
+| Packages | **Removed from scope entirely** — not deferred | FRS §26 |
+| Data migration | Existing client list + contact info + appointment history | FRS §24 |
 
 ---
 
@@ -45,25 +67,44 @@ the scheduling engine (doc 03) is the architectural centre of gravity, not the C
 
 | Actor | Description | Primary goals |
 |---|---|---|
-| **Owner / Admin** | Business owner or head office. Access to all locations. | Company-wide revenue, utilisation, payroll cost, staff performance |
-| **Location Manager** | Runs one or more branches. | Fill the schedule, approve shifts, onboard staff, manage rates, close the month |
-| **Front Desk / Receptionist** | Answers the phone, greets walk-ins, takes payment. | Book fast, check in/out, take payment, sell gift cards. **Must not see pay rates or health notes.** |
-| **Therapist (Staff)** | Delivers the massage. | Submit availability, see own schedule, see own hours/earnings, write SOAP notes |
-| **Customer** | Buys and receives services. | Book online, see history, buy/redeem gift cards |
-| **System (scheduled jobs)** | Non-human actor. | Send reminders, generate recurring shifts, close pay periods, refresh reports |
+| **Owner** | The business owner. Access to all four locations. | Revenue, therapist earnings and payouts, utilisation, gift card liability, membership base |
+| **Manager** | Front desk. **One account per location, scoped to that location.** | Book fast, run the day board, check in/out, take payment, sell gift cards, approve shift and therapist requests |
+| **Staff (Therapist)** | 1099 contractor delivering the service. | See own schedule, request shift/location changes, see own earnings, read client preferences and care notes |
+| **Client** | Buys and receives services. | Book online, manage bookings, buy/redeem gift cards, hold a membership, leave a rating |
+| **System** | Non-human actor (scheduled jobs). | Send confirmations and reminders, charge fees, bill memberships, expire cards, close earning periods |
 
-### 2.1 Separation-of-duties rules
+### 2.1 Access matrix (authoritative — FRS §2, §17)
 
-These are hard requirements, not preferences:
+| Capability | Owner | Manager | Staff |
+|---|:--:|:--:|:--:|
+| Switch between all 4 locations | ✓ | ✗ (1 location) | ✗ (request → Owner) |
+| View schedule | ✓ all | ✓ own location | own only |
+| Create appointment | ✓ | ✓ | **✗** |
+| Add / edit client | ✓ | ✓ | ✗ |
+| View / edit staff shifts | ✓ | ✓ | own, via request |
+| Approve shift-change request | ✓ | ✓ | ✗ |
+| **Approve location-change request** | ✓ | **✗** | ✗ |
+| Approve specific-therapist request | ✓ | ✓ | ✗ |
+| View staff pay rates | ✓ | ✗ | own only |
+| View staff earnings | ✓ | ✗ | own only |
+| Add / remove staff accounts, set rates | ✓ | ✗ | ✗ |
+| Sell / view gift cards | ✓ | ✓ | **✗** |
+| View owner financial reports | ✓ | ✗ | ✗ |
+| Manage service menu | ✓ | ✗ | view; edit only if Owner grants |
+| Manual earnings adjustment | ✓ | ✗ | ✗ |
+| Read client preferences + care notes | ✓ | ✓ | own appointments only |
 
-- **Front Desk must never see** `staff_rates`, pay statements, salary reports, health intake data,
-  or SOAP notes.
-- **Therapists see only their own** schedule, availability, hours, pay statements, and only the
-  SOAP notes / intake of customers they are scheduled with.
-- **Location Managers see only their assigned locations'** staff, appointments, and reports —
-  including rates of staff who work at their locations.
-- **Owner/Admin sees everything** and is the only role that can change a rate retroactively, void a
-  payment, or adjust a gift card balance. Every such action is audit-logged.
+### 2.2 Separation-of-duties rules
+
+Hard requirements, not preferences:
+
+- **Manager must never see** `staff_rates`, earnings reports, payout statements, or any owner-only
+  financial report. Manager is the front-desk role and sits in a public-facing area.
+- **Staff see only their own** schedule, shift, rate and earnings — never another therapist's.
+- **Manager is scoped to exactly one location** and cannot switch. Owner bypasses all scoping.
+- **Only the Owner** may change a pay rate, adjust earnings manually, adjust a gift card balance,
+  void a payment, issue a refund outside policy, or approve a staff location change. Every one of
+  these writes an audit row.
 
 ---
 
@@ -71,274 +112,371 @@ These are hard requirements, not preferences:
 
 ### 3.1 Staff onboarding
 
-1. Manager creates a **Staff** record: personal details, employment type, hire date.
-2. Manager assigns **locations** the staff may work at (one or many).
-3. Manager assigns **service qualifications** — which massage services this therapist is certified
-   to perform. *A therapist can never be booked for a service they are not qualified for.*
-4. Manager sets the **hourly rate** with an `effective_from` date.
-5. System creates a user account and sends an invitation email.
-6. Staff status becomes `active` → they now appear in availability search.
+1. Owner creates a **Staff** record: name, contact, 1099 contractor details, start date.
+2. Owner assigns the **home location** (therapists work at one location at a time; changing it
+   later is a request, see §3.3).
+3. Owner assigns **service qualifications** — which services this therapist may perform.
+   *A therapist can never be booked for a service they are not qualified for.*
+4. Owner sets the **session rate ladder**: a rate for each of 30/45/60/75/90/120 minutes, with an
+   `effective_from` date. Not every length is used by every menu — the ladder covers all six
+   regardless (FRS §4).
+5. System creates the account and sends an invitation.
+6. Status → `active`; the therapist now appears in availability search.
 
-**Rule BR-01:** A staff member with no service qualifications or no location assignment cannot be
-scheduled. The system must warn the manager at onboarding completion.
+For a **Manager**, step 4 is replaced by a single **flat monthly rate**.
+
+**BR-01:** A staff member with no service qualifications or no location assignment cannot be
+scheduled. Warn the Owner at onboarding completion.
 
 ### 3.2 Staff offboarding
 
-1. Manager sets a **termination date**.
-2. System checks for **future appointments** assigned to that staff after the termination date and
-   blocks offboarding until they are reassigned or cancelled. This is the single most common source
-   of operational chaos in salon systems — it must be enforced, not warned.
-3. System cancels/expires **approved future shifts** after the termination date.
-4. Staff status → `terminated`. Account login disabled.
-5. Historical data (appointments, SOAP notes, timesheets, pay statements) is **retained
-   immutably** — never deleted, never anonymised, because it backs past payroll and customer care.
+1. Owner sets a **termination date**.
+2. System **blocks** offboarding while future appointments are assigned to that therapist after the
+   termination date, listing them for reassignment or cancellation.
+3. Future shifts after the termination date are cancelled.
+4. Status → `terminated`; login disabled.
+5. Historical data — appointments, earnings lines, care notes, payouts — is **retained
+   immutably**. It backs past payouts and client care.
 
-**Rule BR-02:** Offboarding is soft. No hard deletes of staff records, ever.
+**BR-02:** Offboarding is soft. No hard deletes of staff records, ever.
 
-### 3.3 Availability submission and shift approval
+### 3.3 Shifts, shift-change requests and location-change requests
+
+A shift record carries **staff, working date, start time, end time, working location, notes**
+(FRS §3).
 
 ```
-Staff                       Manager                     System
-  |                            |                           |
-  |-- submit availability ---->|                           |
-  |   (date range, times,      |                           |
-  |    preferred locations)    |                           |
-  |                            |-- review -----------------|
-  |                            |-- approve → create Shift ->|
-  |                            |   (staff, location,       |
-  |                            |    start, end)            |
-  |                            |-- publish schedule ------>|
-  |<-- notified ---------------|                           |
+Staff                        Manager / Owner              System
+  |                                |                          |
+  |-- request shift change ------->|                          |
+  |   (date, new start/end, note)  |                          |
+  |                                |-- approve -------------->| shift updated
+  |<-- notified -------------------|                          |
+  |                                |                          |
+  |-- request LOCATION change ---->|  (Manager cannot act)    |
+  |                                |     Owner only --------->| home location updated
 ```
 
-Two distinct concepts, often conflated — keep them separate:
+Two distinct concepts — keep them separate:
 
-- **Availability** = "I *can* work these hours." Staff-owned. A request.
-- **Shift** = "You *are* working, at this location, these hours." Manager-owned. Authoritative.
-  **Only Shifts drive scheduling and payroll.**
+- **Request** = "I would like to work these hours / at this location." Staff-owned. Never
+  authoritative.
+- **Shift** = "You are working, at this location, these hours." Owner/Manager-owned. Drives
+  **availability only** — not pay (see §3.8).
 
-Supported inputs:
-
-- **One-off availability** for specific dates.
-- **Recurring weekly patterns** ("every Mon & Wed 09:00–17:00") with an effective date range, from
-  which the system materialises concrete availability/shift records forward (see BR-05).
-- **Time-off requests** (vacation, sick), which override and block both.
-
-**Rule BR-03:** A Shift may only be created for a staff member at a location they are assigned to.
-**Rule BR-04:** Overlapping approved Shifts for the same staff member are forbidden, *across all
-locations*. Since staff can work anywhere, this is a company-wide constraint.
-**Rule BR-05:** Recurring patterns are materialised into concrete shift records by a nightly job on
-a rolling horizon (default 8 weeks). Concrete records can be individually edited without changing
-the pattern. Editing the pattern does not retroactively change already-published shifts.
-**Rule BR-06:** An approved time-off request blocks shift creation and flags any already-booked
-appointments in that window for manager reassignment.
+**BR-03:** A shift may only be created at the staff member's assigned location.
+**BR-04:** Overlapping shifts for the same staff member are forbidden **across all four
+locations** — a therapist cannot be on shift at Luma and Belmont simultaneously.
+**BR-05:** Staff never self-edit a shift. A shift change is a request approved by Owner **or**
+Manager.
+**BR-06:** A **location**-change request may be approved **only by the Owner**. Manager cannot.
+**BR-07:** Removing a therapist's availability for a date is blocked if appointments already sit
+inside it; the system returns the conflicting list instead.
 
 ### 3.4 Booking an appointment
 
-The same core transaction regardless of channel (phone, walk-in, online).
+The same core transaction across all channels, with differences noted.
 
 ```
-1. Identify customer         → search by phone/email, or create new
-2. Choose service + duration → resolves to a ServiceVariant
-3. Choose location           → resolves the price and the room pool
-4. Search availability       → engine returns bookable slots (doc 03)
-   ├─ optionally filtered by preferred therapist
-   └─ filtered by therapist qualification for the service
-5. Select slot               → system holds room + therapist
-6. Confirm                   → Appointment created, price snapshotted
-7. Notify                    → confirmation email; reminder scheduled
+1. Identify client            → search by name/phone, or "Add New Client" inline
+2. Choose service + length    → resolves to a ServiceVariant (+ optional add-ons/enhancements)
+3. Choose location            → resolves the price and the room pool
+4. Search availability        → engine returns bookable slots (doc 03)
+   ├─ optional specific-therapist request
+   └─ filtered by qualification, room type, and therapist count required
+5. Select slot                → system holds room + therapist(s)
+6. Confirm                    → Appointment created, prices snapshotted
+   └─ if a specific therapist was requested → status `pending_approval`
+7. Collect money (online only) → 20% deposit or full payment via Stripe
+8. Notify                     → email + SMS confirmation; reminder scheduled
 ```
 
-**Rule BR-07:** An appointment must reference a therapist who (a) is qualified for the service,
-(b) has a published shift covering the whole appointment at that location, and (c) has no
-overlapping appointment anywhere.
-**Rule BR-08:** An appointment must reference an active room at that location with no overlapping
-appointment.
-**Rule BR-09:** The **price is snapshotted** onto the appointment at booking time. Later price-list
-changes never alter a booked or completed appointment.
-**Rule BR-10:** Online self-service bookings may only be made into the future beyond a configurable
-lead time (default 2 hours) and within a booking horizon (default 60 days).
+**BR-08:** An appointment must reference therapist(s) who (a) are qualified for the service,
+(b) have a shift covering the whole appointment at that location, and (c) have no overlapping
+appointment **at any location**.
+**BR-09:** An appointment must reference an active room at that location, of a **type the service
+requires**, with no overlapping appointment.
+**BR-10:** A **minimum 15-minute gap** is required between consecutive appointments for the same
+room *and* for the same therapist (FRS §21).
+**BR-11:** The **price is snapshotted** at booking. Later menu changes never alter a booked or
+completed appointment.
+**BR-12:** Client self-service bookings are offered on a **15-minute grid**, up to **6 months**
+ahead, and close a configurable number of minutes before start (15 / 30 / 60).
+**BR-13:** In the client-facing flow the therapist roster is **never listed**. Default is "No
+preference"; a client who wants a specific therapist types a name and selects from matches.
+**BR-14:** An appointment may be created only by Owner or Manager, or by a Client for themselves.
+Staff cannot create appointments.
+
+#### Specific-therapist requests
+
+A request for a named therapist — entered on the client's behalf or made by the client online —
+**holds the slot** and requires **Owner or Manager approval** before confirmation. Clients are told
+to expect confirmation within a few minutes.
+
+**BR-15:** A specific-therapist request creates the appointment in `pending_approval`. It occupies
+the room and therapist for conflict purposes from the moment it is created, so the slot cannot be
+taken while approval is outstanding.
+**BR-16:** If the requested therapist is in session or not working that day, the system offers
+**that same therapist's next available time**. It never suggests a different therapist (FRS §5).
 
 ### 3.5 Appointment lifecycle
 
 ```
-                    ┌─────────────┐
-                    │  scheduled  │ ← created (any channel)
-                    └──────┬──────┘
-             ┌─────────────┼──────────────┬─────────────────┐
-             ▼             ▼              ▼                 ▼
-     ┌─────────────┐ ┌───────────┐ ┌──────────────┐ ┌──────────────┐
-     │ checked_in  │ │ cancelled │ │ late_cancel  │ │   no_show    │
-     └──────┬──────┘ └───────────┘ └──────────────┘ └──────────────┘
-            ▼          (outside      (inside          (never arrived)
-     ┌─────────────┐    window)       window)
-     │ in_progress │
-     └──────┬──────┘
-            ▼
-     ┌─────────────┐        ┌──────────────┐
-     │  completed  │───────▶│     paid     │ (order settled)
-     └─────────────┘        └──────────────┘
+                       ┌───────────────────┐
+                       │ pending_approval  │ ← specific-therapist request
+                       └─────────┬─────────┘
+                        approve  │  reject
+                       ┌─────────▼─────────┐
+                       │     scheduled     │ ← created (any channel)
+                       └─────────┬─────────┘
+        ┌────────────────┬───────┼────────────────┬──────────────────┐
+        ▼                ▼       ▼                ▼                  ▼
+ ┌────────────┐  ┌────────────┐ ┌──────────────┐ ┌───────────────┐  │
+ │ checked_in │  │ cancelled  │ │ late_cancel  │ │   no_show     │  │
+ └─────┬──────┘  └────────────┘ └──────────────┘ └───────────────┘  │
+       ▼          (≥ 4h before)   (< 4h before)   (never arrived)   │
+ ┌────────────┐    full refund     20% fee          20% fee         │
+ │in_progress │                                                      │
+ └─────┬──────┘                                                      │
+       ▼                                                             │
+ ┌────────────┐      ┌──────────┐      ┌───────────────────┐         │
+ │ completed  │─────▶│   paid   │─────▶│ rating requested  │◀────────┘
+ └────────────┘      └──────────┘      └───────────────────┘
 ```
 
-**Rule BR-11:** Only `completed` appointments generate revenue. `no_show` and `late_cancelled`
-generate revenue **only** if a fee policy is configured (see open question OQ-04).
-**Rule BR-12:** `cancelled` vs `late_cancelled` is determined by the location's cancellation window
-(default 24h) measured from `appointment.starts_at`.
-**Rule BR-13:** Every `no_show` and `late_cancelled` increments a counter on the customer record.
-Front desk sees this counter when booking that customer again.
-**Rule BR-14:** Cancelling an appointment immediately frees the room and therapist for rebooking.
-Status transitions are the only mechanism for releasing a resource.
+**BR-17:** Only `completed` appointments generate **service revenue** and **therapist earnings**.
+**BR-18:** `cancelled` vs `late_cancelled` is decided by the **4-hour** window measured from
+`starts_at` in the location's timezone.
+**BR-19:** A `no_show` or a cancellation inside 4 hours charges a **20% fee** of the appointment
+total (services + add-ons + enhancements, excluding tip), taken from the deposit/prepayment on
+file. A cancellation 4 or more hours ahead is **fee-free and fully refunded**.
+**BR-20:** Every `no_show` and `late_cancelled` increments a counter on the client record. Owner
+and Manager see this counter when booking that client again.
+**BR-21:** Cancelling immediately frees the room and therapist(s). A status transition is the only
+mechanism that releases a resource.
 
 ### 3.6 Check-in, service, checkout
 
-1. Customer arrives → Front Desk sets `checked_in`.
-2. **First visit only:** customer completes the **health intake form** and signs the consent
-   waiver. Blocks progression until captured.
-3. Therapist starts → `in_progress`. Room occupancy is now physically real.
-4. Therapist finishes → `completed`, then writes the **SOAP note** for the visit.
-5. Front Desk opens the **Order**: service line item at the snapshotted price, minus any discount,
-   plus tip if given.
-6. Front Desk records **payment(s)**: cash, card, Zelle, online, and/or gift card redemption.
-   An order may be settled by **multiple payments of mixed methods** (split payment).
-7. Order status → `paid`.
+1. Client arrives → Manager sets `checked_in`.
+2. Therapist opens the appointment and reads the client's **preferences form** (areas to focus on,
+   areas to avoid, pressure preference, other requests) and any prior **care notes**.
+3. Therapist starts → `in_progress`.
+4. Therapist finishes → `completed`, and may append a **care note** for the next session.
+5. Manager opens the **Order**: service line(s) at snapshotted prices, add-ons, enhancements,
+   membership entitlement applied if any, minus any deposit already taken.
+6. Client pays the balance on the existing card terminal and is prompted to tip **20% / 25% / 30%
+   / custom**.
+7. Manager records the payment(s) — a single appointment may be settled across **two different
+   methods** (e.g. part gift card, part card).
+8. Order → `paid`. If the client paid by gift card, the card is redeemed automatically and the
+   redemption is written to the Gift Card section.
+9. Client is invited to rate the session — in-location touchscreen or SMS link tied to the
+   therapist who performed the service.
 
-**Rule BR-15:** An order is `paid` only when `sum(payments) + sum(gift_card_redemptions) >= total`.
-Overpayment is rejected; the difference must be entered as a tip or a change amount.
-**Rule BR-16:** SOAP notes are **append-only**. Corrections are new entries referencing the
-original, never edits. This protects the clinical record.
-**Rule BR-17:** A payment record, once created, cannot be edited. It can only be **voided** by a
-Manager or Owner (audit-logged) and re-entered.
+**BR-22:** An order is `paid` only when `sum(payments) + sum(gift_card_redemptions) +
+sum(membership_credits) >= total`. Overpayment is rejected; the difference must be entered as a tip.
+**BR-23:** A payment record, once created, cannot be edited. It can only be **voided** (Owner) or
+**refunded** (Owner, or by policy for a fee-free cancellation) and re-entered. Every void is
+audit-logged.
+**BR-24:** **Tips are recorded per appointment and attributed to the performing therapist(s).**
+Where two therapists perform one appointment, the tip is split evenly unless overridden.
 
 ### 3.7 Gift card lifecycle
 
-Three product types, all issued from the same `gift_cards` table with a discriminator:
+One product shape. Physical cards carry a printed barcode; online purchases are **fully digital**
+and get a generated code that behaves identically for lookup and redemption.
 
-| Type | Behaviour |
+```
+issue (sold in salon or online) → active
+   → partially redeemed (balance > 0) ─┐
+   → fully redeemed (balance = 0)     ─┤→ closed
+   → expired (12 months after sale)   ─┘
+```
+
+**BR-25:** Gift card balance is **never a mutable column used as the source of truth**. It is
+derived from an append-only ledger (issue, redeem, refund, adjust, expire). The `current_balance`
+column is a maintained cache, reconciled nightly.
+**BR-26:** Selling a gift card is **not revenue** — it is a **liability** (deferred revenue).
+Revenue is recognised when the card is redeemed against a service. Reporting shows outstanding
+gift card liability separately. This is the most common accounting error in salon systems.
+**BR-27:** A gift card sale is **attributed to the selling location** for revenue reporting, while
+the card itself is **visible and redeemable at all four locations** until the balance reaches $0
+(FRS §12, §16).
+**BR-28:** Buyer, recipient, seller, selling location, redeemer, redemption date, amount used,
+remaining balance and the **associated appointment** are all recorded (FRS §13).
+**BR-29:** Redeeming more than the remaining balance is rejected. The shortfall must be paid by
+another method on the same order.
+**BR-30:** Gift cards expire **12 months after purchase** per FRS §12. This is implemented as a
+configurable `expiry_months` setting, not a hard-coded constant. **See RISK-01 in §8 — confirm
+with counsel before enabling a sub-5-year expiry in Illinois.**
+**BR-31:** Owner and Manager may sell and view gift cards. **Staff cannot.** Clients may buy them
+online through their own account.
+
+### 3.8 Therapist earnings and payout
+
+Therapist pay is **piece rate on completed work**, not hours. Shifts do not pay.
+
+1. Every **completed service line** writes an **earnings line**: therapist, date, location,
+   duration bucket (30/45/60/75/90/120), rate applied, amount.
+2. The rate applied is **the therapist's effective-dated rate for that duration on that service
+   date** — never the current rate.
+3. **Tips** are recorded per appointment and attributed to the therapist(s).
+4. The Owner may **manually add session quantities and tips** for a therapist on a specific date,
+   for corrections or off-system sessions (FRS §4). Every manual line is flagged and audit-logged.
+5. The system totals per therapist per period — a specific date, week, month, custom range, and
+   the two standing periods **1st–15th** and **16th–end of month** (FRS §8).
+6. Owner reviews and **locks** the period. Locked periods are immutable; corrections flow into the
+   next period as adjustments.
+
+**BR-32:** Pay is computed from **completed service lines**, not from shift hours and not from
+clock-in data. Idle shift time is unpaid — therapists are 1099 contractors.
+**BR-33:** Each service line earns at **its own duration**. A 60-minute massage with a 30-minute
+add-on produces two earnings lines: one at the 60-minute rate and one at the 30-minute rate. This
+is what makes the session-quantity table in FRS §4 and §8 add up. *(Assumption A-03 — confirm.)*
+**BR-34:** Where an appointment has two therapists (couples, four hands, couple head spa), **each
+therapist earns their own full session rate** for that duration.
+**BR-35:** Rates are **effective-dated**. Historical earnings never change when a rate is updated
+going forward.
+**BR-36:** Managers are on a **flat monthly rate** and never produce per-session earnings lines.
+**BR-37:** Once an earnings period is locked, its lines are read-only.
+
+### 3.9 Membership
+
+A monthly subscription, billed by Stripe.
+
+| Attribute | Value |
 |---|---|
-| **Stored value** | Holds a dollar balance. Each redemption deducts. Partial use allowed. |
-| **Fixed denomination** | Issued at a set face value (e.g. $50/$100/$200). Modelled as stored value with a constrained initial amount. |
-| **Service-specific** | Entitles the bearer to one specific service variant (e.g. one 60-min Swedish). Redeemed in full against that service. |
+| Price | **$80 / month** |
+| Included | One **60-minute** massage per cycle: deep tissue, Swedish or sport (member's choice) |
+| Complimentary with it | Hot stone, hot herbal compression, aromatherapy — no extra charge |
+| Upgrade | Member may pay the **difference** to take pregnancy, lymphatic or another service instead |
+| Rollover | Unused sessions roll over, **capped at 3 accumulated** |
+| Cancellation | Requires **≥ 15 days notice** before the next renewal date |
+| Reminders | **None** — no renewal reminder, no cancellation-window reminder (FRS §22) |
 
-```
-create → sold (buyer recorded, payment taken) → active
-   → partially redeemed (balance > 0)  ─┐
-   → fully redeemed (balance = 0)      ─┤→ closed
-   → expired (past expires_at)         ─┘
-```
+**BR-38:** Each successful monthly charge grants **one credit**. Credit balance is capped at 3;
+a charge that would exceed the cap grants nothing and is recorded as forfeited-to-cap.
+**BR-39:** Redeeming a credit against the included 60-minute massage costs the member $0. Choosing
+a different service charges the **difference** between that service's list price at that location
+and the list price of the included 60-minute massage at that location. *(Assumption A-04 — confirm.)*
+**BR-40:** A cancellation request submitted fewer than 15 days before renewal takes effect **after**
+the next renewal, not immediately. The next charge still occurs.
+**BR-41:** Membership credits are a **liability** in the same sense as gift cards — recognised as
+revenue when redeemed, not when billed.
 
-**Rule BR-18:** Gift card balance is **never a mutable column used as the source of truth**. It is
-derived from an append-only `gift_card_transactions` ledger (issue, redeem, refund, adjust). The
-`current_balance` column is a maintained cache, reconciled nightly.
-**Rule BR-19:** Selling a gift card is **not revenue** — it is a **liability** (deferred revenue).
-Revenue is recognised when the card is redeemed against a service. Reporting must show
-outstanding gift card liability separately. This is the single most common accounting error in
-salon systems.
-**Rule BR-20:** Both the **purchaser** and the **redeemer** are recorded per transaction; they are
-frequently different people (it is a gift).
-**Rule BR-21:** A service-specific card may only be redeemed against its designated service
-variant, at any location, unless location-restricted at issue.
-**Rule BR-22:** Redeeming more than the remaining balance is rejected. The shortfall must be paid
-by another method on the same order.
+### 3.10 Client management, preferences and feedback
 
-### 3.8 Payroll / staff hour summary
+Each client profile carries name, phone, email, date of birth, appointment history, services
+received, therapists seen, notes, gift cards bought or received, cancellation history, no-show
+history, per-appointment ratings, and the preferences form (FRS §11).
 
-Monthly (or configurable pay period) cycle:
+**Preferences form** (FRS §11.1) — "Areas to Pay More Attention To", "Areas to Avoid", "Pressure
+Preference" (Light / Medium / Firm), "Other Requests / Notes". Saved on the client profile, shown
+to the assigned therapist before the session, updatable whenever the client gives new information.
+This is the **Form** field on the New Appointment screen.
 
-1. System aggregates each staff member's **published shift hours** in the period.
-2. Manager reviews the timesheet and may apply **adjustments** (late arrival, overtime, correction),
-   each with a reason and an audit entry.
-3. System applies the **hourly rate that was in effect on each shift's date** — not the current rate.
-4. Generates a **Pay Statement**: total hours, rate breakdown, gross amount.
-5. Manager **approves and locks** the period. Locked periods are immutable; corrections flow into
-   the next period as adjustments.
+**Care notes** — a therapist's short, per-session log of what to avoid, what needed attention, and
+anything to consider next time. Confirmed in scope 2026-08-26. Deliberately **not** a clinical
+record: there is no health questionnaire, no consent signature, and no SOAP structure. It is still
+body-related information about an identifiable person, so it is encrypted at rest, restricted to
+Owner, Manager and the assigned therapist, and append-only.
 
-**Rule BR-23:** Pay is computed from **scheduled (published) shift hours**, not appointment hours,
-and not clock-in data. Idle time is paid.
-**Rule BR-24:** Rates are **effective-dated**. Historical pay statements must never change when a
-rate is updated going forward. A retroactive rate change requires an explicit Owner action that
-regenerates unlocked periods only.
-**Rule BR-25:** Once a pay period is locked, its shifts become read-only.
+**Post-service rating** (FRS §11.2) — after `completed`, the client rates **1–10**, optionally
+writes feedback, and optionally answers "What could we improve?" and "Would you recommend us?"
+(Yes/No). Collected on an in-location touchscreen or via an SMS link **tied to the therapist who
+performed the service**. Saved per appointment, shown in the client's profile history.
 
-### 3.9 Service catalogue management
-
-Manager maintains:
-
-- **Service** — the offering (Swedish Massage, Deep Tissue, Hot Stone…), with a category.
-- **Service Variant** — a service at a given **duration** with a **base price** (60-min Swedish,
-  90-min Swedish). This is the bookable unit.
-- **Location price override** — an optional per-location price for a variant.
-- **Buffer time** — turnover minutes appended to the variant for room cleanup.
-- **Qualification requirement** — which therapists may perform it.
-
-**Rule BR-26:** Prices are **never edited in place**. A price change creates a new effective-dated
-price row. Old appointments keep their snapshot; reports over past periods stay correct.
-**Rule BR-27:** A service variant cannot be deleted if any appointment references it — only
-deactivated (`active = false`), which hides it from booking but preserves history.
+**BR-42:** A client profile is **company-wide** across all four locations — one client, one
+history, regardless of which location they visit.
+**BR-43:** The preferences form is current-state with a version history; updating it never
+destroys the previous answers.
+**BR-44:** Care notes are **append-only**. A correction is a new note referencing the original.
+**BR-45:** One rating per appointment, always linked to both the appointment and the therapist.
+**BR-46:** Every `completed` appointment is automatically appended to the client's visit history.
+**BR-47:** Clients need an account **only** for self-service booking. Owner and Manager can book
+for a client who has no account.
 
 ---
 
 ## 4. End-to-End Scenario Walkthroughs
 
-### 4.1 Phone booking (the dominant path today)
+### 4.1 Phone booking with a specific therapist request
 
-> Customer calls the Downtown branch. Wants a 90-minute deep tissue on Saturday afternoon, prefers
-> Anna.
+> A client calls Skokie. Wants a 90-minute deep tissue on Saturday afternoon, and asks for Anna.
 
-1. Front Desk searches by phone number → finds existing customer, sees 4 prior visits, preferred
-   pressure "firm", and a `no_show_count` of 0.
-2. Selects **Deep Tissue / 90 min**, location **Downtown**, date **Saturday**.
-3. Filters by therapist **Anna**. Engine returns Anna's free slots where a Downtown room is also
-   free: 13:00, 15:30.
-4. Customer takes 15:30. Front Desk confirms.
-5. System writes the appointment, snapshots the Downtown 90-min deep tissue price, sends a
-   confirmation email, and schedules a reminder for Friday 15:30.
+1. Manager searches by phone → finds the client, sees 6 prior visits, pressure preference "Firm",
+   "avoid lower back", `no_show_count` 0, and an active membership with 2 rolled-over credits.
+2. Selects **Deep Tissue / 90 min**, Skokie, Saturday. Price resolves to **$115**.
+3. Filters to **Anna**. Engine returns Anna's free slots where a Skokie single room is also free
+   with a 15-minute gap either side: 13:00, 15:30.
+4. Client takes 15:30. Manager enters it as a **specific therapist request**.
+5. Appointment is created `pending_approval`, already holding Anna and the room.
+6. Manager approves it on the spot → `scheduled`. Confirmation email + SMS go out; a reminder is
+   scheduled.
+7. Manager applies a membership credit; the member owes the difference between $115 and the
+   included 60-min price of $80 → **$35**.
 
-**Failure case to design for:** two receptionists at different branches book Anna for the same
-15:30 slot at the same instant. See doc 03 §4 — this is prevented at the database level, not in
-application code.
+**Failure case designed for:** the Skokie manager and an online client both commit Anna's 15:30
+within the same 200 ms. See doc 03 §4 — prevented at the database level, not in application code.
 
-### 4.2 Online self-service booking
+### 4.2 Client self-service booking online
 
-1. Customer opens the booking page, picks service, duration, location, date.
-2. Engine returns **anonymised slots** — the customer sees times, and optionally therapist first
-   names, but never room identity or staff internals.
-3. Customer picks a slot. System places a **short-lived hold** (default 10 minutes) to prevent the
-   slot vanishing during checkout.
-4. Customer confirms with name/phone/email. No payment taken (payments are recorded, not processed).
-5. Appointment created as `scheduled`. Confirmation email sent.
-6. Intake form link included in the confirmation for first-time customers, so it's done before
-   arrival.
+1. Client signs in to their account (required — FRS §5.1) and picks service, length, location, date.
+2. Therapist field defaults to **"No preference."** If they want someone specific, they **type a
+   name**; the system matches as they type. The roster is never listed.
+3. Engine returns times on a **15-minute grid**, up to 6 months out, stopping N minutes before
+   start per the Owner's cut-off setting.
+4. Client picks a slot; the system places a **short-lived hold** so it survives checkout.
+5. Client optionally leaves a **note for their therapist**.
+6. Client chooses **20% deposit** or **full payment**; Stripe captures it.
+7. Appointment created — `scheduled`, or `pending_approval` if a therapist was named.
+8. **Email and SMS** confirmation sent.
 
 ### 4.3 Walk-in
 
-1. Front Desk searches availability for **now → next 30 minutes** at this location only.
-2. Engine returns whichever therapist/room pairs are free right now.
-3. Books, checks in, and proceeds in one action.
+1. Manager searches availability for **now → next 30 minutes** at this location only.
+2. Engine returns therapist/room pairs free right now, respecting the 15-minute buffer.
+3. Manager books, checks in, and proceeds in one action. No deposit — payment is at checkout.
 
-### 4.4 Month-end close
+> **Open point OQ-02.** FRS §3 and §21 say *staff* can add a walk-in directly into the schedule,
+> but FRS §2 states twice that staff cannot create appointments. This document follows §2:
+> **walk-ins are entered by Owner or Manager.** Confirm.
 
-1. On the 1st, the system snapshots the prior month's published shifts per staff.
-2. Managers review timesheets, add adjustments, resolve exceptions.
-3. Pay statements generated using effective-dated rates.
-4. Owner reviews the company-wide salary cost report against revenue by location.
-5. Period locked.
+### 4.4 Couples massage
+
+1. Two clients book a **90-minute couples massage** at Luma — $230.
+2. Engine requires a **couple room** and **two qualified therapists**, both free for the whole
+   interval with the 15-minute buffer.
+3. One appointment is created: one room, two therapists, two client participants.
+4. On completion, **each therapist earns their own 90-minute rate**; the tip is split evenly
+   unless the Manager overrides the split.
+
+### 4.5 Semi-monthly earnings close
+
+1. On the 16th, the system closes the 1st–15th period and totals each therapist's session
+   quantities by duration, service earnings, tips and total.
+2. Owner reviews, adds any manual session or tip corrections, and resolves exceptions.
+3. Payout statements generated using the effective-dated rates that applied on each service date.
+4. Owner locks the period.
 
 ---
 
 ## 5. Reporting Requirements
 
-All four confirmed as in-scope. Each drives specific data-model decisions.
+| Report | Contents | Model implication | FRS |
+|---|---|---|---|
+| **Owner dashboard** | Today's appointments, completed, revenue, tips, staff working / not working, available rooms, gift cards sold and redeemed — for the selected location and date | Needs live day-scoped aggregates, no warehouse | §15 |
+| **Staff earnings** | Per therapist per period: quantity and earnings for each of 30/45/60/75/90/120, tips, total. Date, week, month, custom range, **plus 1st–15th and 16th–EOM** | Requires per-service-line earnings rows with a snapshotted rate | §4, §8 |
+| **Client log** | Every completed appointment for a date: time, client, therapist, service, length, price, tip, total paid, method | Requires immutable appointment + order history | §9 |
+| **Daily revenue** | Card, Cash, Zelle, Online, Other, Tips, Total — by date, week, month, custom range | Requires payment-method breakdown, gift card liability excluded | §10 |
+| **Gift card liability** | Outstanding balance by issue month and **selling location** | Requires the ledger and selling-location attribution | §12, §16 |
+| **Membership** | Active members, credits outstanding, rollover at cap, upgrades, cancellations pending | Requires the credit ledger | §23 |
+| **Ratings** | Average and distribution per therapist, per location, per period; recommend rate | Requires per-appointment ratings | §11.2 |
+| **Cross-location roll-up** | Owner-level reports combining all four locations | Owner scope bypasses location filtering | §16 |
 
-| Report | Contents | Model implication |
-|---|---|---|
-| **Staff hours & salary summary** | Per staff per period: scheduled hours, rate(s) applied, gross pay. Export to XLSX/PDF. | Requires effective-dated rates and locked pay periods |
-| **Revenue by location / service / payment type** | Daily, weekly, monthly. Split across cash, card, Zelle, online. **Gift card liability shown separately from revenue.** | Requires order/payment separation and the gift card ledger |
-| **Room & staff utilisation** | Booked hours ÷ available hours. Per room, per therapist, per location, per weekday/hour-of-day. | Requires published shift hours AND room open hours as denominators — this is why shifts must be stored as concrete records, not just patterns |
-| **Customer retention** | New vs returning, visit frequency, days-since-last-visit, lapsed customers, lifetime value, no-show rate | Requires immutable appointment history and customer-level aggregates |
-
-**Rule BR-28:** Utilisation is meaningless without a defined denominator. Fix it now:
-`staff utilisation = booked appointment minutes ÷ published shift minutes`;
-`room utilisation = booked appointment minutes ÷ location open minutes for that room`.
+**BR-48:** Service revenue comes from **completed** appointments' service lines. Gift card sales
+and membership billings are **liabilities**, reported separately. No-show and late-cancellation
+fees are their own revenue category — neither service revenue nor a liability.
 
 ---
 
@@ -346,16 +484,20 @@ All four confirmed as in-scope. Each drives specific data-model decisions.
 
 | Area | Requirement |
 |---|---|
-| **Availability** | Business-hours critical. Front desk cannot take bookings if the system is down. Target 99.5%, with a printable daily schedule fallback. |
-| **Performance** | Availability search < 500 ms for a 7-day window at one location. Front desk booking flow < 3 seconds end to end. |
-| **Concurrency** | Zero tolerance for double-booking a room or therapist. Enforced by database constraint. |
-| **Data protection** | Health intake and SOAP notes are sensitive health information: encrypted at rest, access-controlled by role, and access-logged. |
-| **Auditability** | All changes to rates, payments, gift card balances, appointment status, and pay periods are audit-logged with actor, timestamp, before/after. |
-| **Retention** | Financial and clinical records retained ≥ 7 years. Soft delete only. |
-| **Timezone** | Every location carries an IANA timezone. All timestamps stored in UTC (`timestamptz`), rendered in location-local time. |
-| **Money** | Stored as integer minor units (cents). Never floating point. Single currency (USD). |
+| **Availability** | Business-hours critical. Target 99.5%, with a printable daily schedule fallback per location. |
+| **Performance** | Availability search < 500 ms for a 7-day window at one location. Booking flow < 3 seconds end to end. |
+| **Concurrency** | Zero tolerance for double-booking a room or a therapist. Enforced by database constraint, not application code. |
+| **Scale** | 4 locations × up to 30 therapists = 120 therapist accounts, 4 manager accounts, 1 owner. ~28 rooms total. |
+| **Data protection** | Care notes and preference forms are encrypted at rest and access-controlled. Card data never touches our servers (Stripe Elements / SetupIntent). |
+| **PCI** | **SAQ-A only.** Online card data is tokenised client-side by Stripe. In-salon card payments run on the existing terminal and are only *recorded*. |
+| **Auditability** | All changes to rates, earnings, payments, refunds, gift card balances, membership state, appointment status and locked periods are audit-logged with actor, timestamp, before/after. |
+| **Retention** | Financial records ≥ 7 years. Soft delete only. |
+| **Timezone** | All four locations are `America/Chicago`. Timestamps stored UTC (`timestamptz`), rendered in Central. The per-location timezone column stays — it costs nothing and removes a migration if a location opens elsewhere. |
+| **Money** | Integer minor units (cents). Never floating point. USD only. |
+| **Localisation** | English UI in v1. Mongolian/Spanish are plausible later — keep all user-facing strings in i18n files from day one. |
 | **Backups** | Nightly full backup + point-in-time recovery. Restore tested quarterly. |
-| **Accessibility** | The customer-facing booking flow should meet WCAG 2.1 AA. |
+| **Accessibility** | Client-facing booking flow and the in-location rating screen meet WCAG 2.1 AA. |
+| **SMS** | Transactional only (confirmation, reminder, fee notice, rating link). Opt-out honoured; no marketing SMS without separate consent. |
 
 ---
 
@@ -363,31 +505,62 @@ All four confirmed as in-scope. Each drives specific data-model decisions.
 
 | ID | Rule |
 |---|---|
-| BR-01 | Staff need ≥1 location and ≥1 service qualification to be schedulable |
+| BR-01 | Staff need a location and ≥1 qualification to be schedulable |
 | BR-02 | Offboarding is soft; no hard deletes |
-| BR-03 | Shifts only at assigned locations |
-| BR-04 | No overlapping shifts per staff, company-wide |
-| BR-05 | Recurring patterns materialise on a rolling 8-week horizon |
-| BR-06 | Approved time off blocks shifts and flags booked appointments |
-| BR-07 | Appointment therapist must be qualified, on shift, and conflict-free |
-| BR-08 | Appointment room must be active and conflict-free |
-| BR-09 | Price is snapshotted at booking |
-| BR-10 | Online booking respects lead time and horizon |
-| BR-11 | Only completed appointments generate service revenue |
-| BR-12 | Cancellation window determines cancelled vs late_cancelled |
-| BR-13 | No-shows and late cancels increment a customer counter |
-| BR-14 | Status transition is the only way to release a resource |
-| BR-15 | Order is paid only when payments cover the total; no overpayment |
-| BR-16 | SOAP notes are append-only |
-| BR-17 | Payments are immutable; void and re-enter |
-| BR-18 | Gift card balance derives from an append-only ledger |
-| BR-19 | Gift card sale is a liability, not revenue |
-| BR-20 | Purchaser and redeemer are separately recorded |
-| BR-21 | Service-specific cards redeem only against their variant |
-| BR-22 | Redemption cannot exceed remaining balance |
-| BR-23 | Pay is based on published shift hours |
-| BR-24 | Rates are effective-dated; history never changes |
-| BR-25 | Locked pay periods are immutable |
-| BR-26 | Prices are effective-dated, never edited in place |
-| BR-27 | Catalogue items are deactivated, not deleted |
-| BR-28 | Utilisation denominators are fixed as defined |
+| BR-03 | Shifts only at the staff member's assigned location |
+| BR-04 | No overlapping shifts per staff, across all four locations |
+| BR-05 | Staff never self-edit shifts; changes are approved by Owner or Manager |
+| BR-06 | Location-change requests are approved by the **Owner only** |
+| BR-07 | Removing availability is blocked when appointments sit inside it |
+| BR-08 | Appointment therapists must be qualified, on shift, and conflict-free company-wide |
+| BR-09 | Appointment room must be active, at the location, and of a required type |
+| BR-10 | Minimum 15-minute gap between appointments, same room and same therapist |
+| BR-11 | Price is snapshotted at booking |
+| BR-12 | Client booking: 15-min grid, 6-month horizon, configurable cut-off |
+| BR-13 | Client-facing therapist selection is search-only; roster never listed |
+| BR-14 | Only Owner, Manager or the Client themselves create appointments |
+| BR-15 | Specific-therapist request holds the slot as `pending_approval` |
+| BR-16 | Unavailable requested therapist → that therapist's next available time only |
+| BR-17 | Only completed appointments generate service revenue and earnings |
+| BR-18 | 4-hour window decides `cancelled` vs `late_cancelled` |
+| BR-19 | No-show or late cancel = 20% fee; ≥4h cancel = full refund |
+| BR-20 | No-shows and late cancels increment client counters |
+| BR-21 | Status transition is the only way to release a resource |
+| BR-22 | Order settles only when payments + redemptions + credits cover the total |
+| BR-23 | Payments are immutable; void or refund and re-enter |
+| BR-24 | Tips are recorded per appointment and attributed to the therapist(s) |
+| BR-25 | Gift card balance derives from an append-only ledger |
+| BR-26 | Gift card sale is a liability, not revenue |
+| BR-27 | Sale attributed to selling location; redeemable at all four |
+| BR-28 | Buyer, recipient, redeemer and redeeming appointment all recorded |
+| BR-29 | Redemption cannot exceed remaining balance |
+| BR-30 | Expiry is configurable; FRS default 12 months — see RISK-01 |
+| BR-31 | Staff cannot view or sell gift cards |
+| BR-32 | Pay is per completed service line, not per shift hour |
+| BR-33 | Each service line earns at its own duration bucket |
+| BR-34 | Two-therapist services pay each therapist a full session rate |
+| BR-35 | Rates are effective-dated; history never changes |
+| BR-36 | Managers are on a flat monthly rate, no session earnings |
+| BR-37 | Locked earnings periods are immutable |
+| BR-38 | Membership grants 1 credit per charge, capped at 3 accumulated |
+| BR-39 | Upgrades charge the price difference |
+| BR-40 | Cancellation needs ≥15 days notice; otherwise it takes effect after the next renewal |
+| BR-41 | Membership billings are a liability until the credit is redeemed |
+| BR-42 | Client profiles are company-wide across all four locations |
+| BR-43 | Preference form is versioned, never destructively overwritten |
+| BR-44 | Care notes are append-only |
+| BR-45 | One rating per appointment, linked to the therapist |
+| BR-46 | Completed appointments append to client visit history |
+| BR-47 | Client accounts are required only for self-service booking |
+| BR-48 | Revenue, liabilities and fees are three separate reporting categories |
+
+---
+
+## 8. Risks Raised by This Specification
+
+| ID | Risk | Detail |
+|---|---|---|
+| **RISK-01** | **12-month gift card expiry** | FRS §12 sets a one-year expiry. The federal CARD Act sets a five-year floor for the funds underlying most gift certificates and store gift cards, and Illinois has its own gift-certificate provisions. A one-year expiry may not be enforceable here. **This is a legal question, not a technical one — confirm with counsel.** The system implements expiry as a configurable `expiry_months` value defaulting to 60, so the policy can be set without a code change, and an expiry event is always written to the ledger rather than silently zeroing a balance. |
+| **RISK-02** | Automatic fee charging | Auto-charging a stored card for a no-show requires the client to have agreed to it at booking. The booking flow must capture explicit consent to the cancellation policy, stored with a timestamp, before the card is saved for future use. Stripe requires this for off-session charges regardless. |
+| **RISK-03** | SMS consent | Transactional SMS to a client who booked is generally fine; the rating-request SMS sits closer to the line. Capture SMS consent at account creation and honour STOP. |
+| **RISK-04** | Contractor classification | Therapists are 1099 contractors, but the platform assigns their shifts, sets their rates and controls their client allocation. That is a worker-classification question the software cannot solve; noted so it is a decision rather than an oversight. |
