@@ -2,6 +2,11 @@
 
 **Version:** 1.0 · Companion to `01-business-analysis.md` · Aligned to FRS v7
 
+> **Delivery posture.** The schema below is complete and is built in full in Release 1, including
+> the columns and tables that only Release 2 exercises. Carrying an unused nullable column costs
+> nothing; adding one to a table with live appointments and live money in it is painful. Columns
+> that lie dormant until Release 2 are marked as such.
+
 ---
 
 ## 1. Bounded Contexts
@@ -169,7 +174,7 @@ erDiagram
 | id | bigint PK | |
 | email | citext | unique where present |
 | phone | string | E.164; **primary identity for clients** |
-| password_digest | string NULL | bcrypt; null for OTP-only client accounts |
+| password_digest | string NULL | bcrypt; null for OTP-only client accounts *(Release 2)* |
 | first_name, last_name | string | |
 | role | enum | `owner`, `manager`, `staff`, `client` |
 | location_id | FK NULL | **required for `manager`** — the single location they are scoped to |
@@ -183,8 +188,9 @@ erDiagram
 > are the same role. Manager scoping is a single `location_id` column rather than a join table,
 > because a manager belongs to exactly one location and cannot switch. Owner ignores the column.
 
-**Client authentication.** FRS §22 leaves the mechanism to us. Chosen: **phone + SMS one-time
-code** as the primary path, with optional email/password. Rationale — the phone number is already
+**Client authentication** *(Release 2)*. No client logs in during Release 1 — the `client` role
+exists in the enum but is never issued. FRS §22 leaves the mechanism to us. Chosen for Release 2:
+**phone + SMS one-time code** as the primary path, with optional email/password. Rationale — the phone number is already
 the client's identity everywhere else in the business, it removes a password to forget and reset,
 and the SMS channel is already being paid for (confirmations, reminders, fee notices, rating links).
 
@@ -202,11 +208,11 @@ and the SMS channel is already being paid for (confirmations, reminders, fee not
 | slot_granularity_minutes | integer | default 15 |
 | buffer_minutes | integer | default 15 (FRS §21) |
 | booking_horizon_days | integer | default 183 (~6 months) |
-| booking_cutoff_minutes | integer | default 60; Owner sets 15/30/60 (FRS §5.1) |
+| booking_cutoff_minutes | integer | default 60; Owner sets 15/30/60 (FRS §5.1). *Release 2 — the client channel is the only one it constrains* |
 | cancellation_window_hours | integer | default 4 (FRS §21) |
 | late_cancel_fee_percent | integer | default 20 |
 | no_show_fee_percent | integer | default 20 |
-| deposit_percent | integer | default 20 |
+| deposit_percent | integer | default 20 *(Release 2)* |
 | online_booking_enabled | boolean | |
 | status | enum | `active`, `inactive` |
 
@@ -443,7 +449,8 @@ therapist from availability during the window. No payroll effect.
 requested_by_user_id, reviewed_by_user_id, reviewed_at, note)`
 Reviewable by `owner` or `manager`.
 
-**`slot_holds`** — transient reservations during online checkout.
+**`slot_holds`** *(Release 2)* — transient reservations during online checkout. Unused in Release
+1, where a Manager books in one action and has nothing to hold a slot against.
 `(room_id, staff_profile_ids bigint[], during tstzrange, session_token, expires_at)` — swept by a
 job every minute. Advisory only; the appointment constraints are authoritative.
 
@@ -548,10 +555,10 @@ line_total_cents, revenue_category)`
 |---|---|---|
 | order_id | FK | |
 | method | enum | `card`, `cash`, `zelle`, `online`, `other` |
-| processing | enum | `recorded` (terminal / cash / Zelle) or `gateway` (Stripe) |
+| processing | enum | `recorded` (terminal / cash / Zelle) or `gateway` (Stripe). **Always `recorded` in Release 1** |
 | amount_cents | integer | |
 | reference | string | last-4, Zelle confirmation ID, transfer note |
-| stripe_payment_intent_id | string NULL | gateway only |
+| stripe_payment_intent_id | string NULL | gateway only *(Release 2)* |
 | received_at | timestamptz | |
 | received_by_user_id | FK NULL | null for online |
 | status | enum | `captured`, `voided`, `refunded`, `partially_refunded` |
@@ -574,9 +581,15 @@ line_total_cents, revenue_category)`
 For a single-therapist appointment the whole tip goes to that therapist. For a two-therapist
 appointment it splits evenly unless a Manager overrides.
 
-**`stripe_customers`** — `(client_id, stripe_customer_id, default_payment_method_id,
-cancellation_policy_agreed_at)`. The consent timestamp is required before any off-session charge
-(RISK-02).
+**`stripe_customers`** *(Release 2)* — `(client_id, stripe_customer_id,
+default_payment_method_id, cancellation_policy_agreed_at)`. The consent timestamp is required
+before any off-session charge (RISK-02). The table is created in Release 1 and stays empty.
+
+> **How an unpaid fee is represented in Release 1.** There is no separate debt table. A no-show or
+> late cancellation writes an `Order` containing a single `Fee` line item with
+> `revenue_category = 'fee'`, left at `status = 'open'`. "What this client owes" is therefore the
+> sum of their open fee orders — one query, no new concept, and the same row simply gets settled by
+> a Stripe payment instead of a front-desk one once Release 2 lands.
 
 ### 3.8 Gift Cards
 
@@ -585,7 +598,7 @@ cancellation_policy_agreed_at)`. The consent timestamp is required before any of
 |---|---|---|
 | id | bigint PK | |
 | code | string unique | printed barcode, or generated for a digital card. Collision-resistant, non-sequential |
-| origin | enum | `physical` (sold in salon), `digital` (bought online) |
+| origin | enum | `physical` (sold in salon), `digital` (bought online — *Release 2*) |
 | initial_value_cents | integer | |
 | current_balance_cents | integer | **cache** of the ledger (BR-25) |
 | purchase_payment_method | enum | `card`, `cash`, `zelle`, `online`, `other` (FRS §12) |
@@ -626,7 +639,7 @@ performed_by_user_id NULL, location_id, occurred_at, note)`
 | client_id | FK | |
 | status | enum | `active`, `pending_cancellation`, `cancelled`, `past_due` |
 | price_cents | integer | 8000 |
-| stripe_subscription_id | string | |
+| stripe_subscription_id | string NULL | *Release 2*; null while billing is recorded by hand |
 | enrolled_at | timestamptz | |
 | current_period_start, current_period_end | timestamptz | renewal date |
 | credits_balance | integer | **cache** of the credit ledger, `CHECK (0 <= credits_balance <= 3)` |
@@ -634,7 +647,12 @@ performed_by_user_id NULL, location_id, occurred_at, note)`
 | cancellation_requested_at | timestamptz NULL | |
 | cancellation_effective_at | timestamptz NULL | computed by the 15-day rule (BR-40) |
 
-**`membership_cycles`** — `(membership_id, period_start, period_end, charged_at, amount_cents, stripe_invoice_id, credit_granted boolean, forfeited_to_cap boolean, status)`
+**`membership_cycles`** — `(membership_id, period_start, period_end, charged_at, amount_cents,
+stripe_invoice_id NULL, credit_granted boolean, forfeited_to_cap boolean, status)`
+
+> In Release 1 a cycle is closed by a Manager recording the $80 payment, which is what triggers the
+> credit grant. In Release 2 the same row is closed by an `invoice.paid` webhook. The entitlement
+> logic — the cap, the rollover, the 15-day notice — is identical either way and is built once.
 
 **`membership_credit_transactions`** — same ledger pattern as gift cards.
 `(membership_id, kind enum{grant, redeem, expire, adjust}, amount signed, balance_after,

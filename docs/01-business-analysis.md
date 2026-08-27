@@ -3,6 +3,11 @@
 **Version:** 1.0 · **Date:** 2026-08-26 · **Status:** For review, pre-implementation
 **Source of truth:** `business_requirement.md` (FRS v7, 2026-08-21)
 
+> **Delivery posture.** This is an **internal management platform** first. Release 1 is operated
+> entirely by Owner, Manager and Therapist inside the four locations. Client self-service booking,
+> online payment collection and online gift card purchase are specified in full here but deferred
+> to Release 2 — see doc 06 §1. Rules affected by that deferral are marked **(Release 2)**.
+
 ---
 
 ## 1. Business Context
@@ -42,20 +47,20 @@ why the scheduling engine (doc 03) is the architectural centre of gravity.
 | Employment | Therapists are **1099 independent contractors** | FRS §18 |
 | Therapist pay | **Per completed service line**, by session length (30/45/60/75/90/120 min) | FRS §4 |
 | Manager pay | **Flat monthly rate**, not per session | FRS §4, §18 |
-| Booking channels | Owner, Manager, **client self-service online**, walk-in | FRS §5, §5.1, §21 |
+| Booking channels | Owner, Manager, walk-in · **client self-service online is Release 2** | FRS §5, §5.1, §21 |
 | Payments in salon | **Recorded**, via the existing card terminal | FRS §21 |
-| Payments online | **Processed via Stripe** — deposits, prepayment, fees, membership | Confirmed 2026-08-26 |
+| Payments online | **Processed via Stripe** — deposits, prepayment, fees, membership. **Release 2** | Confirmed 2026-08-26 |
 | Payment methods | Card, Cash, Zelle, Online, Gift Card, Other | FRS §5, §7 |
 | Split payment | Yes — one appointment across two methods | FRS §5, §21 |
-| Deposit | 20% or full payment at online booking | FRS §5.1 |
-| No-show / late cancel | 20% fee; free ≥ 4 hours before | FRS §21 |
+| Deposit | 20% or full payment at online booking. **Release 2** | FRS §5.1 |
+| No-show / late cancel | 20% fee; free ≥ 4 hours before. **Release 1 records the fee as owed; Release 2 charges it** | FRS §21 |
 | Multi-therapist services | Appointment → 1..N therapists (couples, four hands, couple head spa) | Confirmed 2026-08-26 |
 | Booking grid | 15-minute increments | FRS §5.1, §21 |
 | Buffer | Minimum 15-minute gap, same room **and** same therapist | FRS §21 |
 | Booking horizon | 6 months; cut-off configurable (15/30/60 min before start) | FRS §5.1, §21 |
-| Gift cards | Sold in salon and online; cross-location redemption; 12-month expiry (**see RISK-01**) | FRS §12 |
-| Membership | $80/month, one 60-min massage, rollover cap 3, 15-day cancellation notice | FRS §23 |
-| Client accounts | Required for self-service booking only | FRS §22 |
+| Gift cards | Sold in salon; cross-location redemption; 12-month expiry (**see RISK-01**). **Online purchase is Release 2** | FRS §12 |
+| Membership | $80/month, one 60-min massage, rollover cap 3, 15-day cancellation notice. **Release 1 records the monthly payment by hand; Release 2 automates it** | FRS §23 |
+| Client accounts | Required for self-service booking only. **Release 2** | FRS §22 |
 | Notifications | Email **and** SMS: confirmation, reminder, fee notice | FRS §22 |
 | Clinical records | **No** intake questionnaire, **no** consent form, **no** SOAP notes. Care logs kept — see §3.10 | Confirmed 2026-08-26 |
 | Packages | **Removed from scope entirely** — not deferred | FRS §26 |
@@ -70,7 +75,7 @@ why the scheduling engine (doc 03) is the architectural centre of gravity.
 | **Owner** | The business owner. Access to all four locations. | Revenue, therapist earnings and payouts, utilisation, gift card liability, membership base |
 | **Manager** | Front desk. **One account per location, scoped to that location.** | Book fast, run the day board, check in/out, take payment, sell gift cards, approve shift and therapist requests |
 | **Staff (Therapist)** | 1099 contractor delivering the service. | See own schedule, request shift/location changes, see own earnings, read client preferences and care notes |
-| **Client** | Buys and receives services. | Book online, manage bookings, buy/redeem gift cards, hold a membership, leave a rating |
+| **Client** | Buys and receives services. In Release 1 they are a record the staff maintain, not a user — they still receive notifications and leave ratings. Self-service arrives in Release 2. | Book online *(Release 2)*, manage bookings *(Release 2)*, buy/redeem gift cards, hold a membership, leave a rating |
 | **System** | Non-human actor (scheduled jobs). | Send confirmations and reminders, charge fees, bill memberships, expire cards, close earning periods |
 
 ### 2.1 Access matrix (authoritative — FRS §2, §17)
@@ -187,7 +192,7 @@ The same core transaction across all channels, with differences noted.
 5. Select slot                → system holds room + therapist(s)
 6. Confirm                    → Appointment created, prices snapshotted
    └─ if a specific therapist was requested → status `pending_approval`
-7. Collect money (online only) → 20% deposit or full payment via Stripe
+7. Collect money (online only, Release 2) → 20% deposit or full payment via Stripe
 8. Notify                     → email + SMS confirmation; reminder scheduled
 ```
 
@@ -200,9 +205,9 @@ requires**, with no overlapping appointment.
 room *and* for the same therapist (FRS §21).
 **BR-11:** The **price is snapshotted** at booking. Later menu changes never alter a booked or
 completed appointment.
-**BR-12:** Client self-service bookings are offered on a **15-minute grid**, up to **6 months**
-ahead, and close a configurable number of minutes before start (15 / 30 / 60).
-**BR-13:** In the client-facing flow the therapist roster is **never listed**. Default is "No
+**BR-12** *(Release 2)***:** Client self-service bookings are offered on a **15-minute grid**, up
+to **6 months** ahead, and close a configurable number of minutes before start (15 / 30 / 60).
+**BR-13** *(Release 2)***:** In the client-facing flow the therapist roster is **never listed**. Default is "No
 preference"; a client who wants a specific therapist types a name and selects from matches.
 **BR-14:** An appointment may be created only by Owner or Manager, or by a Client for themselves.
 Staff cannot create appointments.
@@ -247,9 +252,12 @@ taken while approval is outstanding.
 **BR-17:** Only `completed` appointments generate **service revenue** and **therapist earnings**.
 **BR-18:** `cancelled` vs `late_cancelled` is decided by the **4-hour** window measured from
 `starts_at` in the location's timezone.
-**BR-19:** A `no_show` or a cancellation inside 4 hours charges a **20% fee** of the appointment
-total (services + add-ons + enhancements, excluding tip), taken from the deposit/prepayment on
-file. A cancellation 4 or more hours ahead is **fee-free and fully refunded**.
+**BR-19:** A `no_show` or a cancellation inside 4 hours incurs a **20% fee** of the appointment
+total (services + add-ons + enhancements, excluding tip). A cancellation 4 or more hours ahead is
+**fee-free**.
+**In Release 1** the fee is calculated and **recorded as an amount owed** — an open `Fee` order
+line surfaced to the Manager when that client next books. **In Release 2** it is taken from the
+deposit or prepayment on file, and a fee-free cancellation is refunded in full.
 **BR-20:** Every `no_show` and `late_cancelled` increments a counter on the client record. Owner
 and Manager see this counter when booking that client again.
 **BR-21:** Cancelling immediately frees the room and therapist(s). A status transition is the only
@@ -354,7 +362,8 @@ A monthly subscription, billed by Stripe.
 | Cancellation | Requires **≥ 15 days notice** before the next renewal date |
 | Reminders | **None** — no renewal reminder, no cancellation-window reminder (FRS §22) |
 
-**BR-38:** Each successful monthly charge grants **one credit**. Credit balance is capped at 3;
+**BR-38:** Each successful monthly payment grants **one credit** — recorded by hand in Release 1,
+billed by Stripe in Release 2. Credit balance is capped at 3;
 a charge that would exceed the cap grants nothing and is recorded as forfeited-to-cap.
 **BR-39:** Redeeming a credit against the included 60-minute massage costs the member $0. Choosing
 a different service charges the **difference** between that service's list price at that location
@@ -393,8 +402,8 @@ destroys the previous answers.
 **BR-44:** Care notes are **append-only**. A correction is a new note referencing the original.
 **BR-45:** One rating per appointment, always linked to both the appointment and the therapist.
 **BR-46:** Every `completed` appointment is automatically appended to the client's visit history.
-**BR-47:** Clients need an account **only** for self-service booking. Owner and Manager can book
-for a client who has no account.
+**BR-47:** Clients need an account **only** for self-service booking, which is Release 2. In
+Release 1 no client has an account; Owner and Manager book on their behalf throughout.
 
 ---
 
@@ -419,7 +428,7 @@ for a client who has no account.
 **Failure case designed for:** the Skokie manager and an online client both commit Anna's 15:30
 within the same 200 ms. See doc 03 §4 — prevented at the database level, not in application code.
 
-### 4.2 Client self-service booking online
+### 4.2 Client self-service booking online *(Release 2)*
 
 1. Client signs in to their account (required — FRS §5.1) and picks service, length, location, date.
 2. Therapist field defaults to **"No preference."** If they want someone specific, they **type a

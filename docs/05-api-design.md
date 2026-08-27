@@ -3,6 +3,11 @@
 **Version:** 1.0 · `/api/v1` · JSON · session-cookie authenticated · same-origin
 **Aligned to:** FRS v7
 
+> **Delivery posture.** Release 1 exposes the staff console surface only. Everything under
+> `/api/v1/public/*`, the Stripe endpoints and the client half of §3 are **Release 2** and are
+> marked. The `/api/v1` versioning and the error vocabulary are settled now so the client surface
+> is an addition, not a break.
+
 ---
 
 ## 1. Conventions
@@ -60,10 +65,11 @@
 | 422 | `insufficient_balance` | Gift card redemption exceeds balance |
 | 422 | `no_membership_credit` | Credit redemption with a zero balance |
 | 422 | `credit_cap_reached` | Grant would exceed the 3-credit cap (BR-38) |
-| 422 | `outside_booking_window` | Inside the cut-off, or beyond the 6-month horizon |
+| 422 | `outside_booking_window` | Inside the cut-off, or beyond the 6-month horizon *(client channel, Release 2)* |
 | 422 | `period_locked` | Edit attempted on a locked earnings period |
-| 422 | `query_too_short` | Therapist name search below 2 characters (BR-13) |
-| 422 | `payment_required` | Deposit or full payment not completed |
+| 422 | `query_too_short` | Therapist name search below 2 characters (BR-13) *(Release 2)* |
+| 422 | `payment_required` | Deposit or full payment not completed *(Release 2)* |
+| 422 | `outstanding_fee` | Client has an unpaid no-show fee — advisory, returned with `details.fee_order_ids` *(Release 1; see OQ-11)* |
 | 423 | `offboard_blocked` | Staff has future appointments |
 | 429 | `rate_limited` | Public endpoints |
 
@@ -84,7 +90,9 @@
 `GET /me` returns the flags the console needs, including `can_edit_service_menu` for a Staff user
 whom the Owner has granted menu access (FRS §2, §19.1).
 
-### Client
+### Client *(Release 2)*
+
+No client authenticates in Release 1.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -320,7 +328,7 @@ set, plus `deposit_due_cents` and `total_cents`.
 | POST | `/approval_requests/:id/approve` | owner, manager — appointment → `scheduled`, notifies client |
 | POST | `/approval_requests/:id/reject` | owner, manager — appointment → `cancelled`, **full refund**, notifies client |
 
-### 7.5 Slot holds (online flow only)
+### 7.5 Slot holds (online flow only) *(Release 2)*
 
 | Method | Path |
 |---|---|
@@ -361,7 +369,7 @@ Every `GET` on these two groups writes an `audit_logs` row recording who read it
 
 | Method | Path | Roles |
 |---|---|---|
-| POST | `/public/ratings/:token` | **public** — signed token from the SMS link, tied to the appointment and therapist |
+| POST | `/public/ratings/:token` | **public** — signed token from the SMS link, tied to the appointment and therapist. *Ships in Release 1: it needs a phone number, not an account* |
 | POST | `/kiosk/ratings` | kiosk bundle — `{appointment_id}` selected on the in-location screen |
 | GET | `/reports/ratings?from=&to=&location_id=&staff_id=` | owner |
 
@@ -401,7 +409,10 @@ the surplus must be entered as a tip.
 (BR-24). Supplying `allocations` lets a Manager override the split; the amounts must sum to
 `amount_cents`.
 
-### Gateway payments (online only)
+### Gateway payments (online only) *(Release 2)*
+
+Release 1 has no gateway. Fees are written as an open `Fee` order line and settled through
+`POST /orders/:id/payments` like any other amount owed.
 
 | Method | Path | Roles |
 |---|---|---|
@@ -426,7 +437,7 @@ appointment out of pending payment (ADR-11).
 | POST | `/gift_cards/:id/adjust` | **owner only** — `{amount_cents, reason}`, audit-logged |
 | POST | `/gift_cards/:id/void` | **owner** |
 | GET | `/public/gift_cards/:code/balance` | **public** — balance only, rate-limited, no PII |
-| POST | `/public/gift_cards` | **client** — buy a digital card online; Stripe-paid, code generated |
+| POST | `/public/gift_cards` | **client** — buy a digital card online; Stripe-paid, code generated *(Release 2)* |
 | GET | `/reports/gift_card_liability?as_of=&location_id=` | **owner** |
 
 **Staff have no access to any of these** (BR-31, FRS §2, §12).
@@ -545,9 +556,10 @@ layer, not merely hidden in the UI.
 
 ---
 
-## 14. Public & Client Endpoints
+## 14. Public & Client Endpoints *(Release 2)*
 
-Served only from the client bundle, aggressively rate-limited (Rack::Attack):
+None of this ships in Release 1. Served only from the client bundle, aggressively rate-limited
+(Rack::Attack):
 
 ```
 POST /api/v1/public/auth/request_code

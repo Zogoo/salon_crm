@@ -3,6 +3,12 @@
 **Version:** 1.0 · The core of the system. Read this before writing any scheduling code.
 **Aligned to:** FRS v7 §5, §5.1, §6, §20, §21
 
+> **Delivery posture.** The engine is built in full in Release 1 — multi-therapist pairing, room
+> typing, the buffer, the 15-minute grid, the whole concurrency guarantee. Only the *client*
+> booking channel is deferred: C10 (cut-off and horizon), slot holds, and the public availability
+> response shape. They are specified here so the engine is written once, with the channel as a
+> parameter rather than a later retrofit.
+
 ---
 
 ## 1. Problem Statement
@@ -27,7 +33,7 @@ such that all of the following hold over `[t, t + D + B)`. Write `n` for
 | C7 | The room is **active** and belongs to the location |
 | C8 | The room has **no other appointment** overlapping |
 | C9 | Neither a therapist nor the room has an unexpired **slot hold** overlapping |
-| C10 | `t` respects the booking cut-off and the 6-month horizon (client channel only) |
+| C10 | `t` respects the booking cut-off and the 6-month horizon (client channel only — *Release 2*) |
 | C11 | The room's `room_type` is one of the variant's allowed room types |
 | C12 | The free-therapist set has at least `therapist_count` members — two distinct therapists for couples, four hands and couple head spa |
 | C13 | `t` falls on the location's 15-minute grid |
@@ -189,7 +195,8 @@ This is FRS §5.1 and §21 verbatim, and C13.
 
 For each candidate `t`, require `[t, t + D + B) ⊆` some free interval.
 
-For the **client channel** additionally require (C10):
+For the **client channel** additionally require (C10) — *Release 2; Release 1 has no client
+channel, and Owner/Manager booking is unconstrained by either bound*:
 
 ```
 t >= now + location.booking_cutoff_minutes        (Owner sets 15 / 30 / 60)
@@ -270,8 +277,8 @@ Scheduling::NextAvailableForTherapist.call(
 ```
 
 **Rejection** transitions the appointment to `cancelled` with reason `therapist_request_rejected`,
-which frees the slot immediately, and notifies the client. Any deposit taken is refunded in full —
-the client did not get what they booked.
+which frees the slot immediately, and notifies the client. No fee is ever recorded against the
+client — they did not get what they booked. In Release 2, any deposit taken is refunded in full.
 
 **Timeout.** Nothing in FRS v7 says what happens if nobody approves. See OQ-04 in doc 06. Until
 that is answered, pending requests are surfaced on the Owner and Manager dashboards with an age
@@ -374,10 +381,11 @@ couples massage exists with one therapist. The API returns **409 Conflict** with
 The client re-runs the search and shows "that time was just taken — here are the nearest options."
 Treat the conflict as an expected, routine outcome, not an error to page on.
 
-### 4.5 Slot holds for the online flow
+### 4.5 Slot holds for the online flow *(Release 2)*
 
-Clients need the slot to survive checkout, which now includes a Stripe payment step and is therefore
-slower than an in-salon booking. A `slot_holds` row with `expires_at = now() + 10 minutes` reserves the room
+Clients need the slot to survive checkout, which includes a Stripe payment step and is therefore
+slower than an in-salon booking. Release 1 needs none of this: a Manager books in a single action,
+so there is no window during which a slot must be reserved but uncommitted. A `slot_holds` row with `expires_at = now() + 10 minutes` reserves the room
 and therapist set. Holds are:
 
 - included as blockers in the availability query (C9),
@@ -480,7 +488,7 @@ Core scheduling correctness:
 7. DST spring-forward: a 09:00 shift stays at 09:00 local.
 8. A therapist unqualified for the service never appears, even with an open shift and a free room.
 9. Shortening a shift over an existing appointment is rejected with the conflicting list.
-10. An expired slot hold no longer blocks the slot.
+10. *(Release 2)* An expired slot hold no longer blocks the slot.
 
 Specific to FRS v7's service mix and booking rules:
 
@@ -493,12 +501,15 @@ Specific to FRS v7's service mix and booking rules:
 16. Two appointments 15 minutes apart in the same room both succeed; 10 minutes apart, the second
     gets 409.
 17. A `pending_approval` appointment blocks the slot for every other channel.
-18. Rejecting a therapist request frees the slot within the same request cycle and refunds the
-    deposit in full.
-19. Client-channel search returns nothing inside the cut-off window and nothing beyond 183 days,
-    while the Manager channel returns both.
+18. Rejecting a therapist request frees the slot within the same request cycle, and records no
+    fee against the client *(Release 2 additionally refunds the deposit in full)*.
+19. *(Release 2)* Client-channel search returns nothing inside the cut-off window and nothing
+    beyond 183 days, while the Manager channel returns both.
 20. A 60-minute service plus a 30-minute add-on reserves 90 + 15 minutes and offers only slots
     where all 105 minutes are free.
+
+Eighteen of the twenty are Release 1; tests 10 and 19 exercise the client channel and land with
+Release 2.
 
 **Do not proceed past Phase 1 until tests 1, 11, 12 and 16 are green.** They are the four that
 cannot be retrofitted.

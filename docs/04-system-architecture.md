@@ -3,6 +3,12 @@
 **Version:** 1.0 · Rails API + AngularJS SPA, single project, single Postgres
 **Aligned to:** FRS v7
 
+> **Delivery posture.** Release 1 is an **internal management platform**: the console and the
+> rating kiosk, operated by Owner, Manager and Therapist. The client bundle, client authentication
+> and the entire Stripe surface are specified here in full but deferred to Release 2 (doc 06 §1).
+> Sections that describe Release 2 only are marked. Nothing about the Release 1 architecture needs
+> to change when Release 2 arrives — that is the point of specifying it now.
+
 ---
 
 ## 1. Architectural Style
@@ -22,7 +28,7 @@ this becomes multi-tenant SaaS sold to other salons.
 graph TB
     subgraph Browser
         NG[AngularJS SPA<br/>owner + manager + staff console]
-        PUB[Client booking + account app<br/>AngularJS, separate bundle]
+        PUB["Client booking + account app<br/>AngularJS, separate bundle<br/>(Release 2)"]
         KIOSK[In-location rating kiosk<br/>minimal bundle]
     end
 
@@ -39,7 +45,7 @@ graph TB
     subgraph Infrastructure
         PG[(PostgreSQL 16<br/>btree_gist, pg_trgm, citext)]
         RD[(Redis<br/>cache + queue)]
-        STR[Stripe<br/>deposits, fees, subscriptions]
+        STR["Stripe<br/>deposits, fees, subscriptions<br/>(Release 2)"]
         SMS[SMS provider<br/>Twilio]
         SMTP[Email provider<br/>Postmark / SES]
         S3[(Object storage<br/>PDFs, exports)]
@@ -125,6 +131,10 @@ Each controller renders a minimal ERB layout with `vite_javascript_tag`. The cat
 AngularJS own client-side navigation while deep links still work on refresh.
 
 ### 2.3 Three bundles, not one
+
+Release 1 ships the **console** and the **kiosk**; the client bundle arrives with Release 2. The
+split is decided now because it is a routing and build-config decision that is awkward to retrofit,
+and because it carries a security property worth having from the start.
 
 Keep the client-facing app in a **separate bundle with no shared authenticated code**, and the
 kiosk in a third, smaller one. Reasons:
@@ -266,7 +276,10 @@ API consumer here that would justify bearer tokens.
   location's money, change pay rates, adjust gift card balances and lock earnings periods.
   Recommended but not forced for Managers.
 
-### 4.2 Client authentication — phone + SMS one-time code
+### 4.2 Client authentication — phone + SMS one-time code *(Release 2)*
+
+> No client authenticates in Release 1. The `client` role exists in the enum and the policies
+> handle it, but no such account is ever issued. What follows is the Release 2 design.
 
 FRS §22 leaves the mechanism to us and asks only that it be simple and secure. Chosen: **phone
 number + 6-digit SMS code**, with optional email/password as a fallback.
@@ -400,11 +413,29 @@ while being clear it is **not** a clinical record and must not be presented as o
 
 ## 6. Payments Architecture
 
-FRS v7 requires money to be **collected**, not merely recorded, in four places: booking deposits,
-full prepayment, no-show and late-cancellation fees, and the monthly membership subscription. This
-is the part of the system that touches a third party, and it is kept deliberately narrow.
+**Release 1 records payments; it does not process any.** Every payment is entered by a Manager
+after the existing card terminal, the cash drawer or a Zelle transfer has already done the work.
+There is no gateway, no stored card, no PCI scope beyond what the terminal already carries, and no
+third-party dependency in the checkout path.
 
-### 6.1 Two payment worlds, deliberately kept apart
+FRS v7 nonetheless requires money to be **collected** in four places — booking deposits, full
+prepayment, no-show and late-cancellation fees, and the monthly membership subscription. All four
+are client-facing or automatic, and all four are **Release 2**. §6.2 onward specifies them so the
+Release 1 data model is already shaped to receive them.
+
+### 6.0 What Release 1 does instead
+
+| FRS requirement | Release 1 behaviour |
+|---|---|
+| 20% deposit or prepayment at booking (§5.1) | Not applicable — there is no online booking. Internally booked appointments are paid at checkout. |
+| 20% no-show / late-cancellation fee (§21) | Calculated on the same 4-hour rule, then written as an **open `Fee` order line** rather than charged. The Manager sees it when that client next books and collects it at checkout. See doc 02 §3.7. |
+| $80/month membership (§23) | Enrolment, credits, the 3-credit cap, upgrades and the 15-day notice all work. The monthly payment is **recorded by hand**, and recording it is what grants the credit. |
+| Refunds | A fee-free cancellation has nothing to refund, because nothing was taken. |
+
+The cost of this is a revenue leak on no-shows and a monthly manual step per member. Both are
+stated as risks in doc 06 §4, and both disappear in Release 2.
+
+### 6.1 Two payment worlds, deliberately kept apart *(from Release 2)*
 
 | | In salon | Online |
 |---|---|---|
@@ -418,7 +449,7 @@ Keeping these apart in one column, rather than in two subsystems, means the dail
 (FRS §10) sums one table across both worlds while reconciliation, refund mechanics and error
 handling stay distinct.
 
-### 6.2 Deposits and prepayment (FRS §5.1)
+### 6.2 Deposits and prepayment (FRS §5.1) *(Release 2)*
 
 At online booking the client chooses **20% deposit** or **full payment**:
 
@@ -437,7 +468,7 @@ later. **This requires explicit consent** to the cancellation policy at booking,
 timestamp on `stripe_customers.cancellation_policy_agreed_at` (RISK-02). Stripe requires it; so
 does basic fairness.
 
-### 6.3 Cancellation and no-show fees (FRS §21)
+### 6.3 Cancellation and no-show fees (FRS §21) *(Release 2 charging; Release 1 records the amount owed)*
 
 | Event | Fee | Refund |
 |---|---|---|
@@ -455,7 +486,7 @@ A `MarkNoShowsJob` **proposes** no-shows for appointments more than 30 minutes p
 surfaces them for Manager confirmation. It never auto-charges: charging a card because nobody
 pressed "check in" is the kind of automation that generates chargebacks.
 
-### 6.4 Membership subscriptions (FRS §23)
+### 6.4 Membership subscriptions (FRS §23) *(Release 2)*
 
 Stripe Subscriptions at $80/month. The local `memberships` record is the source of truth for
 **entitlement**; Stripe is the source of truth for **billing state**, reconciled by webhook:
@@ -471,7 +502,7 @@ The **15-day cancellation notice** (BR-40) is ours, not Stripe's: a request insi
 cancellation for then. FRS §22 explicitly forbids a renewal reminder and a cancellation-window
 reminder, so neither is implemented — noted here so its absence reads as a decision.
 
-### 6.5 Webhook handling
+### 6.5 Webhook handling *(Release 2)*
 
 - Signature verified with the endpoint secret on every request.
 - Handler is **idempotent by Stripe event id** (`processed_stripe_events` table with a unique
@@ -494,6 +525,7 @@ FRS §22 requires both channels for confirmations, plus a reminder and a fee-cha
 | `fee_charged` | ✓ | ✓ | No-show or late-cancellation fee taken |
 | `gift_card_delivered` | ✓ | — | Digital gift card purchased online |
 | `rating_request` | — | ✓ | Appointment `completed`, link tied to the therapist (FRS §11.2) |
+| `gift_card_delivered` (digital) | ✓ | — | *Release 2* — online gift card purchase |
 | ~~membership renewal reminder~~ | — | — | **Explicitly out of scope (FRS §22)** |
 | ~~cancellation window reminder~~ | — | — | **Explicitly out of scope (FRS §22)** |
 
@@ -515,13 +547,14 @@ acceptable at this scale, and one fewer service to operate.
 | Job | Schedule | Purpose |
 |---|---|---|
 | `SendAppointmentRemindersJob` | every 15 min | Reminders ahead of start, evaluated in the location's tz |
-| `SweepExpiredSlotHoldsJob` | every minute | Delete expired holds |
+| `SweepExpiredSlotHoldsJob` | every minute | *Release 2* — delete expired holds |
 | `MarkNoShowsJob` | every 30 min | Propose no-shows >30 min past start for Manager confirmation — never auto-commits |
-| `ChargePendingFeesJob` | every 15 min | Charge confirmed no-show / late-cancel fees off-session |
+| `ChargePendingFeesJob` | every 15 min | *Release 2* — charge confirmed no-show / late-cancel fees off-session. Release 1 leaves the fee as an open order line instead |
 | `SendRatingRequestsJob` | every 15 min | SMS the rating link after completion (FRS §11.2) |
 | `ExpireGiftCardsJob` | nightly | Move past-expiry cards to `expired`, write a ledger row — never silently zero a balance |
 | `ReconcileGiftCardBalancesJob` | nightly | Assert ledger sum == cached balance; alert on drift (BR-25) |
 | `ReconcileMembershipCreditsJob` | nightly | Same assertion for membership credits |
+| `OutstandingFeesReportJob` | weekly | *Release 1* — list unpaid `Fee` orders per location so they are chased rather than forgotten |
 | `VerifyAppointmentStaffSyncJob` | nightly | Assert every `appointment_staff` row matches its parent (doc 03 §4.3) |
 | `GenerateEarningPeriodsJob` | 1st and 16th, 03:00 | Open the next semi-monthly period, close the previous (FRS §8) |
 | `BuildEarningStatementsJob` | 1st and 16th, 04:00 | Build statements for the closed period |
@@ -633,7 +666,7 @@ removes the hardest part of disaster recovery.
 | Staff auth | `has_secure_password` + cookie sessions + TOTP for Owner | |
 | Client auth | Phone + SMS one-time code | separate cookie scope |
 | Authorisation | Pundit | role × single-location scope |
-| Payments | **Stripe** — PaymentIntents, off-session charges, Subscriptions | online only; SAQ-A |
+| Payments | Recorded only in Release 1 · **Stripe** in Release 2 — PaymentIntents, off-session charges, Subscriptions | online only; SAQ-A |
 | SMS | Twilio behind an adapter | transactional only |
 | Email | Postmark or SES via ActionMailer | transactional only |
 | Serialisation | Alba or Blueprinter | explicit field lists — never `to_json` on a model |
@@ -659,9 +692,10 @@ removes the hardest part of disaster recovery.
 | ADR-07 | Money as integer cents | Eliminates rounding error | Decimal / float |
 | ADR-08 | Appointment → many therapists via `appointment_staff`, with the conflict constraint on that table | Couples, four hands and couple head spa need two therapists; the guarantee must stay in the database | Two linked appointments sharing a room — would require relaxing the room constraint, which is the one protecting us |
 | ADR-09 | Buffer stored inside `appointments.during` | The 15-minute gap rule falls out of the existing constraints; one mechanism instead of two | A separate gap check in application code |
-| ADR-10 | Stripe for online money only; in-salon stays recorded | Deposits, auto-charged fees and a monthly subscription cannot be "recorded"; but the existing terminal works and replacing it is out of scope | Full Stripe Terminal rollout, or no gateway at all |
+| ADR-10 | Stripe for online money only, **deferred to Release 2**; in-salon stays recorded permanently | Release 1 is an internal tool with no online money to collect. When it arrives, deposits, auto-charged fees and a monthly subscription cannot be "recorded" — but the existing terminal works and replacing it is out of scope | Full Stripe Terminal rollout, or no gateway ever |
 | ADR-11 | Webhook is authoritative for payment state, not the browser callback | A closed tab must not lose a booking or a membership charge | Advancing state on the client's success redirect |
 | ADR-12 | Typed rooms with per-variant allowed types | FRS §20 gives four physical room kinds and services that require specific ones | Untyped rooms with a capacity integer — cannot express "head spa only" |
 | ADR-13 | Earnings derived from completed service lines, not shift hours | Therapists are 1099 contractors paid per session (FRS §4, §18) | Hourly payroll from shifts — pays for idle time and contradicts the engagement model |
 | ADR-14 | Three frontend bundles | The client bundle physically cannot contain a therapist roster (BR-13); the kiosk sits unattended in public | Single bundle with route guards |
 | ADR-15 | Care notes retained, clinical records dropped | FRS v7 asks for neither intake nor SOAP; the therapist's "avoid / consider" log is still needed and still sensitive | Full clinical layer, or nothing at all |
+| ADR-16 | Internal-first delivery: Release 1 ships no client-facing surface, but the schema, policies and engine are built to receive one | The scheduling core, earnings and gift cards deliver value on their own; client booking and payments add a third-party dependency and a public attack surface to a system that has not yet proven itself in daily use | Building everything at once, or designing only for internal use and retrofitting the client surface later |

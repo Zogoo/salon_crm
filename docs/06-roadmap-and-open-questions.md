@@ -12,15 +12,41 @@
 
 ## 1. Phased Delivery
 
-The sequencing principle: **build the resource-scheduling core first and correctly**, because
-everything else — earnings, revenue, ratings, membership redemption — is derived from appointment
-data. A wrong scheduling model is the only mistake here that cannot be patched later.
+### Delivery posture: internal first
+
+This platform is, at this stage, **an internal management tool**. Everything in Release 1 is
+operated by an Owner, a Manager or a Therapist standing in one of the four locations. Nothing in it
+requires a client to log in, open a browser, or enter a card.
+
+That decision defers three things that FRS v7 describes and that this design fully specifies:
+client self-service booking (§5.1), online payment collection — deposits, prepayment and automatic
+no-show fees (§5.1, §21) — and online gift card purchase (§12). They remain designed, modelled and
+documented throughout these six documents; they are simply not built first.
+
+**What deferring them costs, stated plainly.** Two business rules degrade in Release 1:
+
+| Rule | Release 1 behaviour | Release 2 behaviour |
+|---|---|---|
+| Deposits at booking (FRS §5.1) | Not taken — bookings are internal and paid at checkout | 20% or full payment via Stripe |
+| No-show / late-cancel fee (BR-19) | **Calculated and recorded as owed**, not charged. The 4-hour window still runs; the fee becomes an open `Fee` order line surfaced to the Manager at the client's next booking | Charged automatically against the saved card |
+| Membership billing (BR-38) | Enrolment, credits, rollover cap and the 15-day notice all work; the **$80 monthly payment is recorded by hand** like any other payment | Stripe subscription bills automatically |
+
+Everything else — the scheduling core, earnings, gift cards, reporting — is complete in Release 1.
+
+The sequencing principle within each release: **build the resource-scheduling core first and
+correctly**, because everything else (earnings, revenue, ratings, membership redemption) is derived
+from appointment data. A wrong scheduling model is the only mistake here that cannot be patched
+later.
+
+---
+
+## Release 1 — Internal management platform
 
 ### Phase 0 — Foundations (1–2 weeks)
 
-- Rails app, Postgres 16 with `btree_gist` / `pg_trgm` / `citext`, Vite Ruby + three AngularJS
-  shells (console, client, kiosk)
-- Users and the four roles; staff sessions; TOTP for Owner; client SMS-code auth
+- Rails app, Postgres 16 with `btree_gist` / `pg_trgm` / `citext`, Vite Ruby + the **console and
+  kiosk** AngularJS shells (the client bundle is Release 2)
+- Users and the three staff roles; staff sessions; TOTP for Owner
 - Pundit skeleton with `verify_authorized` enforced from the first controller
 - **Seed the four locations, their business hours, and all 28 typed rooms** (FRS §20)
 - Audit log infrastructure
@@ -42,73 +68,51 @@ executed successfully once.
 - **Appointments with both exclusion constraints and the `appointment_staff` trigger** (doc 03 §4)
 - Specific-therapist requests: `pending_approval`, the approval queue, next-available-time
 - Day board: rooms × time, 09:00–22:00
-- Appointment lifecycle transitions
+- Appointment lifecycle transitions; walk-ins
 - Client records, phone search, "Add New Client", merge tool
 
-**Exit criteria:** all twenty scheduling tests in doc 03 §6.1 pass. Tests 1, 11, 12 and 16 —
-concurrency, couples cardinality, atomic two-therapist rollback, and the 15-minute gap — gate the
-phase. Do not proceed until they are green.
+**Exit criteria:** the eighteen Release 1 scheduling tests in doc 03 §6.1 pass. Tests 1, 11, 12 and
+16 — concurrency, couples cardinality, atomic two-therapist rollback, and the 15-minute gap — gate
+the phase. Do not proceed until they are green.
 
-### Phase 2 — Money and operations (3–4 weeks)
+### Phase 2 — Money and operations (2–3 weeks)
 
 - Orders, line items, discounts, the `revenue_category` classification
-- Payments: recorded methods (card terminal, cash, Zelle, other) and split payment
-- **Stripe**: deposits and full prepayment, saved cards with policy consent, off-session fee
-  charges, refunds, webhook handling
-- Cancellation and no-show policy: the 4-hour window, 20% fees, full refunds
+- Payments: **recorded** methods only — card terminal, cash, Zelle, gift card, other — and split
+  payment across two methods
 - Tips, including the two-therapist split
-- Gift cards: physical and digital, ledger, barcode lookup, cross-location redemption,
+- Cancellation and no-show policy: the 4-hour window and the 20% calculation, **recorded as an
+  amount owed** rather than charged
+- Gift cards: physical cards with barcode lookup, the ledger, cross-location redemption,
   reconciliation job
 - Client preferences form (versioned) and care notes (append-only, encrypted)
-- Email + SMS notifications: confirmation, reminder, fee notice, approval decisions
+- Email + SMS notifications: confirmation, reminder, approval decisions, fee notice
+- Ratings: the in-location kiosk and the SMS rating link (neither needs a client account)
 
 **Exit criteria:** a full day can be operated end to end at one location — book, confirm, check in,
-serve, note, pay with a split across two methods, close. The gift card ledger reconciles to zero
-drift. A no-show fee charges correctly against a saved card in Stripe test mode, and a ≥4-hour
-cancellation refunds in full.
+serve, note, pay with a split across two methods, close, rate. The gift card ledger reconciles to
+zero drift. A no-show produces a correctly calculated open fee that appears when that client is
+next booked.
 
-### Phase 3 — Earnings and reporting (2–3 weeks)
+### Phase 3 — Earnings, membership and reporting (3–4 weeks)
 
 - `earning_lines` generated on appointment completion, with rate snapshotting
 - Manual session and tip entry (Owner)
 - Semi-monthly period generation, statements, adjustments, locking
+- Membership: enrolment, the credit ledger with the 3-credit cap, redemption against the included
+  60-minute massage, upgrade pricing, the 15-day cancellation rule — **billed by recording the
+  monthly payment manually**
 - Owner dashboard (FRS §15)
 - Daily revenue report (FRS §10), client log (FRS §9), staff earnings report (FRS §4, §8)
-- Gift card liability report
+- Gift card liability and membership reports
 - XLSX / PDF export pipeline
 
 **Exit criteria:** one historical half-month closes correctly and a therapist's total reconciles by
 hand against their completed appointments. Revenue, liabilities and fees appear as three separate
-figures and never as one.
+figures and never as one. A member accrues credits to the cap, redeems one at $0, and redeems one
+against a lymphatic massage paying only the difference.
 
-### Phase 4 — Client-facing (3–4 weeks)
-
-- Client accounts: registration, SMS-code login, profile
-- Public booking: service → location → date → slot → therapist search → deposit → confirm
-- Slot holds across the payment step
-- My bookings, self-service cancellation with the fee rule applied
-- Digital gift card purchase
-- Rating: SMS link and the in-location kiosk
-- Rate limiting, bot protection, and the roster-privacy guarantees (BR-13)
-
-**Exit criteria:** a client can register, book, pay a 20% deposit, receive email **and** SMS
-confirmation, cancel outside the window for a full refund, and rate a completed session. A
-penetration attempt cannot enumerate the therapist roster through any public endpoint.
-
-### Phase 5 — Membership (2 weeks)
-
-- Enrolment, Stripe subscription at $80/month
-- Monthly credit grant with the 3-credit cap
-- Redemption against the included 60-minute massage
-- Upgrade pricing (the difference)
-- The 15-day cancellation notice rule
-- Membership report
-
-**Exit criteria:** a member accrues credits to the cap, redeems one against a booking at $0,
-redeems one against a lymphatic massage paying only the difference, and a cancellation requested
-14 days before renewal takes effect after the *following* period.
-
-### Phase 6 — Data migration and go-live (1–2 weeks)
+### Phase 4 — Data migration and go-live (1–2 weeks)
 
 - Import the existing client list: contact information and appointment history (FRS §24)
 - **Import any outstanding gift cards with correct balances** — unrecorded liability is the
@@ -116,9 +120,53 @@ redeems one against a lymphatic massage paying only the difference, and a cancel
 - Parallel-run one location for a week before switching the rest
 - Train the four Managers; print the fallback day sheets
 
-**Total: roughly 15–20 weeks of focused work**, excluding UI design and UAT. The four heaviest
-items in that total are the multi-therapist scheduling core, Stripe, client accounts and
-membership — none of which can be deferred without breaking a rule in FRS v7.
+**Release 1 total: roughly 11–15 weeks** of focused work, excluding UI design and UAT.
+
+---
+
+## Release 2 — Client-facing (designed, not scheduled)
+
+Not committed to a date. Each phase is independently shippable, and Phase 5 can ship without Phase
+6 if you want online booking without online payment — bookings would then be paid at the salon
+exactly as an internally-booked one is.
+
+### Phase 5 — Client accounts and self-service booking (3–4 weeks)
+
+- Client accounts: registration, SMS-code login, profile
+- The client AngularJS bundle (doc 04 §2.3)
+- Public booking: service → location → date → slot → therapist **search** → confirm
+- The 15-minute grid, 6-month horizon and configurable booking cut-off on the client channel
+- Slot holds across the checkout step
+- My bookings, self-service cancellation with the fee rule applied
+- Rate limiting, bot protection, and the roster-privacy guarantees (BR-13)
+
+**Exit criteria:** a client can register, book, receive email **and** SMS confirmation, and cancel
+outside the window. A penetration attempt cannot enumerate the therapist roster through any public
+endpoint.
+
+### Phase 6 — Online payment (2–3 weeks)
+
+- Stripe: PaymentIntents, deposits and full prepayment at booking
+- Saved cards with recorded cancellation-policy consent (RISK-02)
+- Off-session automatic no-show and late-cancellation fee charges, replacing Release 1's
+  amount-owed behaviour
+- Refunds, including the full refund on a fee-free cancellation and on a rejected therapist request
+- Digital gift card purchase online
+- Webhook handling, idempotent by event id
+
+**Exit criteria:** a 20% deposit is captured at booking, a no-show fee charges correctly against a
+saved card in Stripe test mode, and a ≥4-hour cancellation refunds in full.
+
+### Phase 7 — Membership billing automation (1 week)
+
+- Stripe Subscriptions at $80/month replacing manual monthly recording
+- `invoice.paid` → credit grant; `invoice.payment_failed` → `past_due`
+- Scheduled cancellation at the date the 15-day rule produced
+
+**Exit criteria:** a membership bills, grants and caps credits without anyone touching it, and a
+cancellation requested 14 days before renewal takes effect after the *following* period.
+
+**Release 2 total: roughly 6–8 weeks.**
 
 ---
 
@@ -135,7 +183,7 @@ where the spec is silent — cheap to change **now** and expensive to change aft
 | **A-04** | A membership **upgrade** charges the difference between the chosen service's list price at that location and the included 60-minute massage's list price at that location. | Medium — see OQ-03 |
 | **A-05** | **Tips go 100% to the performing therapist**, split evenly between two therapists on a couples or four-hands appointment unless overridden. | Medium |
 | **A-06** | **Sales tax is out of scope.** Illinois generally does not tax massage services, and gift cards are not taxed at sale. A `tax_cents` column exists and is always 0. | Medium — per-state rules if wrong |
-| **A-07** | The **deposit and fee base** is the appointment total (services + add-ons + enhancements), **excluding tip**. | Low |
+| **A-07** | The **deposit and fee base** is the appointment total (services + add-ons + enhancements), **excluding tip**. Release 1 calculates the fee and records it as owed; Release 2 charges it. | Low |
 | **A-08** | **The buffer trails the appointment** rather than surrounding it, producing exactly one 15-minute gap between consecutive bookings. | Low — but see doc 03 §1.1 |
 | **A-09** | A **three-table room** at Skokie is bookable by any service needing 1–3 tables; nothing in FRS v7 describes a three-person service, so it currently serves as an overflow single/couple room. | Low — see OQ-06 |
 | **A-10** | **Single head spa runs in a head-spa room** (Luma has 2, both described as "head-spa couple rooms"). | Low |
@@ -143,8 +191,12 @@ where the spec is silent — cheap to change **now** and expensive to change aft
 | **A-12** | **Walk-ins are entered by Owner or Manager**, not Staff — following FRS §2 over FRS §3/§21. | Medium — see OQ-02 |
 | **A-13** | **A membership credit may be redeemed at any of the four locations.** | Low |
 | **A-14** | **Reminder timing is 24 hours before start.** FRS §22 requires a reminder but gives no timing. | Low — see OQ-05 |
+| **A-18** | **Membership is billed by hand in Release 1** — the Manager records the $80 like any other payment, and the credit grant is triggered by that recorded payment rather than by a Stripe webhook. | Medium — operationally manual until Release 2 Phase 7 |
+| **A-19** | **Notifications ship in Release 1.** Confirmations, reminders, fee notices and rating links need no client account, only a phone number and an email address on the client record. | Low — could be deferred if SMS cost is a concern |
 | **A-15** | Data retention **7 years**, soft delete only. | Low |
 | **A-16** | **English UI in v1**, with all strings in i18n files so Mongolian or Spanish is additive. | Low |
+| **A-18** | **Membership is billed by hand in Release 1** — the Manager records the $80 like any other payment, and the credit grant is triggered by that recorded payment rather than by a Stripe webhook. | Medium — manual until Release 2 Phase 7 |
+| **A-19** | **Notifications ship in Release 1.** Confirmations, reminders, fee notices and rating links need no client account — only a phone number and an email address on the client record. | Low — deferrable if SMS cost is a concern |
 | **A-17** | **A therapist works at one location at a time**; the location-change request moves them, it does not add a second location. | Medium — many-to-many would change the shift and availability model |
 
 ---
@@ -173,13 +225,13 @@ assigned to themselves — not a general booking permission.
 
 ### Important (answer before their phase)
 
-**OQ-03 — How is a membership upgrade priced?**
+**OQ-03 — How is a membership upgrade priced?** *(Release 1, Phase 3)*
 FRS §23 says a member "can pay extra" for a different service. Is the extra (a) the difference
 between the two list prices at that location (A-04), (b) the difference from the $80 membership
 price, or (c) a fixed upgrade fee? Also: does an upgrade consume the monthly credit, or is it
 charged in full and the credit preserved?
 
-**OQ-04 — What happens to a therapist request nobody approves?**
+**OQ-04 — What happens to a therapist request nobody approves?** *(Release 1)*
 FRS §5 promises the client confirmation "within a few minutes" but does not say what happens if no
 Owner or Manager acts. The slot is held meanwhile, so an unattended request blocks inventory.
 Options: auto-approve after N minutes, auto-reject and refund after N minutes, or hold indefinitely
@@ -207,35 +259,42 @@ cannot say who took a payment or approved a request. Worth deciding whether that
 before go-live; adding more Manager accounts later is trivial, but retrofitting attribution to
 past records is not.
 
-**OQ-09 — Gift card expiry.** See RISK-01 in doc 01 §8. FRS §12 sets 12 months. The federal CARD
+**OQ-09 — Gift card expiry.** *(Release 1)* See RISK-01 in doc 01 §8. FRS §12 sets 12 months. The federal CARD
 Act sets a five-year floor for the funds behind most gift certificates, and Illinois has its own
 provisions. The system implements expiry as a configurable value so the policy is yours to set —
 but please confirm the 12-month figure with counsel before it is switched on, because the exposure
 is a claim from a cardholder, not a bug.
 
-**OQ-10 — Who receives the money?** Therapists are 1099 contractors earning per session. Does the
-platform need to **pay them** (Stripe Connect, ACH, a payout file), or does it only need to
+**OQ-10 — Who receives the money?** *(Release 1, Phase 3)* Therapists are 1099 contractors earning
+per session. Does the platform need to **pay them** (ACH, a payout file), or does it only need to
 **report** what is owed so payment happens outside the system? These documents assume reporting
-only. Actual payouts are a substantially larger piece of work.
+only. Actual payouts are a substantially larger piece of work — and note that Release 1 has no
+payment gateway at all, so building payouts would pull one in.
+
+**OQ-11 — How should an unpaid no-show fee behave at the next booking?** *(Release 1, Phase 2)*
+Without a gateway, a fee is an amount owed rather than a charge. When that client books again, does
+the Manager (a) see a warning and collect at checkout, (b) get blocked from booking until it is
+settled, or (c) see it only on the client profile? Option (a) is assumed. This question disappears
+in Release 2, when the fee is charged automatically.
 
 ### Nice to resolve
 
-**OQ-11 — Rating follow-up.** Ratings are collected but FRS v7 does not say what happens to a low
+**OQ-12 — Rating follow-up.** Ratings are collected but FRS v7 does not say what happens to a low
 one. Should a score below some threshold alert the Owner or the location Manager?
 
-**OQ-12 — Can a client rebook the same therapist directly?**
+**OQ-13 — Can a client rebook the same therapist directly?** *(Release 2)*
 The roster is deliberately unbrowsable, but a returning client already knows who they saw. Should
 "book again with Anna" appear on their own visit history? It leaks no one else's identity and is
 the single highest-value convenience in the client app.
 
-**OQ-13 — Expected volume.** Roughly how many appointments per location per day? This validates the
+**OQ-14 — Expected volume.** Roughly how many appointments per location per day? This validates the
 single-server sizing and the availability-search budget. The estimates in doc 03 §2.2 assume ~20
 per location per day.
 
-**OQ-14 — Branding and existing website.** Is there a site the booking flow must match or embed
+**OQ-15 — Branding and existing website.** Is there a site the booking flow must match or embed
 into?
 
-**OQ-15 — Does anything need to be bilingual at launch** — the client booking flow, the rating
+**OQ-16 — Does anything need to be bilingual at launch** — the client booking flow, the rating
 screen, or the staff console?
 
 ---
@@ -250,17 +309,19 @@ screen, or the staff console?
 | Gift card liability misreported as revenue | High (very common) | Severe (overstated profit, tax exposure) | `revenue_category` on every line item; liability report in Phase 3 |
 | **Membership credits misreported as revenue** | High | Severe | Same mechanism — membership billing is a liability until the credit is redeemed |
 | **12-month gift card expiry unenforceable** | Medium | High (legal claim, refund exposure) | Configurable expiry, expiry written to the ledger not silently zeroed, OQ-09 with counsel |
-| **Fee charged without valid consent** | Medium | High (chargebacks, disputes) | Policy consent captured and timestamped before the card is saved; no-shows confirmed by a human before charging |
-| **Stripe webhook missed during an outage** | Medium | High (unrecorded payment or membership charge) | Idempotent handler keyed on event id; Stripe retries 3 days; restore runbook includes checking failed deliveries |
+| **Fee charged without valid consent** *(Release 2)* | Medium | High (chargebacks, disputes) | Policy consent captured and timestamped before the card is saved; no-shows confirmed by a human before charging |
+| **Unpaid no-show fees never collected** *(Release 1)* | High | Medium (revenue leak, policy loses its deterrent) | Fee surfaced to the Manager at the client's next booking; a standing report of outstanding fees; resolved permanently in Release 2 |
+| **Stripe webhook missed during an outage** *(Release 2)* | Medium | High (unrecorded payment or membership charge) | Idempotent handler keyed on event id; Stripe retries 3 days; restore runbook includes checking failed deliveries |
 | Earnings wrong after a rate change | Medium | High (contractor trust) | Effective-dated six-rung ladder + rate snapshot on every earning line + locked periods |
-| **Therapist roster enumerated through the client app** | Medium | Medium (staff privacy, poaching) | No roster endpoint, 2-character minimum, capped results, rate limits, separate bundle |
+| **Therapist roster enumerated through the client app** *(Release 2)* | Medium | Medium (staff privacy, poaching) | No roster endpoint, 2-character minimum, capped results, rate limits, separate bundle |
 | Sensitive client information exposed | Low | Severe | Column encryption on preferences and care notes, scoped access, read-access audit logging |
 | Duplicate client records from phone bookings | Very high | Medium (broken history and retention reporting) | Phone-normalised search + a merge tool in Phase 1, not later |
 | Single server outage during business hours | Medium | Severe (four locations cannot book) | Daily printed schedule, rehearsed 2-hour restore runbook, VM snapshots |
 | AngularJS end-of-life | Certain | Medium | All logic in Rails, thin components, isolated API services — migration is a view-layer swap |
 | DST bugs in the 4-hour window and fee jobs | Medium | Medium | Instant arithmetic, never wall-clock; explicit DST tests |
 | **Contractor classification** | — | High (legal) | Out of the software's hands; flagged as RISK-04 in doc 01 §8 |
-| Scope creep into in-salon card processing | Medium | High (PCI scope, timeline) | ADR-10 holds the line: gateway for online only |
+| Scope creep into in-salon card processing | Medium | High (PCI scope, timeline) | ADR-10 holds the line: gateway for online only, and not before Release 2 |
+| **Release 2 never happens and the deferred rules are forgotten** | Medium | Medium (FRS §5.1, §21 and §23 silently unimplemented) | The gap is stated in §1, annotated on every affected rule, and the schema already carries the columns — see doc 02 §3.7 |
 
 ---
 
@@ -269,7 +330,7 @@ screen, or the staff console?
 Before implementation begins, all of the following should be true:
 
 - [ ] **OQ-01** (add-on pay) and **OQ-02** (staff walk-ins) answered
-- [ ] Assumptions A-01 … A-17 reviewed and confirmed or corrected
+- [ ] Assumptions A-01 … A-19 reviewed and confirmed or corrected
 - [ ] The business rules index (doc 01 §7) reviewed by the Owner in plain language
 - [ ] **RISK-01 / OQ-09** (gift card expiry) raised with counsel
 - [ ] **OQ-10** answered — does the platform pay therapists, or only report what is owed?
@@ -277,6 +338,13 @@ Before implementation begins, all of the following should be true:
 - [ ] Room inventory (FRS §20) confirmed against the physical rooms, including which services each
       room type may host
 - [ ] Existing client list and any outstanding gift cards identified for migration (FRS §24)
-- [ ] Expected volume confirmed for sizing (OQ-13)
+- [ ] Expected volume confirmed for sizing (OQ-14)
+- [ ] **OQ-11** answered — what a Manager sees when a client with an unpaid fee books again
+- [ ] Agreed that Release 1 ships with no payment gateway, so deposits are not taken and no-show
+      fees are collected by hand at the next visit
+- [ ] Agreement that the eighteen Release 1 scheduling tests (doc 03 §6.1) gate Phase 1 completion
+
+Deferred to Release 2, and not blocking Release 1:
+
 - [ ] Stripe account created and the cancellation-policy wording agreed for the booking flow
-- [ ] Agreement that the twenty scheduling tests (doc 03 §6.1) gate Phase 1 completion
+- [ ] Decision on whether Phase 5 (client booking) may ship before Phase 6 (online payment)
