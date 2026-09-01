@@ -9,12 +9,12 @@ online gift card purchase are **specified in full across these documents but def
 2**, so the design is settled without the build carrying it. See doc 06 §1 for the split and for
 the two business rules that degrade in the meantime.
 
-**Source of truth:** [`business_requirement.md`](business_requirement.md)
-— the owner's Functional Requirements Specification, v7, 21 Aug 2026.
-These six documents translate it into an architecture. Where they disagree, the FRS wins and the
-document is wrong; please report it.
+**Source of truth:** [`business_requirement.md`](business_requirement.md) — the owner's Functional
+Requirements Specification, v7, 21 Aug 2026, together with the owner's subsequent decisions on the
+points it left open, which are folded into these documents as rules. Where a document disagrees
+with the FRS or with a stated owner decision, the document is wrong; please report it.
 
-**Version 1.0** · 2026-08-26 · pre-implementation.
+**Version 1.1** · 2026-09-01 · pre-implementation.
 
 ## Documents
 
@@ -22,10 +22,11 @@ document is wrong; please report it.
 |---|---|---|
 | 01 | [Business Analysis](01-business-analysis.md) | Actors, the access matrix, separation of duties, 10 core processes, appointment lifecycle, gift cards, membership, earnings, reporting, NFRs, **48 numbered business rules**, 4 risks raised by the spec |
 | 02 | [Domain Model](02-domain-model.md) | 13 bounded contexts, 5 Mermaid ERDs, full entity dictionary, **18 database-enforced invariants**, money/time conventions, indexing plan |
-| 03 | [Scheduling Engine](03-scheduling-engine.md) | The 13 availability conditions, the 5-phase search, multi-therapist pairing, assignment policy, **concurrency and double-booking prevention**, timezone & DST rules, performance budget, **20 gating tests** |
+| 03 | [Scheduling Engine](03-scheduling-engine.md) | The 13 availability conditions, the 5-phase search, multi-therapist pairing, capacity-based room matching, assignment policy, **concurrency and double-booking prevention**, timezone & DST rules, performance budget, **24 gating tests** |
 | 04 | [System Architecture](04-system-architecture.md) | Modular monolith rationale, Rails + AngularJS layout, three bundles, auth for staff and clients, the full permission matrix, **payments architecture**, notifications, background jobs, reporting, deployment, **16 ADRs** |
 | 05 | [API Design](05-api-design.md) | ~110 REST endpoints across 14 groups, error codes, payload examples, the public surface, and what is deliberately not exposed |
-| 06 | [Roadmap & Open Questions](06-roadmap-and-open-questions.md) | **Release 1 (internal, ~11–15 weeks) and Release 2 (client-facing, ~6–8 weeks)**, 19 assumptions, 16 open questions, risk register, definition of done |
+| 06 | [Delivery Roadmap](06-delivery-roadmap.md) | The internal-first posture and what deferral costs · **Release 1 (internal, ~11–15 weeks)** in five phases with exit criteria · **Release 2 (client-facing, ~6–8 weeks)** in three |
+| 07 | [Assumptions, Open Questions & Risks](07-open-questions-and-risks.md) | 12 assumptions, 3 open questions, 4 accepted limitations, 21-row risk register, pre-implementation definition of done |
 
 ## Confirmed decisions
 
@@ -33,10 +34,12 @@ Four fixed locations (Lawrence, Skokie, Luma, Belmont) · all US Central · Rail
 one project · PostgreSQL · Owner / Manager / Staff / Client, **one Manager per location** ·
 therapists are **1099 contractors paid per completed session** across a six-rung ladder
 (30/45/60/75/90/120 min) · Managers on a flat monthly rate · an appointment is **1 room + 1–2
-therapists** · rooms are **typed** · **15-minute buffer, 15-minute grid, 6-month horizon** ·
-in-salon payments **recorded** through the existing terminal · gift cards redeemable across all
-four locations · email **and** SMS notifications · packages, health intake and SOAP notes all out
-of scope.
+therapists** · rooms match **by client capacity**, head-spa rooms exclusive · **15-minute buffer,
+15-minute grid, 6-month horizon** · in-salon payments **recorded** through the existing terminal ·
+gift cards redeemable across all four locations and **never forfeited at expiry** · memberships
+**tied to their joining location** · email **and** SMS, with reminders at **24 h and 2 h** ·
+peak sizing **100 appointments/location/day** · English only at launch · packages, health intake
+and SOAP notes all out of scope.
 
 **Release 2, designed but not scheduled:** client accounts and self-service booking · Stripe for
 20% deposits, automatic 20% no-show/late-cancel fees and the $80/month membership subscription ·
@@ -53,6 +56,8 @@ online gift card purchase.
 3. **Rates, prices, gift card balances and membership credits are effective-dated or ledger-based,
    never mutable.** This is what makes past earnings statements and past revenue reports
    reproducible. See BR-11, BR-25, BR-35.
+   *Therapist pay combines a base session and its add-on into one rung when the total lands on one
+   — a 60+30 pays as a single 90 — and falls back to per-item only when it does not. See BR-33.*
 4. **A gift card sale and a membership charge are liabilities, not revenue.** Revenue is recognised
    on redemption; fees are a third category. This is the most common accounting error in salon
    systems. See BR-26, BR-41, BR-48.
@@ -65,8 +70,11 @@ online gift card purchase.
 
 ## Next step
 
-Answer **OQ-01** (how an add-on pays the therapist) and **OQ-02** (whether Staff may enter a
-walk-in, where FRS §2 contradicts §3 and §21) in doc 06 §3 — they gate Phase 1. Then answer
-**OQ-11** (what a Manager sees when a client with an unpaid no-show fee books again — the one
-workflow the Release 1 deferral creates), raise **RISK-01** (the 12-month gift card expiry) with
-counsel, and answer **OQ-10** (whether the platform pays therapists or only reports what is owed).
+Nothing blocks Phase 0. Three small items remain open, none of them blocking: the **low-rating
+alert threshold** (defaulted to 6 or below), whether the **45-minute auto-approval needs a same-day
+floor**, and the **real website URL** for Release 2 branding — doc 07 §2.1.
+
+One decision is worth making **before go-live rather than after**: whether each Manager gets an
+individual login. The current answer is one shared login per location, which means the audit trail
+can name the front desk but never a person — and unlike every other choice here, that attribution
+**cannot be reconstructed retroactively**. See doc 07 §2.2.

@@ -213,7 +213,10 @@ and the SMS channel is already being paid for (confirmations, reminders, fee not
 | late_cancel_fee_percent | integer | default 20 |
 | no_show_fee_percent | integer | default 20 |
 | deposit_percent | integer | default 20 *(Release 2)* |
-| online_booking_enabled | boolean | |
+| reminder_offsets_minutes | integer[] | default `{1440, 120}` — 24 h and 2 h before start |
+| low_rating_alert_at_or_below | integer | default 6 on the 1–10 scale; alerts Owner + Manager (BR-45a) |
+| gift_card_expiry_months | integer | default 12; flags the card, never forfeits the balance (BR-30) |
+| online_booking_enabled | boolean | *(Release 2)* |
 | status | enum | `active`, `inactive` |
 
 > Fee, deposit and window values are **per-location columns, not constants**, even though FRS v7
@@ -227,7 +230,8 @@ and the SMS channel is already being paid for (confirmations, reminders, fee not
 | location_id | FK | |
 | name | string | unique per location |
 | room_type | enum | `single`, `couple`, `three_table`, `head_spa` |
-| table_count | integer | 1 for single, 2 for couple, 3 for three_table |
+| client_capacity | integer | **how many clients the room seats**: 1 single, 2 couple, 3 three_table, 2 head_spa |
+| exclusive | boolean | true only for `head_spa` — the room accepts *only* services that require its type |
 | status | enum | `active`, `maintenance`, `retired` |
 | position | integer | row order in the day board |
 
@@ -240,10 +244,18 @@ Seeded from FRS §20:
 | Luma | 3 | 3 | 0 | 2 | 8 |
 | Belmont | 2 | 4 | 0 | 0 | 6 |
 
-> **Rooms must be typed.** FRS v7 requires it: couples massage
-> and couple head spa need a couple room; head-spa services need a head-spa room. FRS §20 also
-> states that facial-and-body combinations run in a **single** room, so a combination service does
-> *not* require two rooms.
+> **Matching is by capacity, not by type equality.** The Skokie three-table
+> room takes a 3-person booking, a couple, or a single, so a rule of "room_type must equal the
+> required type" would strand it. A room qualifies when
+> `room.client_capacity >= variant.required_client_capacity`, and — because a head-spa room is
+> specialised equipment rather than spare floor space — a room marked `exclusive` additionally
+> requires `variant.requires_room_type = room.room_type`.
+>
+> The consequence is that a single massage *can* occupy a couple room when the singles are full,
+> which is what the front desk would do anyway. The engine's assignment policy then takes the
+> **smallest sufficient room** (BR-09a) so this only happens under pressure. FRS §20 also states
+> that facial-and-body combinations run in a **single** room, so a combination needs capacity 1,
+> not two rooms.
 
 **`room_blocks`** — time-bounded unavailability for one room (deep clean, repair, private event).
 `(room_id, starts_at, ends_at, during tstzrange GENERATED, reason, created_by_user_id)`.
@@ -262,7 +274,13 @@ rows per day permit split hours.
 **`services`** — `id, service_category_id, name, description, kind, active, position`
 
 `kind` enum: `standard` (a bookable service), `add_on` (a 30-minute extra on the same appointment,
-same therapist), `enhancement` (price only, no duration, no pay — e.g. essential oil).
+same therapist), `enhancement` (price only, no duration, no pay).
+
+Enhancements in the catalogue: essential oil **$10** (FRS §19.11), and hot stone, hot herbal
+compression and aromatherapy at **$15 each**. None of the four adds time —
+they are delivered inside the booked session length, so they never affect the appointment interval
+or the pay ladder. All three $15 enhancements are **free when applied to a membership's included
+60-minute massage** (FRS §23).
 
 **`service_variants`** — the bookable unit.
 | Column | Type | Notes |
@@ -271,14 +289,16 @@ same therapist), `enhancement` (price only, no duration, no pay — e.g. essenti
 | service_id | FK | |
 | duration_minutes | integer | 0 for enhancements; 30/45/60/75/90/120 otherwise |
 | therapist_count | integer | **1 or 2.** 2 for couples massage, four hands, couple head spa |
-| client_capacity | integer | 1, or 2 for couples services |
+| required_client_capacity | integer | 1, or 2 for couples services. Matched against `rooms.client_capacity` |
+| requires_room_type | enum NULL | non-null only for head spa and bioelectric — forces an `exclusive` room |
 | base_price_cents | integer | company default before location override |
 | active | boolean | |
 
-**`service_variant_room_types`** — `(service_variant_id, room_type)`. A variant is bookable into
-any room whose type appears here. Examples: 60-min deep tissue → `single`; couples massage →
-`couple`; single head spa and couple head spa → `head_spa`; facial-and-body combination →
-`single`.
+> **`service_variant_room_types` is not needed** and is deliberately absent. Two scalar columns —
+> `required_client_capacity` and the nullable `requires_room_type` — express every case in FRS §19
+> and §20 without a join table: a 60-min deep tissue needs capacity 1; couples massage needs
+> capacity 2; single *and* couple head spa need capacity 1 and 2 respectively plus
+> `requires_room_type = 'head_spa'`; a facial-and-body combination needs capacity 1.
 
 **`location_prices`** — effective-dated per-location price.
 `(location_id, service_variant_id, price_cents, effective_from date, effective_to date NULL, active)`
@@ -504,8 +524,8 @@ job every minute. Advisory only; the appointment constraints are authoritative.
 | supersedes_note_id | FK NULL | corrections chain to the original |
 | created_at | timestamptz | no `updated_at` — rows are never modified |
 
-> **Scope note.** Confirmed 2026-08-26: this replaces the intake form, consent signature and SOAP
-> note structure, none of which FRS v7 asks for. What remains is the therapist's working
+> **Scope note.** This replaces the intake form, consent signature and SOAP note structure, none
+> of which FRS v7 asks for. What remains is the therapist's working
 > log — areas to avoid, areas needing attention, considerations for the session. It is not a
 > clinical record and is not presented as one. It is still body-related information about an
 > identifiable person, so it keeps column-level encryption, role restriction (Owner, Manager, and
@@ -535,7 +555,7 @@ job every minute. Advisory only; the appointment constraints are authoritative.
 | client_id | FK NULL | anonymous walk-in gift card purchase |
 | location_id | FK | |
 | appointment_id | FK NULL | null for standalone gift card / membership sales |
-| subtotal_cents, discount_cents, tax_cents, tip_cents, total_cents | integer | `tax_cents` is present and always 0 — see A-06 |
+| subtotal_cents, discount_cents, tax_cents, tip_cents, total_cents | integer | `tax_cents` is present and always 0 — see A-02 in doc 07 |
 | status | enum | `open`, `paid`, `voided`, `refunded`, `partially_refunded` |
 | opened_by_user_id, closed_by_user_id | FK | |
 | closed_at | timestamptz | |
@@ -610,7 +630,7 @@ before any off-session charge (RISK-02). The table is created in Release 1 and s
 | sold_by_user_id | FK NULL | null for online purchases |
 | sold_at_location_id | FK | **revenue attribution stays here forever** (BR-27) |
 | expires_at | timestamptz | `sold_at + location.gift_card_expiry_months` |
-| status | enum | `active`, `depleted`, `expired`, `void` |
+| status | enum | `active`, `depleted`, `expired`, `void`. **`expired` still redeems** — see below |
 
 **`gift_card_transactions`** — **the source of truth (BR-25).**
 `(gift_card_id, kind enum{issue, redeem, refund, adjust, expire}, amount_cents signed,
@@ -625,6 +645,17 @@ performed_by_user_id NULL, location_id, occurred_at, note)`
 > `sold_at_location_id` whenever a card crosses locations — exactly the case FRS §12 and §16
 > describe. Revenue is recognised at redemption; the liability was booked at the selling location.
 
+> **`expired` does not mean unusable** (BR-30). The nightly job sets the
+> status for reporting and ageing, and stops there — it writes **no** `expire` ledger row and
+> zeroes nothing. Redemption checks the balance, not the status. The `expire` ledger kind is
+> retained in the enum for the one case that still needs it: an Owner deliberately voiding a card,
+> which is an `adjust` or `void`, not an automatic event.
+>
+> Practically, this means gift card liability never falls off the balance sheet by itself. That is
+> the correct accounting treatment and it is also what the Owner asked for, but it does mean the
+> liability report will accumulate old small balances indefinitely — the ageing buckets in
+> `/reports/gift_card_liability` exist so those stay visible rather than forgotten.
+
 > **No `card_type` discriminator.** FRS v7 describes one product — a dollar balance, partially
 > redeemable across visits and locations. Fixed-denomination cards are just a constrained initial
 > value, and service-specific cards are not in the spec at all, so a discriminator column would
@@ -637,6 +668,7 @@ performed_by_user_id NULL, location_id, occurred_at, note)`
 |---|---|---|
 | id | bigint PK | |
 | client_id | FK | |
+| location_id | FK | **the location the member enrolled at.** Credits redeem here by default (BR-39a) |
 | status | enum | `active`, `pending_cancellation`, `cancelled`, `past_due` |
 | price_cents | integer | 8000 |
 | stripe_subscription_id | string NULL | *Release 2*; null while billing is recorded by hand |
@@ -656,7 +688,14 @@ stripe_invoice_id NULL, credit_granted boolean, forfeited_to_cap boolean, status
 
 **`membership_credit_transactions`** — same ledger pattern as gift cards.
 `(membership_id, kind enum{grant, redeem, expire, adjust}, amount signed, balance_after,
-appointment_id NULL, membership_cycle_id NULL, performed_by_user_id NULL, occurred_at, note)`
+appointment_id NULL, membership_cycle_id NULL, performed_by_user_id NULL, occurred_at, note,
+cross_location_approved_by_user_id FK NULL)`
+
+> **The cross-location column is the whole enforcement of BR-39a.** A redemption whose appointment
+> is at a location other than `memberships.location_id` is rejected unless an Owner or Manager
+> supplies an override, and that approver's identity is written onto the ledger row. Because it
+> lives on the transaction rather than on a session flag, "who let this membership be used at
+> Belmont" is answerable a year later.
 
 > **BR-38 in practice.** On each successful monthly charge the billing job attempts a `grant`. If
 > `balance_after` would exceed 3, no credit row is written and the cycle is marked
@@ -679,8 +718,9 @@ Semi-monthly periods are the 1st–15th and the 16th–end of month (FRS §8), g
 | staff_profile_id | FK | |
 | location_id | FK | |
 | service_date | date | in the location's timezone |
-| source | enum | `service_item`, `tip`, `manual` |
-| appointment_item_id | FK NULL | for `service_item` |
+| source | enum | `session`, `tip`, `manual` |
+| appointment_id | FK NULL | for `session` — the appointment this line was derived from |
+| covers_item_ids | bigint[] | for `session` — which `appointment_items` this line accounts for |
 | tip_allocation_id | FK NULL | for `tip` |
 | duration_minutes | integer NULL | the pay ladder bucket; null for tips |
 | quantity | integer | normally 1; >1 only for manual bulk entries |
@@ -695,6 +735,38 @@ Semi-monthly periods are the 1st–15th and the 16th–end of month (FRS §8), g
 > This table is the direct answer to the FRS §4 / §8 report: group by `duration_minutes` for the
 > quantity-and-earnings table, sum `source = 'tip'` for the tips row, and the total is the sum of
 > everything.
+
+#### How an appointment becomes earning lines (BR-33)
+
+An earning line is **not** one-per-item. `Earnings::GenerateEarningLines` runs on completion:
+
+```ruby
+LADDER = [30, 45, 60, 75, 90, 120].freeze
+
+def lines_for(appointment)
+  items = appointment.items.where(kind: [:service, :add_on])   # enhancements never pay
+  total = items.sum(&:duration_minutes)
+
+  if LADDER.include?(total)
+    [{ duration_minutes: total, covers_item_ids: items.map(&:id) }]        # 60 + 30 -> one 90
+  else
+    items.map { |i| { duration_minutes: i.duration_minutes,
+                      covers_item_ids: [i.id] } }                          # 120 + 30 -> 120 and 30
+  end
+end
+```
+
+Then one line is written **per therapist on the appointment** (BR-34) — a two-therapist couples
+massage produces two lines of the same duration, each at that therapist's own rate.
+
+`covers_item_ids` is what makes the result auditable: a therapist querying "why am I paid one
+90-minute session here?" can be shown the two items it absorbed. Without it, a combined line is
+untraceable back to what was actually delivered.
+
+> **Validation the seeder must guarantee.** The fallback branch assumes every individual item
+> duration is itself a ladder rung. Every duration in FRS §19 (30/60/75/90/120) is, but a future
+> menu item at, say, 20 minutes would produce an unpayable line. `service_variants` therefore
+> rejects a `service`/`add_on` duration that is not in the ladder.
 
 **`earning_statements`** — `(earning_period_id, staff_profile_id, total_sessions, service_earnings_cents, tips_cents, adjustments_cents, gross_amount_cents, generated_at, approved_by_user_id, document_url)`
 

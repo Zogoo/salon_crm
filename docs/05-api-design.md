@@ -61,15 +61,15 @@
 | 409 | `shift_conflict` | Overlapping published shift |
 | 422 | `validation_failed` | Field errors in `details.fields` |
 | 422 | `insufficient_therapists` | Two-therapist service, only one free (C12) |
-| 422 | `room_type_unavailable` | No room of a type this service requires |
+| 422 | `no_suitable_room` | No room with enough client capacity, or no free room of a required exclusive type |
 | 422 | `insufficient_balance` | Gift card redemption exceeds balance |
 | 422 | `no_membership_credit` | Credit redemption with a zero balance |
+| 422 | `membership_wrong_location` | Credit redeemed away from the membership's home location without an Owner/Manager override (BR-39a) |
 | 422 | `credit_cap_reached` | Grant would exceed the 3-credit cap (BR-38) |
 | 422 | `outside_booking_window` | Inside the cut-off, or beyond the 6-month horizon *(client channel, Release 2)* |
 | 422 | `period_locked` | Edit attempted on a locked earnings period |
 | 422 | `query_too_short` | Therapist name search below 2 characters (BR-13) *(Release 2)* |
 | 422 | `payment_required` | Deposit or full payment not completed *(Release 2)* |
-| 422 | `outstanding_fee` | Client has an unpaid no-show fee — advisory, returned with `details.fee_order_ids` *(Release 1; see OQ-11)* |
 | 423 | `offboard_blocked` | Staff has future appointments |
 | 429 | `rate_limited` | Public endpoints |
 
@@ -112,7 +112,7 @@ No client authenticates in Release 1.
 | PATCH | `/locations/:id` | **owner** — booking cut-off, horizon, fee and deposit percentages, hours |
 | GET | `/locations/:id/business_hours` · PUT | all read · owner write |
 | GET/POST/DELETE | `/locations/:id/closures` | owner, manager |
-| GET | `/locations/:id/rooms` | all — includes `room_type` and `table_count` |
+| GET | `/locations/:id/rooms` | all — includes `room_type`, `client_capacity` and `exclusive` |
 | POST/PATCH | `/locations/:id/rooms/:room_id` | owner |
 | GET/POST/DELETE | `/rooms/:id/blocks` | owner, manager — time-bounded room unavailability |
 
@@ -140,28 +140,29 @@ location**, so no client ever implements price resolution.
     "id": 4, "name": "Deep Tissue / Sport / Swedish", "category": "massage", "kind": "standard",
     "variants": [
       { "id": 11, "duration_minutes": 60, "price_cents": 8000,
-        "therapist_count": 1, "client_capacity": 1, "allowed_room_types": ["single"] },
+        "therapist_count": 1, "required_client_capacity": 1, "requires_room_type": null },
       { "id": 12, "duration_minutes": 90, "price_cents": 11500,
-        "therapist_count": 1, "client_capacity": 1, "allowed_room_types": ["single"] }
+        "therapist_count": 1, "required_client_capacity": 1, "requires_room_type": null }
     ]
   }, {
     "id": 8, "name": "Couples massage", "category": "massage", "kind": "standard",
     "variants": [
       { "id": 31, "duration_minutes": 60, "price_cents": 16000,
-        "therapist_count": 2, "client_capacity": 2, "allowed_room_types": ["couple"] }
+        "therapist_count": 2, "required_client_capacity": 2, "requires_room_type": null }
     ]
   }, {
     "id": 22, "name": "Scalp massage", "category": "add_on", "kind": "add_on",
     "variants": [
       { "id": 77, "duration_minutes": 30, "price_cents": 3500,
-        "therapist_count": 1, "client_capacity": 1, "allowed_room_types": ["single","couple"] }
+        "therapist_count": 1, "required_client_capacity": 1, "requires_room_type": null }
     ]
   }]
 }
 ```
 
-`therapist_count`, `client_capacity` and `allowed_room_types` are on every variant so the booking
-UI can tell a couples massage from a single one without a second call.
+`therapist_count`, `required_client_capacity` and `requires_room_type` are on every variant so the
+booking UI can tell a couples massage from a single one without a second call. Room *matching* is
+by capacity, not by type equality — see doc 03 §2.4.
 
 ---
 
@@ -246,7 +247,7 @@ GET /api/v1/availability
     "duration_minutes": 90,
     "buffer_minutes": 15,
     "therapists_required": 1,
-    "allowed_room_types": ["single"],
+    "required_client_capacity": 1,
     "days": [{
       "date": "2026-08-15",
       "slots": [{
@@ -315,7 +316,8 @@ explicit that the system does not suggest alternatives.
 Returns **201** with the appointment, or:
 - **409 `slot_taken`** with `details.suggested_slots`,
 - **422 `insufficient_therapists`** when a two-therapist service has only one free,
-- **422 `room_type_unavailable`** when no room of a required type is free.
+- **422 `no_suitable_room`** when no room has the capacity the service needs, or the service
+  requires an exclusive room type (head spa) and none is free.
 
 The response carries `status`, which is `pending_approval` when `requested_staff_profile_id` was
 set, plus `deposit_due_cents` and `total_cents`.
@@ -324,7 +326,7 @@ set, plus `deposit_due_cents` and `total_cents`.
 
 | Method | Path | Roles |
 |---|---|---|
-| GET | `/approval_requests?status=pending&location_id=` | owner, manager — the queue, with an age counter |
+| GET | `/approval_requests?status=pending&location_id=` | owner, manager — the queue, with `pending_for_minutes` and `auto_approves_at` on every row (BR-15a) |
 | POST | `/approval_requests/:id/approve` | owner, manager — appointment → `scheduled`, notifies client |
 | POST | `/approval_requests/:id/reject` | owner, manager — appointment → `cancelled`, **full refund**, notifies client |
 
@@ -372,6 +374,7 @@ Every `GET` on these two groups writes an `audit_logs` row recording who read it
 | POST | `/public/ratings/:token` | **public** — signed token from the SMS link, tied to the appointment and therapist. *Ships in Release 1: it needs a phone number, not an account* |
 | POST | `/kiosk/ratings` | kiosk bundle — `{appointment_id}` selected on the in-location screen |
 | GET | `/reports/ratings?from=&to=&location_id=&staff_id=` | owner |
+| GET | `/reports/ratings/alerts?from=&to=` | owner, manager (own location) — ratings at or below the location threshold (BR-45a) |
 
 ```jsonc
 // POST /public/ratings/:token
@@ -379,7 +382,9 @@ Every `GET` on these two groups writes an `audit_logs` row recording who read it
   "would_recommend": true }
 ```
 
-`score` must be 1–10. A second submission for the same appointment returns 422 (BR-45).
+`score` must be 1–10. A second submission for the same appointment returns 422 (BR-45). A score at
+or below `locations.low_rating_alert_at_or_below` (default 6) notifies the Owner **and** that
+location's Manager on submission.
 
 ---
 
@@ -455,12 +460,13 @@ the redeeming location on each ledger entry — these must never be conflated in
 | Method | Path | Roles |
 |---|---|---|
 | GET | `/memberships?status=&location_id=` | owner, manager |
-| POST | `/memberships` | owner, manager, client — `{client_id, default_service_variant_id}`, $80/mo via Stripe |
+| POST | `/memberships` | owner, manager, client — `{client_id, location_id, default_service_variant_id}`, $80/mo. `location_id` is the home location and cannot be changed by the member |
 | GET | `/memberships/:id` | owner, manager; client (own) |
 | PATCH | `/memberships/:id` | owner, manager, client (own) — change the chosen 60-min service |
 | GET | `/memberships/:id/credits` | owner, manager; client (own) — the credit ledger |
 | POST | `/memberships/:id/request_cancellation` | owner, manager, client (own) — applies the 15-day rule |
 | POST | `/memberships/:id/adjust_credits` | **owner** — `{amount, reason}`, audit-logged |
+| POST | `/memberships/:id/authorize_cross_location` | **owner, manager** — `{appointment_id, reason}`; records the approver on the credit transaction (BR-39a) |
 | GET | `/reports/membership?from=&to=` | **owner** |
 
 `POST /memberships/:id/request_cancellation` returns `cancellation_effective_at`. When the request
@@ -472,6 +478,7 @@ says so explicitly so the client is not surprised by one more charge (BR-40).
 {
   "data": {
     "id": 42, "status": "active", "price_cents": 8000,
+    "location_id": 3, "location_name": "Luma",
     "credits_balance": 2, "credits_cap": 3,
     "default_service_variant_id": 11,
     "current_period_end": "2026-09-15T00:00:00-05:00",
@@ -493,6 +500,7 @@ says so explicitly so the client is not surprised by one more charge (BR-40).
 | POST | `/earning_periods/:id/build` | **owner** — build statements from completed service lines |
 | GET | `/earning_periods/:id/statements?location_id=` | **owner** |
 | GET | `/earning_statements/:id` | **owner**; staff (own) |
+| GET | `/earning_lines?staff_id=&from=&to=&appointment_id=` | **owner**; staff (own) — each line carries `duration_minutes`, `rate_cents` and `covers_item_ids` |
 | POST | `/earning_statements/:id/adjustments` | **owner** — `{service_date, amount_cents, reason}` |
 | POST | `/earning_lines` | **owner** — manual session/tip entry (FRS §4) |
 | POST | `/earning_periods/:id/lock` | **owner** (BR-37) |
@@ -527,6 +535,14 @@ the permission model (FRS §2).
 
 `from`/`to` accept any date, week, month or custom range; `kind=semi_monthly` selects the standing
 1st–15th and 16th–EOM periods.
+
+> **How `quantity` counts (BR-33).** A row counts *sessions as paid*, not menu items sold. A
+> 60-minute massage booked with a 30-minute add-on contributes **one unit to the 90-minute row**,
+> because the total lands on a ladder rung and is paid as one 90-minute session. A 120-minute
+> massage with a 30-minute add-on has no 150 rung, so it contributes one unit to the 120 row and
+> one to the 30 row. `GET /earning_lines?appointment_id=` returns each line with its
+> `covers_item_ids`, which is how a therapist querying their statement is shown what a combined
+> line absorbed.
 
 ---
 

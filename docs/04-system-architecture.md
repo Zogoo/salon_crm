@@ -385,7 +385,7 @@ client already named one — they return times only.
 ## 5. Protecting Sensitive Client Information
 
 FRS v7 does not ask for a health intake questionnaire, a consent waiver, or SOAP notes, and those
-are out of scope (confirmed 2026-08-26). What remains is still sensitive: the **preferences form**
+are out of scope. What remains is still sensitive: the **preferences form**
 ("areas to avoid", "areas to pay more attention to", pressure) and **care notes** — the therapist's
 log of what to avoid and what to consider next session.
 
@@ -433,7 +433,7 @@ Release 1 data model is already shaped to receive them.
 | Refunds | A fee-free cancellation has nothing to refund, because nothing was taken. |
 
 The cost of this is a revenue leak on no-shows and a monthly manual step per member. Both are
-stated as risks in doc 06 §4, and both disappear in Release 2.
+stated as risks in doc 07 §3, and both disappear in Release 2.
 
 ### 6.1 Two payment worlds, deliberately kept apart *(from Release 2)*
 
@@ -521,7 +521,9 @@ FRS §22 requires both channels for confirmations, plus a reminder and a fee-cha
 |---|:--:|:--:|---|
 | `booking_confirmation` | ✓ | ✓ | Appointment reaches `scheduled` |
 | `therapist_request_approved` / `_rejected` | ✓ | ✓ | Approval decision (FRS §5) |
-| `appointment_reminder` | ✓ | ✓ | Scheduled ahead of start — **timing unspecified in FRS, see OQ-05** |
+| `appointment_reminder_24h` | ✓ | ✓ | 24 hours before start |
+| `appointment_reminder_2h` | ✓ | ✓ | 2 hours before start — the second touch that actually reduces no-shows |
+| `low_rating_alert` | ✓ | ✓ | To **Owner and location Manager** when a rating is at or below the threshold (BR-45a) |
 | `fee_charged` | ✓ | ✓ | No-show or late-cancellation fee taken |
 | `gift_card_delivered` | ✓ | — | Digital gift card purchased online |
 | `rating_request` | — | ✓ | Appointment `completed`, link tied to the therapist (FRS §11.2) |
@@ -546,15 +548,16 @@ acceptable at this scale, and one fewer service to operate.
 
 | Job | Schedule | Purpose |
 |---|---|---|
-| `SendAppointmentRemindersJob` | every 15 min | Reminders ahead of start, evaluated in the location's tz |
+| `SendAppointmentRemindersJob` | every 15 min | Both reminders — 24 h and 2 h before start — driven by `locations.reminder_offsets_minutes`, evaluated in the location's tz |
+| `AutoApproveTherapistRequestsJob` | every 5 min | Approve requests pending >45 min, **but only after re-checking that the therapist still has a covering shift and no conflict**; otherwise escalate (BR-15a) |
 | `SweepExpiredSlotHoldsJob` | every minute | *Release 2* — delete expired holds |
 | `MarkNoShowsJob` | every 30 min | Propose no-shows >30 min past start for Manager confirmation — never auto-commits |
 | `ChargePendingFeesJob` | every 15 min | *Release 2* — charge confirmed no-show / late-cancel fees off-session. Release 1 leaves the fee as an open order line instead |
 | `SendRatingRequestsJob` | every 15 min | SMS the rating link after completion (FRS §11.2) |
-| `ExpireGiftCardsJob` | nightly | Move past-expiry cards to `expired`, write a ledger row — never silently zero a balance |
+| `ExpireGiftCardsJob` | nightly | Flag past-expiry cards as `expired` **for reporting only** — no ledger row, no balance change; the card stays redeemable (BR-30) |
 | `ReconcileGiftCardBalancesJob` | nightly | Assert ledger sum == cached balance; alert on drift (BR-25) |
 | `ReconcileMembershipCreditsJob` | nightly | Same assertion for membership credits |
-| `OutstandingFeesReportJob` | weekly | *Release 1* — list unpaid `Fee` orders per location so they are chased rather than forgotten |
+| `OutstandingFeesReportJob` | weekly | *Release 1* — list unpaid `Fee` orders per location. The front desk is **not** warned at booking time, so this digest is the only thing standing between an unpaid fee and it being forgotten |
 | `VerifyAppointmentStaffSyncJob` | nightly | Assert every `appointment_staff` row matches its parent (doc 03 §4.3) |
 | `GenerateEarningPeriodsJob` | 1st and 16th, 03:00 | Open the next semi-monthly period, close the previous (FRS §8) |
 | `BuildEarningStatementsJob` | 1st and 16th, 04:00 | Build statements for the closed period |
@@ -629,7 +632,7 @@ graph LR
 
 | Concern | Choice |
 |---|---|
-| Server | 1 VM, 4 vCPU / 8 GB. Ample for 4 locations, ~120 therapist accounts, ~28 rooms. |
+| Server | 1 VM, **4 vCPU / 16 GB**. Sized against the confirmed peak of 100 appointments per location per day (400 system-wide), ~120 therapist accounts and 28 rooms. The RAM is for Postgres `shared_buffers` and the availability working set, not for concurrency — peak concurrent human users is about 25. |
 | Orchestration | Docker Compose, or **Kamal** — designed for exactly this shape of deployment |
 | Web | Nginx → Puma (2 workers × 5 threads) |
 | Database | Postgres 16, `btree_gist` + `pg_trgm` + `citext` extensions |
@@ -640,6 +643,19 @@ graph LR
 | Monitoring | Uptime check on `/health`, error tracking (Sentry/AppSignal), Postgres slow-query log, disk alerts, **Stripe webhook failure alerts** |
 | Secrets | Rails encrypted credentials; encryption keys held separately from the DB host |
 | CI | GitHub Actions: RuboCop, Brakeman, bundler-audit, RSpec, then Kamal deploy on green |
+
+**Volume, stated plainly.** 400 appointments/day system-wide at peak
+means roughly 146,000 appointments a year and, with orders, items, payments, earning lines and
+notifications, on the order of 1.5–2 million rows a year. That is unremarkable for Postgres on this
+hardware; the database will not be the constraint for years.
+
+**The cost that does scale with volume is messaging.** Each appointment generates about seven
+notification rows — email and SMS confirmation, two email and two SMS reminders, and one SMS rating
+request — of which **four are SMS**. At peak that is ~1,600 SMS/day, ~48,000/month, which at
+typical US Twilio rates is on the order of **$350–400/month**. Worth knowing before it appears on
+an invoice. Two levers if it matters: drop the 2-hour reminder to email only, or send the rating
+request only after a completed *first* visit. Both are configuration, not code — see
+`locations.reminder_offsets_minutes`.
 
 **Single-server risk, stated plainly.** One VM is a single point of failure, and four locations
 cannot take bookings if it is down. Mitigate with:

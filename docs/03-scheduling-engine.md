@@ -34,7 +34,7 @@ such that all of the following hold over `[t, t + D + B)`. Write `n` for
 | C8 | The room has **no other appointment** overlapping |
 | C9 | Neither a therapist nor the room has an unexpired **slot hold** overlapping |
 | C10 | `t` respects the booking cut-off and the 6-month horizon (client channel only — *Release 2*) |
-| C11 | The room's `room_type` is one of the variant's allowed room types |
+| C11 | The room's **client capacity** meets the variant's requirement, and an `exclusive` room is used only by services requiring its type |
 | C12 | The free-therapist set has at least `therapist_count` members — two distinct therapists for couples, four hands and couple head spa |
 | C13 | `t` falls on the location's 15-minute grid |
 
@@ -151,10 +151,39 @@ room types** (C11), and room blocks.
 > slot from the moment it is created, which is what makes BR-15 true — the slot cannot be taken out
 > from under a client who is waiting for approval.
 
-**Data volume check.** One location, 7-day window, 30 therapists, 8 rooms, ~20 appointments/day
-≈ **1,500 rows**. In-memory interval arithmetic on 1,500 rows is sub-millisecond. There is no need
-for a slot table, a materialised availability cache, or Redis. Resist all three — precomputed
-availability caches are the primary source of stale-slot bugs in salon systems.
+**Data volume check** — at the confirmed peak of 100 appointments per location per day. One
+location, 7-day window, 30 therapists, 8 rooms:
+
+| Query | Rows at peak |
+|---|--:|
+| Q1 shifts (30 therapists × 7 days) | ~210 |
+| Q2 `appointment_staff` across all locations (700 appts × ~1.2 therapists) | ~840 |
+| Q3 room-occupying appointments at this location | ~700 |
+| Q4 shift breaks | ~210 |
+| Q5 holds *(Release 2)* | <50 |
+| **Total** | **≈ 2,000** |
+
+Interval arithmetic over 2,000 rows is sub-millisecond, and a single-day search — the common case —
+loads under 300. Even at five times the volume originally assumed there is still no need for a slot
+table, a materialised availability cache, or Redis. Resist all three: precomputed availability
+caches are the primary source of stale-slot bugs in salon systems.
+
+> **A capacity note worth having in writing.** 100 appointments per location per day is above what
+> the rooms can physically deliver for the current menu. At 13 operating hours (09:00–22:00) and a
+> 15-minute buffer, a location's ceiling at 100% room utilisation is roughly:
+>
+> | Location | Rooms | All 60-min bookings | All 90-min bookings |
+> |---|--:|--:|--:|
+> | Lawrence | 8 | ~83 | ~59 |
+> | Luma | 8 | ~83 | ~59 |
+> | Skokie | 7 | ~72 | ~52 |
+> | Belmont | 6 | ~62 | ~44 |
+>
+> Reaching 100 would require a mix dominated by 30-minute bookings. This is not a problem — sizing
+> against 100 simply means the engine is provisioned well clear of any load the rooms can generate,
+> which is the right side to err on. It is recorded so nobody later mistakes 100/day for an
+> expected steady state, and so the real constraint on revenue per location is visible: it is rooms
+> and hours, not software.
 
 ### 2.3 Phase 2 — Therapist free intervals
 
@@ -176,7 +205,12 @@ past its service end (§1.1), so the gap falls out of the arithmetic.
 ### 2.4 Phase 3 — Room free intervals
 
 ```
-rooms = active rooms at this location WHERE room_type IN variant.allowed_room_types   ← C11
+rooms = active rooms at this location
+        WHERE client_capacity >= variant.required_client_capacity          ← C11
+          AND (variant.requires_room_type IS NULL OR
+               requires_room_type = room.room_type)
+          AND (NOT room.exclusive OR
+               variant.requires_room_type = room.room_type)
 
 free[room] = (location open hours ∩ requested window)
            − union(appointments in that room)
@@ -184,8 +218,15 @@ free[room] = (location open hours ∩ requested window)
            − union(room_blocks overlapping the window)
 ```
 
-Rooms of the wrong type are excluded in phase 1 and never enter the calculation. A couples massage
-at Belmont therefore searches 4 rooms, not 6; a head spa at Luma searches 2, not 8.
+Unsuitable rooms are excluded in phase 1 and never enter the calculation. A couples massage at
+Belmont searches the 4 couple rooms; a head spa at Luma searches its 2 exclusive head-spa rooms and
+nothing else.
+
+**Capacity matching cuts the other way too.** A single massage at Skokie qualifies for all 7 rooms
+— 3 single, 3 couple, and the three-table room — because each seats at least one client. That is
+deliberate (BR-09): the front desk would use a couple room for a solo client rather than turn them
+away. What stops it happening needlessly is the assignment policy in §2.7,
+not the filter here.
 
 ### 2.5 Phase 4 — Grid scan
 
@@ -233,8 +274,13 @@ When the client expresses no preference, the default is **least-fragmentation**:
 2. Tie-break: the therapist with the **fewest completed sessions that day**. Under piece-rate pay
    (FRS §4, §18) an idle therapist earns nothing, so spreading work is both fairer and better for
    retention than concentrating it.
-3. Room: prefer the room that **already has an adjacent booking**, packing rooms densely so whole
-   rooms — especially couple rooms — stay free for longer bookings.
+3. Room: **take the smallest sufficient room first** (BR-09a) — a solo client goes into a single
+   room while one exists, and only spills into a couple or the three-table room when the singles
+   are gone. Within one capacity tier, prefer the room that **already has an adjacent booking**,
+   packing rooms densely so whole rooms stay free for longer bookings.
+
+   > Capacity-first then density, in that order. Reversing them would pack a couple room with solo
+   > bookings and then turn away the couples massage that is worth $230.
 4. For a two-therapist service, pick the pair that minimises combined fragmentation, not each
    therapist independently.
 
@@ -280,9 +326,10 @@ Scheduling::NextAvailableForTherapist.call(
 which frees the slot immediately, and notifies the client. No fee is ever recorded against the
 client — they did not get what they booked. In Release 2, any deposit taken is refunded in full.
 
-**Timeout.** Nothing in FRS v7 says what happens if nobody approves. See OQ-04 in doc 06. Until
-that is answered, pending requests are surfaced on the Owner and Manager dashboards with an age
-counter and are never auto-resolved.
+**Timeout.** FRS v7 is silent on what happens if nobody approves. Pending requests are surfaced on
+the Owner and Manager dashboards with an age counter, and **auto-approve after 45 minutes** — but
+only after re-checking that the requested therapist still has a covering published shift and no
+conflict. If that check fails the request stays pending and is escalated instead (BR-15a).
 
 ---
 
@@ -464,8 +511,8 @@ end
 
 | Operation | Budget | Approach |
 |---|---|---|
-| Availability, 1 location, 1 day | < 120 ms | 5 indexed queries + in-memory scan |
-| Availability, 1 location, 7 days | < 500 ms | same, wider range |
+| Availability, 1 location, 1 day | < 120 ms | 5 indexed queries + in-memory scan, ~300 rows at peak |
+| Availability, 1 location, 7 days | < 500 ms | same, wider range, ~2,000 rows at peak |
 | Availability, requested therapist | < 80 ms | narrower candidate set |
 | Availability, two-therapist service, 7 days | < 600 ms | same scan, cardinality check in phase 5 |
 | Book appointment | < 200 ms | insert + 1–2 join rows + constraints |
@@ -495,21 +542,31 @@ Specific to FRS v7's service mix and booking rules:
 11. **Couples massage with only one free therapist is not offered** — cardinality, not existence.
 12. Booking the second therapist of a couples massage into a taken slot rolls back the **whole**
     appointment; no half-created booking survives.
-13. A couples massage is not offered into a `single` room even when the room is free.
-14. A head-spa service at Luma is offered only into the two `head_spa` rooms.
+13. A couples massage is not offered into a `single` room even when the room is free — capacity 1
+    cannot satisfy a requirement of 2.
+14. A head-spa service at Luma is offered only into the two `head_spa` rooms, and a non-head-spa
+    service is **never** offered into one, even when every other room is full.
 15. A facial-and-body combination is bookable in a `single` room (FRS §20).
-16. Two appointments 15 minutes apart in the same room both succeed; 10 minutes apart, the second
+16. A solo booking at Skokie takes a single room while one is free, and only spills into a couple
+    or the three-table room once the singles are gone (BR-09a).
+17. The Skokie three-table room accepts a 1-, 2- and 3-person booking.
+18. Two appointments 15 minutes apart in the same room both succeed; 10 minutes apart, the second
     gets 409.
-17. A `pending_approval` appointment blocks the slot for every other channel.
-18. Rejecting a therapist request frees the slot within the same request cycle, and records no
+19. A `pending_approval` appointment blocks the slot for every other channel.
+20. A pending therapist request auto-approves at 45 minutes; one whose therapist lost their
+    covering shift in the meantime does **not**, and is escalated instead (BR-15a).
+21. Rejecting a therapist request frees the slot within the same request cycle, and records no
     fee against the client *(Release 2 additionally refunds the deposit in full)*.
-19. *(Release 2)* Client-channel search returns nothing inside the cut-off window and nothing
+22. *(Release 2)* Client-channel search returns nothing inside the cut-off window and nothing
     beyond 183 days, while the Manager channel returns both.
-20. A 60-minute service plus a 30-minute add-on reserves 90 + 15 minutes and offers only slots
-    where all 105 minutes are free.
+23. A 60-minute service plus a 30-minute add-on reserves 90 + 15 minutes and offers only slots
+    where all 105 minutes are free — and produces **one 90-minute earning line**, not two (BR-33).
+24. A 120-minute service plus a 30-minute add-on produces **two** earning lines, 120 and 30,
+    because 150 is not on the ladder (BR-33).
 
-Eighteen of the twenty are Release 1; tests 10 and 19 exercise the client channel and land with
-Release 2.
+Twenty-two of the twenty-four are Release 1; tests 10 and 22 exercise the client channel and land
+with Release 2.
 
-**Do not proceed past Phase 1 until tests 1, 11, 12 and 16 are green.** They are the four that
-cannot be retrofitted.
+**Do not proceed past Phase 1 until tests 1, 11, 12 and 18 are green** — concurrency, couples
+cardinality, atomic two-therapist rollback, and the 15-minute gap. They are the four that cannot be
+retrofitted.
