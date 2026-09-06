@@ -523,11 +523,10 @@ FRS §22 requires both channels for confirmations, plus a reminder and a fee-cha
 | `therapist_request_approved` / `_rejected` | ✓ | ✓ | Approval decision (FRS §5) |
 | `appointment_reminder_24h` | ✓ | ✓ | 24 hours before start |
 | `appointment_reminder_2h` | ✓ | ✓ | 2 hours before start — the second touch that actually reduces no-shows |
-| `low_rating_alert` | ✓ | ✓ | To **Owner and location Manager** when a rating is at or below the threshold (BR-45a) |
+| `low_rating_alert` | ✓ | ✓ | To **Owner and location Manager** when a rating falls **below** the threshold — 1–5 by default (BR-45a) |
 | `fee_charged` | ✓ | ✓ | No-show or late-cancellation fee taken |
-| `gift_card_delivered` | ✓ | — | Digital gift card purchased online |
-| `rating_request` | — | ✓ | Appointment `completed`, link tied to the therapist (FRS §11.2) |
-| `gift_card_delivered` (digital) | ✓ | — | *Release 2* — online gift card purchase |
+| `rating_request` | — | ✓ | Appointment `completed`, link tied to the therapist. **SMS only** — FRS §11.2 specifies a text link |
+| `gift_card_delivered` | ✓ | — | *Release 2* — digital gift card purchased online |
 | ~~membership renewal reminder~~ | — | — | **Explicitly out of scope (FRS §22)** |
 | ~~cancellation window reminder~~ | — | — | **Explicitly out of scope (FRS §22)** |
 
@@ -549,7 +548,7 @@ acceptable at this scale, and one fewer service to operate.
 | Job | Schedule | Purpose |
 |---|---|---|
 | `SendAppointmentRemindersJob` | every 15 min | Both reminders — 24 h and 2 h before start — driven by `locations.reminder_offsets_minutes`, evaluated in the location's tz |
-| `AutoApproveTherapistRequestsJob` | every 5 min | Approve requests pending >45 min, **but only after re-checking that the therapist still has a covering shift and no conflict**; otherwise escalate (BR-15a) |
+| `AutoApproveTherapistRequestsJob` | every 5 min | Approve requests pending >45 min, **but only after re-checking that the therapist still has a covering shift and no conflict**; otherwise escalate (BR-15a). 45 min is the backstop — the review target is 15 |
 | `SweepExpiredSlotHoldsJob` | every minute | *Release 2* — delete expired holds |
 | `MarkNoShowsJob` | every 30 min | Propose no-shows >30 min past start for Manager confirmation — never auto-commits |
 | `ChargePendingFeesJob` | every 15 min | *Release 2* — charge confirmed no-show / late-cancel fees off-session. Release 1 leaves the fee as an open order line instead |

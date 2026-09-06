@@ -214,7 +214,7 @@ and the SMS channel is already being paid for (confirmations, reminders, fee not
 | no_show_fee_percent | integer | default 20 |
 | deposit_percent | integer | default 20 *(Release 2)* |
 | reminder_offsets_minutes | integer[] | default `{1440, 120}` — 24 h and 2 h before start |
-| low_rating_alert_at_or_below | integer | default 6 on the 1–10 scale; alerts Owner + Manager (BR-45a) |
+| low_rating_alert_below | integer | default 6 — a score **below** this alerts Owner + Manager, so 1–5 by default (BR-45a) |
 | gift_card_expiry_months | integer | default 12; flags the card, never forfeits the balance (BR-30) |
 | online_booking_enabled | boolean | *(Release 2)* |
 | status | enum | `active`, `inactive` |

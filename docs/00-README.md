@@ -26,7 +26,7 @@ with the FRS or with a stated owner decision, the document is wrong; please repo
 | 04 | [System Architecture](04-system-architecture.md) | Modular monolith rationale, Rails + AngularJS layout, three bundles, auth for staff and clients, the full permission matrix, **payments architecture**, notifications, background jobs, reporting, deployment, **16 ADRs** |
 | 05 | [API Design](05-api-design.md) | ~110 REST endpoints across 14 groups, error codes, payload examples, the public surface, and what is deliberately not exposed |
 | 06 | [Delivery Roadmap](06-delivery-roadmap.md) | The internal-first posture and what deferral costs · **Release 1 (internal, ~11–15 weeks)** in five phases with exit criteria · **Release 2 (client-facing, ~6–8 weeks)** in three |
-| 07 | [Assumptions, Open Questions & Risks](07-open-questions-and-risks.md) | 12 assumptions, 3 open questions, 4 accepted limitations, 21-row risk register, pre-implementation definition of done |
+| 07 | [Assumptions, Limitations & Risks](07-open-questions-and-risks.md) | 11 assumptions, 4 accepted limitations, 21-row risk register, pre-implementation definition of done |
 
 ## Confirmed decisions
 
@@ -70,11 +70,10 @@ online gift card purchase.
 
 ## Next step
 
-Nothing blocks Phase 0. Three small items remain open, none of them blocking: the **low-rating
-alert threshold** (defaulted to 6 or below), whether the **45-minute auto-approval needs a same-day
-floor**, and the **real website URL** for Release 2 branding — doc 07 §2.1.
+**No open questions remain.** Every point FRS v7 left unsettled has been answered and folded into
+these documents as rules. Phase 0 can start; the pre-implementation checklist is doc 07 §4.
 
 One decision is worth making **before go-live rather than after**: whether each Manager gets an
 individual login. The current answer is one shared login per location, which means the audit trail
 can name the front desk but never a person — and unlike every other choice here, that attribution
-**cannot be reconstructed retroactively**. See doc 07 §2.2.
+**cannot be reconstructed retroactively**. See doc 07 §2.

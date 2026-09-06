@@ -5,8 +5,9 @@
 qualify.
 
 > **Status:** every question raised against FRS v7 has been answered and folded into the design as
-> rules across this design package. §2.1 holds the three small items still open, none of which blocks
-> Release 1; §2.2 states the limitations the settled decisions accept.
+> rules across this design package. Nothing is outstanding. §1 lists the defaults still chosen by us
+> rather than stated by the Owner, §2 the limitations the settled decisions accept, §3 the risks,
+> and §4 what must be true before implementation begins.
 
 ---
 
@@ -28,36 +29,14 @@ assumption and lives in the design as a rule.
 | **A-08** | **A therapist works at one location at a time**; the location-change request moves them, it does not add a second location. | Medium — many-to-many would change the shift and availability model |
 | **A-09** | **Membership is billed by hand in Release 1** — the Manager records the $80 like any other payment, and the credit grant is triggered by that recorded payment rather than by a Stripe webhook. | Medium — operationally manual until Release 2 Phase 7 |
 | **A-10** | **Notifications ship in Release 1.** Confirmations, reminders, fee notices, low-rating alerts and rating links need no client account — only a phone number and an email address. | Low — but see the SMS cost note in doc 04 §10 |
-| **A-11** | **The low-rating alert threshold is 6 or below** on the 1–10 scale, configurable per location. The alert is required (BR-45a) but no number was set. | Low — one config value |
-| **A-12** | **A `Fee` order line is the only representation of an unpaid no-show fee.** No separate debt table, no booking-time interruption. | Low |
+| **A-11** | **A `Fee` order line is the only representation of an unpaid no-show fee.** No separate debt table, no booking-time interruption. | Low |
 
 ---
 
-## 2. Open Questions & Accepted Limitations
+## 2. Accepted Limitations
 
-### 2.1 Open questions
-
-Three items remain unsettled. None blocks Release 1.
-
-**OQ-01 — What is the low-rating alert threshold?** A low rating alerts the Owner and that
-location's Manager (BR-45a), but "low" has no agreed number. Defaulted to **6 or below** on the
-1–10 scale (A-11), configurable per location. Worth ten seconds of the Owner's attention: set too
-high it becomes noise and gets ignored, set too low it never fires.
-
-**OQ-02 — Does the 45-minute auto-approval need a same-day floor?** BR-15a auto-approves a pending
-therapist request after 45 minutes. For a request made a week out that is clearly right. For one
-made *during* those 45 minutes — a client booking for 90 minutes' time — the appointment may start
-before the timer elapses. Suggested rule: auto-approve at 45 minutes **or** 2 hours before start,
-whichever comes first, so a same-day request is never left hanging past the point of usefulness.
-
-**OQ-03 — What is the website URL?** The reference supplied,
-`www.mongolianmassagelab@gmail.com`, is an email address with a `www.` prefix and will not resolve.
-Needed only for Release 2 branding, so it blocks nothing now — but if a live site exists that the
-client booking flow should match or embed into, the real domain is needed before Phase 5.
-
-### 2.2 Accepted limitations
-
-Not questions — settled decisions whose consequences are worth stating once, plainly.
+No open questions remain. What follows are settled decisions whose consequences are worth stating
+once, plainly, so nobody rediscovers them the hard way.
 
 **Shared Manager logins weaken the audit trail.** One login per location, used by whoever is on the
 desk, means `audit_logs` can attribute an action to *Skokie's front desk* but never to a person.
@@ -105,7 +84,7 @@ explainable on the statement; explain the rule at onboarding rather than in arre
 | AngularJS end-of-life | Certain | Medium | All logic in Rails, thin components, isolated API services — migration is a view-layer swap |
 | DST bugs in the 4-hour window and fee jobs | Medium | Medium | Instant arithmetic, never wall-clock; explicit DST tests |
 | **Contractor classification** | — | High (legal) | Out of the software's hands; flagged as RISK-04 in doc 01 §8 |
-| **Shared Manager logins destroy per-person attribution** | Certain | Medium (no accountability for payments, voids, approvals) | Accepted; cannot be fixed retroactively — see §2.2. Adding per-person Manager accounts before go-live is the only cheap moment |
+| **Shared Manager logins destroy per-person attribution** | Certain | Medium (no accountability for payments, voids, approvals) | Accepted; cannot be fixed retroactively — see §2. Adding per-person Manager accounts before go-live is the only cheap moment |
 | **SMS spend at peak volume** | Medium | Low–Medium (~$350–400/month at 400 appts/day) | Two reminders plus confirmation and rating request is 4 SMS per appointment. Both levers — dropping the 2 h reminder to email, or limiting rating requests — are configuration. See doc 04 §10 |
 | **Combined-session pay disputes** | Medium | Medium (contractor trust) | BR-33 pays a 60+30 as one 90-minute session, normally *less* than two separate lines. `earning_lines.covers_item_ids` makes every combined line explainable on the statement; explain the rule at onboarding rather than in arrears |
 | Scope creep into in-salon card processing | Medium | High (PCI scope, timeline) | ADR-10 holds the line: gateway for online only, and not before Release 2 |
@@ -117,9 +96,7 @@ explainable on the statement; explain the rule at onboarding rather than in arre
 
 Before implementation begins, all of the following should be true:
 
-- [ ] Assumptions A-01 … A-12 reviewed and confirmed or corrected
-- [ ] **OQ-01** — confirm the low-rating alert threshold (default: 6 or below)
-- [ ] **OQ-02** — confirm the same-day floor on 45-minute auto-approval
+- [ ] Assumptions A-01 … A-11 reviewed and confirmed or corrected
 - [ ] The business rules index (doc 01 §7) reviewed by the Owner in plain language
 - [ ] Gift card wording checked with counsel — a card described as "expired" must not imply the
       balance is gone, because it is not (BR-30)
@@ -127,7 +104,7 @@ Before implementation begins, all of the following should be true:
 - [ ] Room inventory (FRS §20) confirmed against the physical rooms, including which services each
       room type may host
 - [ ] Existing client list and any outstanding gift cards identified for migration (FRS §24)
-- [ ] Decide **before go-live** whether Managers get individual logins (§2.2) — the one decision
+- [ ] Decide **before go-live** whether Managers get individual logins (§2) — the one decision
       that cannot be applied retroactively
 - [ ] Agreed that Release 1 ships with no payment gateway, so deposits are not taken and no-show
       fees are collected by hand at the next visit
@@ -137,4 +114,3 @@ Deferred to Release 2, and not blocking Release 1:
 
 - [ ] Stripe account created and the cancellation-policy wording agreed for the booking flow
 - [ ] Decision on whether Phase 5 (client booking) may ship before Phase 6 (online payment)
-- [ ] **OQ-03** — the real website URL, for branding the client booking flow

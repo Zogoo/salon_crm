@@ -326,7 +326,7 @@ set, plus `deposit_due_cents` and `total_cents`.
 
 | Method | Path | Roles |
 |---|---|---|
-| GET | `/approval_requests?status=pending&location_id=` | owner, manager — the queue, with `pending_for_minutes` and `auto_approves_at` on every row (BR-15a) |
+| GET | `/approval_requests?status=pending&location_id=` | owner, manager — the queue, with `pending_for_minutes`, `auto_approves_at` and `past_review_target` (>15 min) on every row (BR-15a) |
 | POST | `/approval_requests/:id/approve` | owner, manager — appointment → `scheduled`, notifies client |
 | POST | `/approval_requests/:id/reject` | owner, manager — appointment → `cancelled`, **full refund**, notifies client |
 
@@ -374,7 +374,7 @@ Every `GET` on these two groups writes an `audit_logs` row recording who read it
 | POST | `/public/ratings/:token` | **public** — signed token from the SMS link, tied to the appointment and therapist. *Ships in Release 1: it needs a phone number, not an account* |
 | POST | `/kiosk/ratings` | kiosk bundle — `{appointment_id}` selected on the in-location screen |
 | GET | `/reports/ratings?from=&to=&location_id=&staff_id=` | owner |
-| GET | `/reports/ratings/alerts?from=&to=` | owner, manager (own location) — ratings at or below the location threshold (BR-45a) |
+| GET | `/reports/ratings/alerts?from=&to=` | owner, manager (own location) — ratings below the location threshold (BR-45a) |
 
 ```jsonc
 // POST /public/ratings/:token
@@ -382,8 +382,8 @@ Every `GET` on these two groups writes an `audit_logs` row recording who read it
   "would_recommend": true }
 ```
 
-`score` must be 1–10. A second submission for the same appointment returns 422 (BR-45). A score at
-or below `locations.low_rating_alert_at_or_below` (default 6) notifies the Owner **and** that
+`score` must be 1–10. A second submission for the same appointment returns 422 (BR-45). A score
+**below** `locations.low_rating_alert_below` (default 6, so 1–5) notifies the Owner **and** that
 location's Manager on submission.
 
 ---

@@ -326,10 +326,11 @@ Scheduling::NextAvailableForTherapist.call(
 which frees the slot immediately, and notifies the client. No fee is ever recorded against the
 client — they did not get what they booked. In Release 2, any deposit taken is refunded in full.
 
-**Timeout.** FRS v7 is silent on what happens if nobody approves. Pending requests are surfaced on
-the Owner and Manager dashboards with an age counter, and **auto-approve after 45 minutes** — but
-only after re-checking that the requested therapist still has a covering published shift and no
-conflict. If that check fails the request stays pending and is escalated instead (BR-15a).
+**Timeout.** Pending requests are surfaced on the Owner and Manager dashboards with an age counter
+and **auto-approve after 45 minutes** — but only after re-checking that the requested therapist
+still has a covering published shift and no conflict. If that check fails the request stays pending
+and is escalated instead (BR-15a). The review target is 15 minutes; 45 is the backstop. There is no
+separate escalation tier between the two.
 
 ---
 

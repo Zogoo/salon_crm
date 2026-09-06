@@ -59,6 +59,7 @@ why the scheduling engine (doc 03) is the architectural centre of gravity.
 | Therapist pay on add-ons | Combined into one session when the total lands on a ladder rung, else split per item | Owner decision |
 | Peak volume | **100 appointments per location per day**, 400 system-wide | Owner decision |
 | Localisation | English only at launch — no bilingual requirement | Owner decision |
+| Public website | `www.mongolianmassagelab.com` — the client booking flow must match its branding *(Release 2)* | Owner decision |
 | Therapist payouts | The platform **reports** what is owed; it does not pay | Owner decision |
 | Booking grid | 15-minute increments | FRS §5.1, §21 |
 | Buffer | Minimum 15-minute gap, same room **and** same therapist | FRS §21 |
@@ -230,12 +231,16 @@ to expect confirmation within a few minutes.
 **BR-15:** A specific-therapist request creates the appointment in `pending_approval`. It occupies
 the room and therapist for conflict purposes from the moment it is created, so the slot cannot be
 taken while approval is outstanding.
-**BR-15a:** An unactioned request is held indefinitely and shown on both the Owner and Manager
-dashboards with an **age counter**. After **45 minutes** with no human decision, the system
-**auto-approves it** — but only if the requested therapist still has a published shift covering the
-whole appointment and still has no conflict. If that check fails, the request stays pending and is
-escalated rather than approved.
+**BR-15a:** An unactioned request is shown on both the Owner and Manager dashboards with an **age
+counter**. After **45 minutes** with no human decision, the system **auto-approves it** — but only
+if the requested therapist still has a published shift covering the whole appointment and still has
+no conflict. If that check fails, the request stays pending and is escalated rather than approved.
 
+> **45 minutes is a fallback, not the target.** The operational expectation is that Owner or
+> Manager reviews a request within about **15 minutes**, which is what makes FRS §5's promise of
+> "confirmation within a few minutes" true. The dashboard age counter turns amber at 15 minutes so
+> the target is visible; auto-approval exists only so a request never dies of neglect.
+>
 > Auto-approval is safe here precisely because the slot was already held. The request only exists
 > because the engine found the therapist bookable, and the exclusion constraints have protected that
 > slot ever since. The 45-minute re-check exists for the one case that can still change underneath
@@ -447,10 +452,9 @@ writes feedback, and optionally answers "What could we improve?" and "Would you 
 (Yes/No). Collected on an in-location touchscreen or via an SMS link **tied to the therapist who
 performed the service**. Saved per appointment, shown in the client's profile history.
 
-**Low-rating alert.** A score at or below a configurable threshold notifies **both the Owner and
-that location's Manager** immediately. The threshold is a per-location setting defaulting to
-**6 or below** on the 1–10 scale; FRS v7 sets no number, so this default is ours and is trivial to
-change.
+**Low-rating alert.** A score **below 6** — that is, 1 to 5 — notifies **both the Owner and that
+location's Manager** immediately. The threshold is a per-location setting, so a location that finds
+the volume too high or too low can move it without a deploy.
 
 **BR-42:** A client profile is **company-wide** across all four locations — one client, one
 history, regardless of which location they visit.
@@ -458,8 +462,9 @@ history, regardless of which location they visit.
 destroys the previous answers.
 **BR-44:** Care notes are **append-only**. A correction is a new note referencing the original.
 **BR-45:** One rating per appointment, always linked to both the appointment and the therapist.
-**BR-45a:** A rating at or below the location's alert threshold notifies the Owner **and** that
-location's Manager. The alert names the appointment and therapist; it is not anonymised.
+**BR-45a:** A rating **below** the location's alert threshold — default 6, so scores of 1–5 —
+notifies the Owner **and** that location's Manager. The alert names the appointment and therapist;
+it is not anonymised.
 **BR-46:** Every `completed` appointment is automatically appended to the client's visit history.
 **BR-47:** Clients need an account **only** for self-service booking, which is Release 2. In
 Release 1 no client has an account; Owner and Manager book on their behalf throughout.
@@ -590,7 +595,7 @@ fees are their own revenue category — neither service revenue nor a liability.
 | BR-13 | Client-facing therapist selection is search-only; roster never listed |
 | BR-14 | Only Owner, Manager or the Client themselves create appointments |
 | BR-15 | Specific-therapist request holds the slot as `pending_approval` |
-| BR-15a | Unactioned requests auto-approve after 45 min if the therapist is still free |
+| BR-15a | Unactioned requests auto-approve after 45 min (15-min review target) if the therapist is still free |
 | BR-16 | Unavailable requested therapist → that therapist's next available time only |
 | BR-17 | Only completed appointments generate service revenue and earnings |
 | BR-18 | 4-hour window decides `cancelled` vs `late_cancelled` |
@@ -622,7 +627,7 @@ fees are their own revenue category — neither service revenue nor a liability.
 | BR-43 | Preference form is versioned, never destructively overwritten |
 | BR-44 | Care notes are append-only |
 | BR-45 | One rating per appointment, linked to the therapist |
-| BR-45a | Ratings at or below the threshold alert Owner and location Manager |
+| BR-45a | Ratings below the threshold (default: 1–5) alert Owner and location Manager |
 | BR-46 | Completed appointments append to client visit history |
 | BR-47 | Client accounts are required only for self-service booking |
 | BR-48 | Revenue, liabilities and fees are three separate reporting categories |
