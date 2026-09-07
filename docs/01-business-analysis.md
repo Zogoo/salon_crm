@@ -59,6 +59,7 @@ why the scheduling engine (doc 03) is the architectural centre of gravity.
 | Therapist pay on add-ons | Combined into one session when the total lands on a ladder rung, else split per item | Owner decision |
 | Peak volume | **100 appointments per location per day**, 400 system-wide | Owner decision |
 | Localisation | English only at launch — no bilingual requirement | Owner decision |
+| Sales tax | **Out of scope.** Illinois does not tax massage services, and gift cards are not taxed at sale | Owner decision |
 | Public website | `www.mongolianmassagelab.com` — the client booking flow must match its branding *(Release 2)* | Owner decision |
 | Therapist payouts | The platform **reports** what is owed; it does not pay | Owner decision |
 | Booking grid | 15-minute increments | FRS §5.1, §21 |
@@ -176,6 +177,9 @@ Two distinct concepts — keep them separate:
   **availability only** — not pay (see §3.8).
 
 **BR-03:** A shift may only be created at the staff member's assigned location.
+**BR-03a:** A therapist works at **one location at a time**. The home location on their profile is
+the only place they can be scheduled; an approved location-change request *moves* them rather than
+adding a second location. There is no many-to-many staff-to-location relationship.
 **BR-04:** Overlapping shifts for the same staff member are forbidden **across all four
 locations** — a therapist cannot be on shift at Luma and Belmont simultaneously.
 **BR-05:** Staff never self-edit a shift. A shift change is a request approved by Owner **or**
@@ -211,6 +215,9 @@ reserved for a different specialism. A single massage may therefore run in a cou
 room when the singles are full; a head-spa room accepts head-spa services only.
 **BR-09a:** When several rooms qualify, the engine takes the **smallest sufficient** one, so a
 couple room is not consumed by a one-person booking while a single room stands empty.
+**BR-09b:** Head-spa services require a head-spa room, **single head spa included**. Luma's two
+rooms are described in FRS §20 as "head-spa couple rooms", but the equipment is what makes them
+head-spa rooms, so a one-person head spa occupies one of them rather than a single room.
 **BR-10:** A **minimum 15-minute gap** is required between consecutive appointments for the same
 room *and* for the same therapist (FRS §21).
 **BR-11:** The **price is snapshotted** at booking. Later menu changes never alter a booked or
@@ -313,6 +320,9 @@ sum(membership_credits) >= total`. Overpayment is rejected; the difference must 
 audit-logged.
 **BR-24:** **Tips are recorded per appointment and attributed to the performing therapist(s).**
 Where two therapists perform one appointment, the tip is split evenly unless overridden.
+**BR-24a:** A tip goes **100% to the performing therapist**. The business retains nothing and
+takes no processing deduction, so a tip never appears in revenue — only in the therapist's
+earnings (FRS §4, §8).
 
 ### 3.7 Gift card lifecycle
 
@@ -548,6 +558,10 @@ within the same 200 ms. See doc 03 §4 — prevented at the database level, not 
 | **Ratings** | Average and distribution per therapist, per location, per period; recommend rate | Requires per-appointment ratings | §11.2 |
 | **Cross-location roll-up** | Owner-level reports combining all four locations | Owner scope bypasses location filtering | §16 |
 
+**BR-47a:** **Sales tax is out of scope.** Illinois does not tax massage services, and a gift card
+is not taxed at sale — it is taxed, if at all, when redeemed against a taxable good, and there are
+none here. Orders carry a `tax_cents` column that is always zero, so a future tax obligation is a
+calculation to add rather than a schema change.
 **BR-48:** Service revenue comes from **completed** appointments' service lines. Gift card sales
 and membership billings are **liabilities**, reported separately. No-show and late-cancellation
 fees are their own revenue category — neither service revenue nor a liability.
@@ -582,6 +596,7 @@ fees are their own revenue category — neither service revenue nor a liability.
 | BR-01 | Staff need a location and ≥1 qualification to be schedulable |
 | BR-02 | Offboarding is soft; no hard deletes |
 | BR-03 | Shifts only at the staff member's assigned location |
+| BR-03a | A therapist works at one location at a time; a location change moves them |
 | BR-04 | No overlapping shifts per staff, across all four locations |
 | BR-05 | Staff never self-edit shifts; changes are approved by Owner or Manager |
 | BR-06 | Location-change requests are approved by the **Owner only** |
@@ -589,6 +604,7 @@ fees are their own revenue category — neither service revenue nor a liability.
 | BR-08 | Appointment therapists must be qualified, on shift, and conflict-free company-wide |
 | BR-09 | Appointment room must be active, at the location, and of sufficient capacity |
 | BR-09a | The smallest sufficient room wins when several qualify |
+| BR-09b | Head-spa services need a head-spa room, single head spa included |
 | BR-10 | Minimum 15-minute gap between appointments, same room and same therapist |
 | BR-11 | Price is snapshotted at booking |
 | BR-12 | Client booking: 15-min grid, 6-month horizon, configurable cut-off |
@@ -605,6 +621,7 @@ fees are their own revenue category — neither service revenue nor a liability.
 | BR-22 | Order settles only when payments + redemptions + credits cover the total |
 | BR-23 | Payments are immutable; void or refund and re-enter |
 | BR-24 | Tips are recorded per appointment and attributed to the therapist(s) |
+| BR-24a | Tips go 100% to the performing therapist; the business retains nothing |
 | BR-25 | Gift card balance derives from an append-only ledger |
 | BR-26 | Gift card sale is a liability, not revenue |
 | BR-27 | Sale attributed to selling location; redeemable at all four |
@@ -630,6 +647,7 @@ fees are their own revenue category — neither service revenue nor a liability.
 | BR-45a | Ratings below the threshold (default: 1–5) alert Owner and location Manager |
 | BR-46 | Completed appointments append to client visit history |
 | BR-47 | Client accounts are required only for self-service booking |
+| BR-47a | Sales tax is out of scope; `tax_cents` exists and is always zero |
 | BR-48 | Revenue, liabilities and fees are three separate reporting categories |
 
 ---

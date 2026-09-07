@@ -26,7 +26,7 @@ with the FRS or with a stated owner decision, the document is wrong; please repo
 | 04 | [System Architecture](04-system-architecture.md) | Modular monolith rationale, Rails + AngularJS layout, three bundles, auth for staff and clients, the full permission matrix, **payments architecture**, notifications, background jobs, reporting, deployment, **16 ADRs** |
 | 05 | [API Design](05-api-design.md) | ~110 REST endpoints across 14 groups, error codes, payload examples, the public surface, and what is deliberately not exposed |
 | 06 | [Delivery Roadmap](06-delivery-roadmap.md) | The internal-first posture and what deferral costs · **Release 1 (internal, ~11–15 weeks)** in five phases with exit criteria · **Release 2 (client-facing, ~6–8 weeks)** in three |
-| 07 | [Assumptions, Limitations & Risks](07-open-questions-and-risks.md) | 11 assumptions, 4 accepted limitations, 21-row risk register, pre-implementation definition of done |
+| 07 | [Limitations & Risks](07-open-questions-and-risks.md) | 4 accepted limitations, 22-row risk register, pre-implementation definition of done |
 | 08 | [Build Plan](08-build-plan.md) | **The implementation stack and where it overrides docs 02–05**, the SQLite downgrade stated plainly, scope of the scheduling-core build, build order, test gate |
 
 ## Confirmed decisions

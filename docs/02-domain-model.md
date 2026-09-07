@@ -562,7 +562,7 @@ job every minute. Advisory only; the appointment constraints are authoritative.
 | client_id | FK NULL | anonymous walk-in gift card purchase |
 | location_id | FK | |
 | appointment_id | FK NULL | null for standalone gift card / membership sales |
-| subtotal_cents, discount_cents, tax_cents, tip_cents, total_cents | integer | `tax_cents` is present and always 0 — see A-02 in doc 07 |
+| subtotal_cents, discount_cents, tax_cents, tip_cents, total_cents | integer | `tax_cents` is present and always 0 — sales tax is out of scope (BR-47a) |
 | status | enum | `open`, `paid`, `voided`, `refunded`, `partially_refunded` |
 | opened_by_user_id, closed_by_user_id | FK | |
 | closed_at | timestamptz | |
