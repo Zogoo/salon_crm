@@ -26,9 +26,9 @@
     </div>
 
     <div class="board__actions">
-      <a routerLink="/clients" class="btn btn--ghost">Clients</a>
-      <a routerLink="/approvals" class="btn btn--ghost" data-testid="approvals-link">Approvals</a>
       @if (auth.user()?.role !== 'staff') {
+        <a routerLink="/clients" class="btn btn--ghost">Clients</a>
+        <a routerLink="/approvals" class="btn btn--ghost" data-testid="approvals-link">Approvals</a>
         <button type="button" class="btn" (click)="newBooking()" data-testid="new-booking">
           New appointment
         </button>

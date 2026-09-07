@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
+import { bookingRoleGuard } from './core/guards/booking-role.guard';
 
 export const routes: Routes = [
   {
@@ -19,17 +20,17 @@ export const routes: Routes = [
   },
   {
     path: 'book',
-    canActivate: [authGuard],
+    canActivate: [authGuard, bookingRoleGuard],
     loadComponent: () => import('./features/booking/booking').then((m) => m.BookingPage),
   },
   {
     path: 'clients',
-    canActivate: [authGuard],
+    canActivate: [authGuard, bookingRoleGuard],
     loadComponent: () => import('./features/clients/clients').then((m) => m.ClientsPage),
   },
   {
     path: 'approvals',
-    canActivate: [authGuard],
+    canActivate: [authGuard, bookingRoleGuard],
     loadComponent: () => import('./features/approvals/approvals').then((m) => m.ApprovalsPage),
   },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },

@@ -1,6 +1,6 @@
 # Build Plan — Scheduling Core
 
-**Version:** 1.0 · **Date:** 2026-09-07 · **Status:** In progress
+**Version:** 1.1 · **Date:** 2026-09-07 · **Status:** Scheduling core delivered
 **Implements:** doc 06 Release 1, Phases 0 and 1
 **Stack authority:** the `project-preparator` scaffold at `../project-preparator`
 
@@ -112,6 +112,41 @@ built first.
 | 6 | Angular UI over the above | Browser-verified in Docker |
 | 7 | Full test run + browser walkthrough | RSpec green; every screen exercised |
 
+All seven steps are complete. §7 records what was found along the way.
+
+---
+
+## 7. What the build found
+
+Five defects that the specs and the browser walkthrough caught. Recorded because
+each one was invisible until something exercised it.
+
+| # | Defect | Where it came from |
+|---|---|---|
+| 1 | **Every JSON request returned 400.** `json` 3.0 made `JSON.parse` keyword-only while `ActiveSupport::JSON.decode` still passes its options hash positionally. | The generated app, not this code — anyone scaffolding today hits it. Pinned to `json ~> 2.7`. |
+| 2 | **`ng new` crashed the generator.** npm 10.9.8 cannot resolve Angular 21's dependency tree (`Cannot read properties of null (reading 'edgesOut')`). | The generator image. Fixed there with `npm install -g npm@12`. |
+| 3 | **Booking totals never updated.** `computed()` derived from plain fields, which it cannot track, so the screen always showed $0.00. | Angular signals. Form state feeding a computed is now a signal. |
+| 4 | **A 09:00 booking displayed as 14:00.** The appointment serializer emitted UTC while availability emitted location-local, and `DatePipe` then re-rendered in the viewer's zone. | Doc 03 §5 exactly. Every instant now crosses the API in the location's zone, and `WallClockPipe` reads the wall clock from the string. |
+| 5 | **The role guard bounced Managers off `/book` on refresh.** It read the user before the shell had restored the session. | The guard now waits for the session. |
+
+Two arithmetic corrections to the documents themselves: the room total is **29**,
+not 28 (7+8+8+6), and doc 06's posture section counted two degraded rules while
+listing three.
+
+### 7.1 Notes for whoever picks this up
+
+- **`Scheduling::BookAppointment` is load-bearing.** It is the only place an
+  appointment may be created. Adding a second writer removes the double-booking
+  guarantee entirely — there is no constraint underneath to catch it.
+- **The concurrency spec is the guarantee, not a test of it.** If it is ever
+  deleted or skipped, nothing protects the schedule.
+- **The test database must stay off the bind mount.** SQLite file locking over
+  the macOS/virtiofs share is unreliable and made the concurrency spec flaky and
+  ten times slower. `docker-compose.yml` points the test DB at `/tmp`.
+- **The SQLite busy timeout is 15s, deliberately.** Eight concurrent bookings
+  serialise, and 5s was short enough that the last one timed out rather than
+  getting a clean conflict.
+
 ---
 
 ## 5. Rules this build must honour
@@ -148,3 +183,7 @@ holds, client channel) and are not in this build; the remaining twenty-two must 
 Browser verification in Docker Compose covers: sign-in as each role, the day board, booking a
 single and a couples appointment, the buffer being enforced, a specific-therapist request and its
 approval, client creation and search, and Manager location scoping.
+
+**Delivered:** 83 backend examples and 13 frontend tests, all passing. The browser walkthrough
+additionally confirmed the production image — Angular built into Rails `public/` and served by
+`SpaController`, deep links included — which is the single-app Fly.io deployment model.
