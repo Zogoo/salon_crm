@@ -1,7 +1,7 @@
 # Delivery Roadmap
 
 **Version:** 1.1 · **Aligned to:** FRS v7
-**Companion:** [`07-open-questions-and-risks.md`](07-open-questions-and-risks.md) — the limitations
+**Companion:** [`07-limitations-and-risks.md`](07-limitations-and-risks.md) — the limitations
 and risks behind this plan, plus the pre-implementation checklist.
 
 ---
