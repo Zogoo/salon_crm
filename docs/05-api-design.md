@@ -3,6 +3,9 @@
 **Version:** 1.0 · `/api/v1` · JSON · session-cookie authenticated · same-origin
 **Aligned to:** FRS v7
 
+> **Stack note.** The client is **Angular 21** (standalone components), not AngularJS — see doc 08
+> §1. The endpoint surface, error vocabulary and payload shapes below are unaffected.
+
 > **Delivery posture.** Release 1 exposes the staff console surface only. Everything under
 > `/api/v1/public/*`, the Stripe endpoints and the client half of §3 are **Release 2** and are
 > marked. The `/api/v1` versioning and the error vocabulary are settled now so the client surface

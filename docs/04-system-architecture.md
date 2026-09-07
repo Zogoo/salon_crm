@@ -676,8 +676,8 @@ removes the hardest part of disaster recovery.
 | Layer | Choice | Notes |
 |---|---|---|
 | Language / framework | Ruby 3.3, Rails 7.2+ | |
-| Database | PostgreSQL 16 | exclusion constraints are non-negotiable |
-| Frontend | AngularJS 1.8.x via Vite Ruby | three bundles: console, client, kiosk |
+| Database | **SQLite** (WAL, `busy_timeout`) | See ADR-17 — this replaces the Postgres design |
+| Frontend | **Angular 21** (standalone components, signals) | built into Rails `public/`, served by `SpaController` |
 | Staff auth | `has_secure_password` + cookie sessions + TOTP for Owner | |
 | Client auth | Phone + SMS one-time code | separate cookie scope |
 | Authorisation | Pundit | role × single-location scope |
@@ -699,7 +699,7 @@ removes the hardest part of disaster recovery.
 | # | Decision | Rationale | Alternative rejected |
 |---|---|---|---|
 | ADR-01 | Modular monolith | One team, one company, strong-consistency invariant | Microservices — distributed transactions for double-booking |
-| ADR-02 | Postgres exclusion constraints for booking conflicts | Correctness independent of application code | App-level locking — fails under true concurrency |
+| ADR-02 | ~~Postgres exclusion constraints for booking conflicts~~ **Superseded by ADR-17.** The stack is SQLite, which cannot express them | — | — |
 | ADR-03 | Compute availability on demand, never cache | Stale slot caches are the top bug class in salon systems | Precomputed slot table |
 | ADR-04 | Cookie sessions, not JWT | Same-origin SPA; revocable; XSS-resistant | JWT in localStorage |
 | ADR-05 | Effective-dated rates and prices | Historical earnings and reports must be reproducible | Mutable rate column |
@@ -711,6 +711,7 @@ removes the hardest part of disaster recovery.
 | ADR-11 | Webhook is authoritative for payment state, not the browser callback | A closed tab must not lose a booking or a membership charge | Advancing state on the client's success redirect |
 | ADR-12 | Typed rooms with per-variant allowed types | FRS §20 gives four physical room kinds and services that require specific ones | Untyped rooms with a capacity integer — cannot express "head spa only" |
 | ADR-13 | Earnings derived from completed service lines, not shift hours | Therapists are 1099 contractors paid per session (FRS §4, §18) | Hourly payroll from shifts — pays for idle time and contradicts the engagement model |
-| ADR-14 | Three frontend bundles | The client bundle physically cannot contain a therapist roster (BR-13); the kiosk sits unattended in public | Single bundle with route guards |
+| ADR-14 | Separate client-facing build target | The client bundle must not be able to contain a therapist roster (BR-13); the kiosk sits unattended in public. Release 1 ships no client bundle at all, so this holds trivially until Release 2 | Single bundle with route guards |
 | ADR-15 | Care notes retained, clinical records dropped | FRS v7 asks for neither intake nor SOAP; the therapist's "avoid / consider" log is still needed and still sensitive | Full clinical layer, or nothing at all |
+| **ADR-17** | **Booking conflicts prevented in application code inside `BEGIN IMMEDIATE`, not by a database constraint** | The chosen stack is SQLite, which has no exclusion constraints, GiST or range types. SQLite serialises writers, so a check-then-insert is safe *provided* the write lock is already held — which `BEGIN IMMEDIATE` guarantees and Rails' default `BEGIN DEFERRED` does not. All checks live in one service object so the guarantee has a single home | Postgres (rejected: the scaffold and deployment target are SQLite). **This is a downgrade, not an equivalent** — see doc 08 §2 |
 | ADR-16 | Internal-first delivery: Release 1 ships no client-facing surface, but the schema, policies and engine are built to receive one | The scheduling core, earnings and gift cards deliver value on their own; client booking and payments add a third-party dependency and a public attack surface to a system that has not yet proven itself in daily use | Building everything at once, or designing only for internal use and retrofitting the client surface later |

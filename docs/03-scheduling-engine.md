@@ -3,6 +3,12 @@
 **Version:** 1.0 · The core of the system. Read this before writing any scheduling code.
 **Aligned to:** FRS v7 §5, §5.1, §6, §20, §21
 
+> **Stack note.** §4 below was written for PostgreSQL exclusion constraints. The implementation
+> stack is **SQLite**, which has none, so conflict prevention moved into application code inside
+> `BEGIN IMMEDIATE` transactions — see ADR-17 and doc 08 §2. The *conditions* (§1), the *algorithm*
+> (§2) and the *tests* (§6.1) are unchanged; only the enforcement mechanism in §4 differs, and it is
+> weaker. Read doc 08 §2 before touching booking code.
+
 > **Delivery posture.** The engine is built in full in Release 1 — multi-therapist pairing, room
 > typing, the buffer, the 15-minute grid, the whole concurrency guarantee. Only the *client*
 > booking channel is deferred: C10 (cut-off and horizon), slot holds, and the public availability
@@ -344,7 +350,11 @@ Two managers at different locations, plus an online client, all commit a booking
 within the same 200 ms. A `SELECT … WHERE NOT EXISTS` check followed by an `INSERT` does **not**
 prevent this at READ COMMITTED — all three see no conflict, all three insert.
 
-### 4.2 The defence: Postgres exclusion constraints
+### 4.2 The defence
+
+> **Not implemented as written.** The DDL below is the PostgreSQL design and is kept because it
+> documents exactly what the system must guarantee. On SQLite it is replaced by the application
+> checks in ADR-17 / doc 08 §2. Do not paste this into a migration — it will not run.
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS btree_gist;

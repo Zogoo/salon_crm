@@ -1,6 +1,13 @@
 # Domain Model & Entity–Relationship Design
 
-**Version:** 1.0 · Companion to `01-business-analysis.md` · Aligned to FRS v7
+**Version:** 1.1 · Companion to `01-business-analysis.md` · Aligned to FRS v7
+
+> **Stack note.** The implementation stack is **SQLite**, not PostgreSQL (doc 08 §1). Every
+> `EXCLUDE USING gist` constraint below is therefore **not enforceable by the database** and is
+> implemented in application code instead — see ADR-17 and doc 08 §2. The invariant table in §4
+> marks which rows moved. Postgres-only types (`tstzrange`, `citext`, `gin_trgm_ops`) are likewise
+> replaced: intervals are plain `datetime` pairs, email is a lowercase-normalised string, and name
+> search uses `LIKE` over a lowercased column.
 
 > **Delivery posture.** The schema below is complete and is built in full in Release 1, including
 > the columns and tables that only Release 2 exercises. Carrying an unused nullable column costs
@@ -795,11 +802,11 @@ reminder.
 
 | # | Invariant | Mechanism |
 |---|---|---|
-| 1 | No two active appointments share a room in overlapping time **including buffer** | `EXCLUDE USING gist` on `appointments (room_id, during)` |
-| 2 | No therapist is in two active appointments at once, **at any location** | `EXCLUDE USING gist` on `appointment_staff (staff_profile_id, during)` |
-| 3 | No two published shifts overlap for one therapist, company-wide | `EXCLUDE USING gist` on `shifts (staff_profile_id, during)` |
-| 4 | Session rate periods never overlap per staff **per duration** | `EXCLUDE USING gist` on `(staff_profile_id, duration_minutes, daterange)` |
-| 5 | Location price periods never overlap per variant | `EXCLUDE USING gist` |
+| 1 | No two active appointments share a room in overlapping time **including buffer** | ~~`EXCLUDE USING gist`~~ → **application check inside `BEGIN IMMEDIATE`** (ADR-17) |
+| 2 | No therapist is in two active appointments at once, **at any location** | ~~`EXCLUDE USING gist`~~ → **application check inside `BEGIN IMMEDIATE`** (ADR-17) |
+| 3 | No two published shifts overlap for one therapist, company-wide | ~~`EXCLUDE USING gist`~~ → **application check** |
+| 4 | Session rate periods never overlap per staff **per duration** | ~~`EXCLUDE USING gist`~~ → **application check** |
+| 5 | Location price periods never overlap per variant | ~~`EXCLUDE USING gist`~~ → **application check** |
 | 6 | Gift card balance never negative | `CHECK (current_balance_cents >= 0)` + ledger row lock |
 | 7 | Membership credit balance is between 0 and 3 | `CHECK (credits_balance BETWEEN 0 AND 3)` |
 | 8 | Order total = subtotal − discount + tax + tip | `CHECK` constraint |
@@ -814,7 +821,11 @@ reminder.
 | 17 | Terminated staff have no future shifts or appointments | application guard at offboarding (BR-02) |
 | 18 | One rating per appointment | unique index on `appointment_ratings (appointment_id)` |
 
-Requires `btree_gist`: `CREATE EXTENSION IF NOT EXISTS btree_gist;`
+> **Invariants 1–5 are the ones that lost their database enforcement.** Under Postgres they held
+> regardless of which code path wrote the row. On SQLite they hold only because every write goes
+> through `Scheduling::BookAppointment`. That single service object is now load-bearing; doc 08 §2
+> states the residual risk plainly. Invariants 6–18 are `CHECK` constraints, unique indexes and
+> triggers, all of which SQLite supports and which are unaffected.
 
 ---
 

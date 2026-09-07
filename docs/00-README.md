@@ -27,6 +27,7 @@ with the FRS or with a stated owner decision, the document is wrong; please repo
 | 05 | [API Design](05-api-design.md) | ~110 REST endpoints across 14 groups, error codes, payload examples, the public surface, and what is deliberately not exposed |
 | 06 | [Delivery Roadmap](06-delivery-roadmap.md) | The internal-first posture and what deferral costs · **Release 1 (internal, ~11–15 weeks)** in five phases with exit criteria · **Release 2 (client-facing, ~6–8 weeks)** in three |
 | 07 | [Assumptions, Limitations & Risks](07-open-questions-and-risks.md) | 11 assumptions, 4 accepted limitations, 21-row risk register, pre-implementation definition of done |
+| 08 | [Build Plan](08-build-plan.md) | **The implementation stack and where it overrides docs 02–05**, the SQLite downgrade stated plainly, scope of the scheduling-core build, build order, test gate |
 
 ## Confirmed decisions
 
@@ -47,10 +48,11 @@ online gift card purchase.
 
 ## The five decisions that matter most
 
-1. **Double-booking is prevented by Postgres exclusion constraints, not application code.**
-   With two-therapist services the therapist constraint moves to `appointment_staff`, which is why
-   that table carries a denormalised interval and status. Room conflicts are location-scoped;
-   therapist conflicts are company-wide. See doc 03 §4 and ADR-08.
+1. **Double-booking prevention is the system's load-bearing guarantee.** It was designed as
+   Postgres exclusion constraints; the implementation stack is SQLite, so it is now application
+   code inside `BEGIN IMMEDIATE`, concentrated in one service object. Room conflicts are
+   location-scoped; therapist conflicts are company-wide. **This is a downgrade and doc 08 §2 says
+   why.** See doc 03 §4, ADR-08, ADR-17.
 2. **The 15-minute buffer lives inside the stored appointment interval.** The gap rule from FRS §21
    then falls out of the same constraints — one mechanism, not two. See doc 03 §1.1 and ADR-09.
 3. **Rates, prices, gift card balances and membership credits are effective-dated or ledger-based,
