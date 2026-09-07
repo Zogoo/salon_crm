@@ -89,17 +89,21 @@ module Scheduling
       if @room_id.present?
         room = Room.active.find_by(id: @room_id, location_id: @location.id)
         raise Invalid, "room not found" unless room
-        unless room_matches?(room, shape)
-          raise Conflict, "no_suitable_room"
-        end
+        raise Conflict, "no_suitable_room" unless room_matches?(room, shape)
         return room
       end
 
       candidates = Room.suitable_for(shape.room_requirement)
                        .where(location_id: @location.id)
                        .order(:client_capacity, :position, :id)
+                       .to_a
+      # Distinguish "we have no such room" from "the room is busy". The first is
+      # permanent and the UI should say so; the second is a race the caller can
+      # retry at another time.
+      raise Conflict, "no_suitable_room" if candidates.empty?
+
       room = candidates.find { |r| !room_clash?(r, finish) }
-      raise Conflict, "no_suitable_room" unless room
+      raise Conflict, "slot_taken" unless room
       room
     end
 

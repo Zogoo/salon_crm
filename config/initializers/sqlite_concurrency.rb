@@ -1,34 +1,27 @@
-# SQLite concurrency settings — doc 08 §2, ADR-17.
+# Asserts the one SQLite behaviour the booking guarantee depends on.
 #
-# The architecture originally prevented double-booking with Postgres
-# `EXCLUDE USING gist` constraints. SQLite has none, so conflict prevention
-# lives in Scheduling::BookAppointment instead. That is only safe because
-# SQLite serialises writers — and only if the write lock is already held when
-# the conflict check runs, which BEGIN IMMEDIATE guarantees.
+# Doc 08 §2 / ADR-17: with no Postgres exclusion constraint, double-booking is
+# prevented by a conflict check followed by an insert in
+# Scheduling::BookAppointment. That pair is only safe if the write lock is held
+# before the check runs — i.e. BEGIN IMMEDIATE rather than BEGIN DEFERRED.
 #
-# WAL keeps readers from blocking on the writer; busy_timeout makes a contended
-# writer wait rather than fail instantly.
+# Rails 8.1's SQLite3 adapter does this by default, and also applies WAL,
+# synchronous=normal and foreign_keys to every connection (DEFAULT_PRAGMAS), so
+# there is nothing to configure here. But it is an invisible default: if a
+# future Rails changes it, the race reopens with no failing test to catch it.
+# So assert it at boot and fail loudly instead.
 Rails.application.config.after_initialize do
-  ActiveSupport.on_load(:active_record) do
-    next unless connection_db_config.adapter.to_s.include?("sqlite")
+  next unless ActiveRecord::Base.connection_db_config.adapter.to_s.include?("sqlite")
 
-    ActiveRecord::Base.connection_pool.with_connection do |conn|
-      conn.execute("PRAGMA journal_mode = WAL")
-      conn.execute("PRAGMA busy_timeout = 5000")
-      conn.execute("PRAGMA foreign_keys = ON")
-      conn.execute("PRAGMA synchronous = NORMAL")
-
-      # Rails 8.1 opens every SQLite transaction with BEGIN IMMEDIATE. The
-      # booking guarantee depends on that, and it is an invisible default, so
-      # assert it rather than trust it — a silent change here would reintroduce
-      # the double-booking race with no failing test to catch it.
-      mode = conn.instance_variable_get(:@connection_parameters)&.dig(:default_transaction_mode)
-      if mode.to_s != "immediate" && !Rails.env.test?
-        raise "SQLite default_transaction_mode is #{mode.inspect}, expected :immediate. " \
-              "Booking conflict prevention depends on BEGIN IMMEDIATE — see doc 08 §2."
-      end
+  begin
+    mode = ActiveRecord::Base.connection
+                             .instance_variable_get(:@connection_parameters)
+                             &.dig(:default_transaction_mode)
+    if mode.to_s != "immediate"
+      raise "SQLite default_transaction_mode is #{mode.inspect}, expected :immediate. " \
+            "Booking conflict prevention depends on BEGIN IMMEDIATE — see doc 08 §2."
     end
   rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
-    # db:create / db:prepare runs before the database exists.
+    # db:create runs before the database exists.
   end
 end

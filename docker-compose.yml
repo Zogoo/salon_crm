@@ -49,7 +49,9 @@ services:
       dockerfile: Dockerfile.dev
     environment:
       RAILS_ENV: test
-      DATABASE_PATH: storage/test.sqlite3
+      # Off the bind mount: SQLite file locking is unreliable over the
+      # macOS/virtiofs share, which makes the concurrency specs flaky.
+      DATABASE_PATH: /tmp/test.sqlite3
       JWT_SECRET: test-jwt-secret
     volumes:
       - .:/app

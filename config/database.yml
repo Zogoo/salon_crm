@@ -1,7 +1,12 @@
 default: &default
   adapter: sqlite3
   pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
-  timeout: 5000
+  # SQLite serialises writers, and booking holds the write lock for the whole
+  # conflict-check-then-insert (doc 08 §2). Under a burst of simultaneous
+  # bookings those writes queue, so a contended writer should wait rather than
+  # fail — 5s was short enough that the last of eight concurrent bookings timed
+  # out instead of getting a clean conflict.
+  timeout: 15000
 
 development:
   <<: *default
@@ -9,6 +14,9 @@ development:
 
 test:
   <<: *default
+  # Larger than the default 5: the booking concurrency specs (doc 03 §6.1
+  # test 1) run real threads, each needing its own connection.
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 20) %>
   database: <%= ENV.fetch("DATABASE_PATH", "storage/test.sqlite3") %>
 
 production:
