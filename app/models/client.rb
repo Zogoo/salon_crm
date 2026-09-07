@@ -5,6 +5,12 @@ class Client < ApplicationRecord
   has_one  :client_preference, dependent: :destroy
   has_many :client_preference_versions, dependent: :destroy
   has_many :appointments, dependent: :restrict_with_error
+  has_many :orders, dependent: :nullify
+  has_many :bought_gift_cards, class_name: "GiftCard", foreign_key: :buyer_client_id,
+                               dependent: :nullify, inverse_of: :buyer_client
+  has_many :received_gift_cards, class_name: "GiftCard", foreign_key: :recipient_client_id,
+                                 dependent: :nullify, inverse_of: :recipient_client
+  has_one  :membership, dependent: :destroy
 
   validates :first_name, :last_name, :phone, presence: true
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true

@@ -8,6 +8,12 @@ class StaffProfile < ApplicationRecord
   has_many :appointment_staff, dependent: :restrict_with_error
   has_many :appointments, through: :appointment_staff
   has_many :staff_requests, dependent: :destroy
+  has_many :earning_lines, dependent: :restrict_with_error
+  has_many :earning_statements, dependent: :destroy
+  has_many :tip_allocations, dependent: :restrict_with_error
+  has_many :care_notes, dependent: :restrict_with_error
+  has_many :appointment_ratings, dependent: :nullify
+  has_many :staff_monthly_rates, dependent: :destroy
 
   validates :employee_code, :display_name, presence: true
   validates :employee_code, uniqueness: true
@@ -23,6 +29,8 @@ class StaffProfile < ApplicationRecord
   end
 
   # BR-35: the rate that applied on the service date, not today's rate.
+  def manager? = engagement_type == "manager_flat"
+
   def rate_cents_for(duration_minutes, on:)
     staff_session_rates
       .where(duration_minutes:)

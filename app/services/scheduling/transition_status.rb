@@ -42,6 +42,7 @@ module Scheduling
           appointment: @appt, from_status: from, to_status: target,
           actor_user: @actor, occurred_at: @now, reason: @reason
         )
+        after_transition!(target)
         @appt
       end
     end
@@ -68,6 +69,51 @@ module Scheduling
       end
       return unless percent
       @appt.fee_charged_cents = (@appt.total_price_cents * percent / 100.0).round
+    end
+
+    # Side effects that belong to a status change rather than to a screen.
+    def after_transition!(target)
+      case target
+      when "scheduled"
+        confirm!
+      when "completed"
+        request_rating!
+      when "no_show", "late_cancelled"
+        # BR-19: recorded as owed, not charged — Release 1 has no gateway.
+        Sales::ChargeCancellationFee.call(appointment: @appt, actor: @actor)
+      end
+    end
+
+    def confirm!
+      Notifications::Enqueue.call(
+        template_key: "booking_confirmation", client: @appt.client, appointment: @appt,
+        payload: confirmation_payload
+      )
+      # FRS §22 / OQ-05: two reminders, 24 h and 2 h before the start.
+      @appt.location.reminder_offsets_minutes.each do |minutes|
+        key = minutes >= 1440 ? "appointment_reminder_24h" : "appointment_reminder_2h"
+        Notifications::Enqueue.call(
+          template_key: key, client: @appt.client, appointment: @appt,
+          payload: confirmation_payload, scheduled_for: @appt.starts_at - minutes.minutes
+        )
+      end
+    end
+
+    def request_rating!
+      Notifications::Enqueue.call(
+        template_key: "rating_request", client: @appt.client, appointment: @appt,
+        payload: { token: @appt.ensure_rating_token!,
+                   therapist: @appt.staff_profiles.first&.display_name }
+      )
+    end
+
+    def confirmation_payload
+      {
+        reference: @appt.reference,
+        starts_at: @appt.starts_at.in_time_zone(@appt.location.tz).iso8601,
+        location: @appt.location.name,
+        therapist: @appt.staff_profiles.map(&:display_name).join(", ")
+      }
     end
 
     def bump_client_counters!(target)

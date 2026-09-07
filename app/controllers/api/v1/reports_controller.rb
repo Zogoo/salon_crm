@@ -1,0 +1,100 @@
+module Api
+  module V1
+    class ReportsController < ApplicationController
+      before_action :require_owner!, only: %i[daily_revenue gift_card_liability ratings]
+
+      # FRS §10
+      def daily_revenue
+        from, to = range
+        ids = location_ids
+        data = Reporting::DailyRevenue.call(location_ids: ids, from:, to:)
+        respond_with_format(data, csv_rows: revenue_csv(data), filename: "revenue-#{from}-#{to}")
+      end
+
+      # FRS §9
+      def client_log
+        location = scoped_location!(params.require(:location_id))
+        date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        rows = Reporting::ClientLog.call(location:, date:)
+        respond_with_format({ date:, rows: }, csv_rows: client_log_csv(rows),
+                            filename: "client-log-#{date}")
+      end
+
+      def gift_card_liability
+        data = Reporting::GiftCardLiability.call(location_ids: location_ids)
+        render json: data
+      end
+
+      def ratings
+        from, to = range
+        render json: Reporting::Ratings.call(location_ids: location_ids, from:, to:)
+      end
+
+      # BR-19 / OQ-11: fees are profile-only, so this digest is the only thing
+      # standing between an unpaid fee and it being forgotten.
+      def outstanding_fees
+        orders = Order.outstanding_fees
+                      .where(location_id: location_ids)
+                      .includes(:client, :location, :order_line_items)
+        render json: {
+          total_cents: orders.sum(:total_cents),
+          orders: orders.order(created_at: :desc).map { |o|
+            { id: o.id, number: o.number, created_at: o.created_at.iso8601,
+              amount_cents: o.total_cents, location: o.location.name,
+              client: o.client && { id: o.client_id, full_name: o.client.full_name },
+              description: o.order_line_items.first&.description }
+          }
+        }
+      end
+
+      private
+
+      def location_ids
+        requested = Array(params[:location_id] || params[:location_ids]).map(&:to_i).reject(&:zero?)
+        allowed = current_user.accessible_location_ids
+        requested.any? ? (requested & allowed) : allowed
+      end
+
+      def range
+        from = params[:from].present? ? Date.parse(params[:from]) : Date.current
+        to = params[:to].present? ? Date.parse(params[:to]) : from
+        [ from, to ]
+      end
+
+      # XLSX and PDF are not built (doc 08 §3); CSV covers the operational need
+      # with the stdlib and no new dependency.
+      def respond_with_format(json, csv_rows:, filename:)
+        if params[:format] == "csv"
+          send_data to_csv(csv_rows), type: "text/csv",
+                    disposition: "attachment; filename=\"#{filename}.csv\""
+        else
+          render json: json
+        end
+      end
+
+      def to_csv(rows)
+        require "csv"
+        CSV.generate { |csv| rows.each { |r| csv << r } }
+      end
+
+      def revenue_csv(data)
+        [ [ "Method", "Cents" ] ] +
+          data[:by_method].map { |m, c| [ m, c ] } +
+          [ [], [ "Service revenue", data[:service_revenue_cents] ],
+            [ "Gift card liability", data[:gift_card_liability_cents] ],
+            [ "Membership liability", data[:membership_liability_cents] ],
+            [ "Fees", data[:fees_cents] ],
+            [ "Tips", data[:tips_cents] ] ]
+      end
+
+      def client_log_csv(rows)
+        [ %w[Time Client Therapists Services Minutes PriceCents TipCents PaidCents Methods] ] +
+          rows.map { |r|
+            [ r[:time], r[:client_name], r[:therapists].join("|"), r[:services].join("|"),
+              r[:duration_minutes], r[:service_price_cents], r[:tip_cents],
+              r[:total_paid_cents], r[:payment_methods].join("|") ]
+          }
+      end
+    end
+  end
+end

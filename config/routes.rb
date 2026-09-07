@@ -34,6 +34,55 @@ Rails.application.routes.draw do
         end
       end
       get "dashboard", to: "dashboard#show"
+
+      # --- Money and operations ---
+      resources :orders, only: %i[create show] do
+        member do
+          post :payments
+          post :gift_card_redemptions
+          post :membership_credit
+          post :tips
+          post :settle
+        end
+      end
+      resources :gift_cards, only: %i[index show create] do
+        member do
+          post :adjust
+          post :void
+        end
+      end
+      resources :memberships, only: %i[index show create update] do
+        member do
+          post :record_payment
+          post :request_cancellation
+          post :adjust_credits
+        end
+      end
+
+      # --- Earnings ---
+      get  "earning_periods",            to: "earnings#periods"
+      post "earning_periods/:id/build",  to: "earnings#build"
+      post "earning_periods/:id/lock",   to: "earnings#lock"
+      get  "earning_periods/:id/statements", to: "earnings#statements"
+      get  "earning_statements/:id",     to: "earnings#statement"
+      post "earning_statements/:id/adjustments", to: "earnings#create_adjustment"
+      get  "earning_lines",              to: "earnings#lines"
+      post "earning_lines",              to: "earnings#create_line"
+      get  "reports/staff_earnings",     to: "earnings#report"
+
+      # --- Reports ---
+      get "reports/daily_revenue",       to: "reports#daily_revenue"
+      get "reports/client_log",          to: "reports#client_log"
+      get "reports/gift_card_liability", to: "reports#gift_card_liability"
+      get "reports/ratings",             to: "reports#ratings"
+      get "reports/outstanding_fees",    to: "reports#outstanding_fees"
+
+      # --- Client care and feedback ---
+      resources :care_notes, only: %i[index create]
+      post "ratings",             to: "ratings#create"
+      get  "ratings/kiosk_queue", to: "ratings#kiosk_queue"
+      get  "public/ratings/:token",  to: "ratings#show_by_token"
+      post "public/ratings/:token",  to: "ratings#create_by_token"
     end
   end
 

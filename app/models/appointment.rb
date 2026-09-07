@@ -18,6 +18,11 @@ class Appointment < ApplicationRecord
   has_many :appointment_participants, dependent: :destroy
   has_many :appointment_status_events, dependent: :destroy
   has_one  :approval_request, dependent: :destroy
+  has_one  :order, dependent: :nullify
+  has_one  :appointment_rating, dependent: :destroy
+  has_many :care_notes, dependent: :destroy
+  has_many :tip_allocations, dependent: :nullify
+  has_many :earning_lines, dependent: :nullify
 
   validates :reference, presence: true, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
@@ -32,6 +37,13 @@ class Appointment < ApplicationRecord
 
   def active? = ACTIVE_STATUSES.include?(status)
   def duration_minutes = ((service_ends_at - starts_at) / 60).round
+
+  # Signed, single-use handle for the SMS rating link — no client account needed.
+  def ensure_rating_token!
+    return rating_token if rating_token.present?
+    update_column(:rating_token, SecureRandom.urlsafe_base64(24))
+    rating_token
+  end
 
   def self.generate_reference
     "APT-#{Time.current.year}-#{SecureRandom.random_number(1_000_000).to_s.rjust(6, '0')}"
