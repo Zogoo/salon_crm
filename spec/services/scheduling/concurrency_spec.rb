@@ -12,27 +12,12 @@ RSpec.describe "Concurrent booking", type: :model do
   # and the tables are cleaned by hand.
   self.use_transactional_tests = false
 
-  after do
-    AppointmentStatusEvent.delete_all
-    ApprovalRequest.delete_all
-    AppointmentParticipant.delete_all
-    AppointmentItem.delete_all
-    AppointmentStaff.delete_all
-    Appointment.delete_all
-    ShiftBreak.delete_all
-    Shift.delete_all
-    StaffSessionRate.delete_all
-    StaffQualification.delete_all
-    StaffProfile.delete_all
-    LocationPrice.delete_all
-    ServiceVariant.delete_all
-    Service.delete_all
-    ServiceCategory.delete_all
-    Room.delete_all
-    Location.delete_all
-    Client.delete_all
-    User.delete_all
-  end
+  # Real threads need real connections, so transactional fixtures are off and
+  # the tables are cleaned by hand. DatabaseCleaner works out the delete order,
+  # which hand-written lists stopped doing once orders, notifications and
+  # earning lines gained foreign keys to appointments.
+  before { DatabaseCleaner.strategy = :deletion }
+  after  { DatabaseCleaner.clean }
 
   def attempt(world, threads:)
     results = Queue.new

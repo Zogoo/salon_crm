@@ -54,6 +54,7 @@ module Scheduling
         attach_participants!(appt)
         record_event!(appt)
         create_approval_request!(appt)
+        confirm!(appt)
         appt
       end
     end
@@ -217,6 +218,13 @@ module Scheduling
         appointment: appt, from_status: nil, to_status: appt.status,
         actor_user: @actor, occurred_at: Time.current, reason: "booked"
       )
+    end
+
+    # A booking that is already confirmed notifies now; one that is waiting on a
+    # therapist approval notifies when it is approved, via TransitionStatus.
+    def confirm!(appt)
+      return if pending_approval?
+      Notifications::Confirm.call(appointment: appt)
     end
 
     # BR-15: the request holds the slot from creation, so nobody can take it

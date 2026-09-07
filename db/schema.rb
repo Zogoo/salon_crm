@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_08_100007) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_100009) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -490,7 +490,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_100007) do
     t.string "status", default: "pending", null: false
     t.string "template_key", null: false
     t.datetime "updated_at", null: false
-    t.index ["appointment_id", "template_key", "channel"], name: "idx_notifications_once", unique: true
+    t.index ["appointment_id", "template_key", "channel", "recipient_type", "recipient_id"], name: "idx_notifications_once", unique: true
     t.index ["appointment_id"], name: "index_notifications_on_appointment_id"
     t.index ["recipient_type", "recipient_id"], name: "index_notifications_on_recipient_type_and_recipient_id"
     t.index ["status", "scheduled_for"], name: "index_notifications_on_status_and_scheduled_for"
@@ -758,6 +758,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_100007) do
     t.integer "location_id"
     t.string "name", null: false
     t.string "password_digest", null: false
+    t.string "phone"
     t.string "role", default: "staff", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_users_on_email", unique: true

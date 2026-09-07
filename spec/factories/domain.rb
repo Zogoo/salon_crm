@@ -55,5 +55,7 @@ FactoryBot.define do
     sequence(:first_name) { |n| "Client#{n}" }
     last_name { "Test" }
     sequence(:phone) { |n| "+1312555#{n.to_s.rjust(4, '0')}" }
+    # Clients reachable on both channels, since FRS §22 requires email and SMS.
+    sequence(:email) { |n| "client#{n}@example.com" }
   end
 end

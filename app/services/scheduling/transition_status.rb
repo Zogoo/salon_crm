@@ -85,18 +85,7 @@ module Scheduling
     end
 
     def confirm!
-      Notifications::Enqueue.call(
-        template_key: "booking_confirmation", client: @appt.client, appointment: @appt,
-        payload: confirmation_payload
-      )
-      # FRS §22 / OQ-05: two reminders, 24 h and 2 h before the start.
-      @appt.location.reminder_offsets_minutes.each do |minutes|
-        key = minutes >= 1440 ? "appointment_reminder_24h" : "appointment_reminder_2h"
-        Notifications::Enqueue.call(
-          template_key: key, client: @appt.client, appointment: @appt,
-          payload: confirmation_payload, scheduled_for: @appt.starts_at - minutes.minutes
-        )
-      end
+      Notifications::Confirm.call(appointment: @appt)
     end
 
     def request_rating!
@@ -105,15 +94,6 @@ module Scheduling
         payload: { token: @appt.ensure_rating_token!,
                    therapist: @appt.staff_profiles.first&.display_name }
       )
-    end
-
-    def confirmation_payload
-      {
-        reference: @appt.reference,
-        starts_at: @appt.starts_at.in_time_zone(@appt.location.tz).iso8601,
-        location: @appt.location.name,
-        therapist: @appt.staff_profiles.map(&:display_name).join(", ")
-      }
     end
 
     def bump_client_counters!(target)
