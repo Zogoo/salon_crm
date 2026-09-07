@@ -9,7 +9,7 @@ RSpec.describe "Api::V1::Auth", type: :request do
 
     it "creates a user and returns a token" do
       expect {
-        post "/api/v1/auth/sign_up", params: params
+        post "/api/v1/auth/sign_up", params: params, as: :json
       }.to change(User, :count).by(1)
 
       expect(response).to have_http_status(:created)
@@ -18,7 +18,7 @@ RSpec.describe "Api::V1::Auth", type: :request do
     end
 
     it "rejects invalid input" do
-      post "/api/v1/auth/sign_up", params: params.merge(email: "bad")
+      post "/api/v1/auth/sign_up", params: params.merge(email: "bad"), as: :json
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
@@ -27,13 +27,13 @@ RSpec.describe "Api::V1::Auth", type: :request do
     let!(:user) { create(:user, email: "member@example.com", password: "password123", password_confirmation: "password123") }
 
     it "returns a token for valid credentials" do
-      post "/api/v1/auth/sign_in", params: { email: "member@example.com", password: "password123" }
+      post "/api/v1/auth/sign_in", params: { email: "member@example.com", password: "password123" }, as: :json
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body).to include("token")
     end
 
     it "rejects invalid credentials" do
-      post "/api/v1/auth/sign_in", params: { email: "member@example.com", password: "wrong" }
+      post "/api/v1/auth/sign_in", params: { email: "member@example.com", password: "wrong" }, as: :json
       expect(response).to have_http_status(:unauthorized)
     end
   end

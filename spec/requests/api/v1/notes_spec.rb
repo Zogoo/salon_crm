@@ -26,13 +26,13 @@ RSpec.describe "Api::V1::Notes", type: :request do
   describe "POST /api/v1/notes" do
     it "creates a note for the current user" do
       expect {
-        post "/api/v1/notes", params: { note: { title: "New", body: "Body" } }, headers: auth_headers(user)
+        post "/api/v1/notes", params: { note: { title: "New", body: "Body" } }, headers: auth_headers(user), as: :json
       }.to change(user.notes, :count).by(1)
       expect(response).to have_http_status(:created)
     end
 
     it "rejects a note without a title" do
-      post "/api/v1/notes", params: { note: { body: "No title" } }, headers: auth_headers(user)
+      post "/api/v1/notes", params: { note: { body: "No title" } }, headers: auth_headers(user), as: :json
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
@@ -40,14 +40,14 @@ RSpec.describe "Api::V1::Notes", type: :request do
   describe "PATCH /api/v1/notes/:id" do
     it "updates the note" do
       note = create(:note, user: user)
-      patch "/api/v1/notes/#{note.id}", params: { note: { title: "Renamed" } }, headers: auth_headers(user)
+      patch "/api/v1/notes/#{note.id}", params: { note: { title: "Renamed" } }, headers: auth_headers(user), as: :json
       expect(response).to have_http_status(:ok)
       expect(note.reload.title).to eq("Renamed")
     end
 
     it "cannot touch another user's note" do
       note = create(:note, user: other)
-      patch "/api/v1/notes/#{note.id}", params: { note: { title: "Hacked" } }, headers: auth_headers(user)
+      patch "/api/v1/notes/#{note.id}", params: { note: { title: "Hacked" } }, headers: auth_headers(user), as: :json
       expect(response).to have_http_status(:not_found)
     end
   end
