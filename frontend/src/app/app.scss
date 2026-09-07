@@ -38,3 +38,9 @@ main {
   text-align: center;
   color: var(--muted);
 }
+
+.topbar nav a.on { font-weight: 700; text-decoration: underline; }
+.account .role {
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
+  background: #eef2f7; color: #445; border-radius: 1rem; padding: .1rem .5rem;
+}

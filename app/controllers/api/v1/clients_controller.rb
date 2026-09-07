@@ -80,7 +80,8 @@ module Api
             pressure: pref.pressure, other_requests: pref.other_requests
           }
           json[:appointments] = client.appointments.order(starts_at: :desc).limit(20).map { |a|
-            { id: a.id, reference: a.reference, starts_at: a.starts_at, status: a.status,
+            { id: a.id, reference: a.reference,
+              starts_at: local_iso(a.starts_at, a.location), status: a.status,
               location: a.location.name,
               therapists: a.staff_profiles.map(&:display_name) }
           }

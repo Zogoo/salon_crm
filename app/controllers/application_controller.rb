@@ -10,6 +10,15 @@ class ApplicationController < ActionController::API
 
   private
 
+  # Every instant that crosses the API boundary is rendered in the *location's*
+  # wall clock (doc 03 §5). Rails would otherwise serialise in Time.zone (UTC),
+  # which makes a 09:00 Chicago booking arrive at the client as 14:00 and puts
+  # it in the wrong column on the day board.
+  def local_iso(time, location)
+    return nil if time.blank?
+    time.in_time_zone(location.tz).iso8601
+  end
+
   def set_locale
     locale = request.headers["X-Locale"]&.to_sym
     I18n.locale = I18n.available_locales.include?(locale) ? locale : I18n.default_locale

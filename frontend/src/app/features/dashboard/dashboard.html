@@ -1,0 +1,66 @@
+<section class="dash">
+  <header class="dash__head">
+    @if (ctx.canSwitch()) {
+      <select
+        aria-label="Location"
+        [value]="ctx.current()?.id"
+        (change)="onLocationChange($any($event.target).value)"
+        data-testid="dash-location"
+      >
+        @for (loc of ctx.locations(); track loc.id) {
+          <option [value]="loc.id">{{ loc.name }}</option>
+        }
+      </select>
+    } @else {
+      <strong data-testid="dash-location-fixed">{{ ctx.current()?.name }}</strong>
+    }
+    <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="dash-date" />
+    <a routerLink="/schedule" class="btn">Open schedule</a>
+  </header>
+
+  @if (error()) {
+    <p class="alert" role="alert">{{ error() }}</p>
+  }
+
+  @if (data(); as d) {
+    <div class="tiles" data-testid="dash-tiles">
+      <div class="tile"><span>Appointments</span><strong data-testid="tile-appointments">{{ d.appointments_today }}</strong></div>
+      <div class="tile"><span>Completed</span><strong>{{ d.completed_today }}</strong></div>
+      <div class="tile"><span>Cancelled</span><strong>{{ d.cancelled_today }}</strong></div>
+      <div class="tile"><span>No-shows</span><strong>{{ d.no_shows_today }}</strong></div>
+      <div class="tile"><span>Staff working</span><strong>{{ d.staff_working }}</strong></div>
+      <div class="tile"><span>Staff off</span><strong>{{ d.staff_not_working }}</strong></div>
+      <div class="tile"><span>Rooms free now</span><strong>{{ d.rooms_free_now }} / {{ d.rooms_total }}</strong></div>
+      <div class="tile"><span>Awaiting approval</span><strong data-testid="tile-approvals">{{ d.pending_approvals }}</strong></div>
+      @if (d.revenue_booked_cents !== undefined) {
+        <div class="tile tile--money" data-testid="tile-revenue">
+          <span>Completed revenue</span>
+          <strong>${{ d.revenue_booked_cents / 100 | number: '1.2-2' }}</strong>
+        </div>
+      }
+    </div>
+
+    @if (shifts(); as s) {
+      <div class="cols">
+        <div class="panel">
+          <h2>Working today ({{ s.working.length }})</h2>
+          <ul class="plain" data-testid="working-list">
+            @for (w of s.working; track w.id) {
+              <li>{{ w.display_name }}</li>
+            }
+            @if (!s.working.length) { <li class="muted">Nobody scheduled.</li> }
+          </ul>
+        </div>
+        <div class="panel">
+          <h2>Not working ({{ s.not_working.length }})</h2>
+          <ul class="plain">
+            @for (n of s.not_working; track n.staff_profile_id) {
+              <li class="muted">{{ n.display_name }}</li>
+            }
+            @if (!s.not_working.length) { <li class="muted">Everyone is in.</li> }
+          </ul>
+        </div>
+      </div>
+    }
+  }
+</section>

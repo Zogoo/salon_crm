@@ -1,0 +1,168 @@
+<section class="board">
+  <header class="board__head">
+    <div class="board__location">
+      @if (ctx.canSwitch()) {
+        <select
+          aria-label="Location"
+          data-testid="location-switcher"
+          [value]="ctx.current()?.id"
+          (change)="onLocationChange($any($event.target).value)"
+        >
+          @for (loc of ctx.locations(); track loc.id) {
+            <option [value]="loc.id">{{ loc.name }}</option>
+          }
+        </select>
+      } @else {
+        <span class="board__location-fixed" data-testid="location-fixed">{{
+          ctx.current()?.name
+        }}</span>
+      }
+    </div>
+
+    <div class="board__date">
+      <button type="button" (click)="shiftDay(-1)" aria-label="Previous day">‹</button>
+      <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="date-input" />
+      <button type="button" (click)="shiftDay(1)" aria-label="Next day">›</button>
+    </div>
+
+    <div class="board__actions">
+      <a routerLink="/clients" class="btn btn--ghost">Clients</a>
+      <a routerLink="/approvals" class="btn btn--ghost" data-testid="approvals-link">Approvals</a>
+      @if (auth.user()?.role !== 'staff') {
+        <button type="button" class="btn" (click)="newBooking()" data-testid="new-booking">
+          New appointment
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="alert" role="alert" data-testid="board-error">{{ error() }}</p>
+  }
+  @if (loading()) {
+    <p class="muted">Loading…</p>
+  }
+
+  @if (board(); as b) {
+    <div class="grid" data-testid="day-board">
+      <div class="grid__ruler">
+        <div class="grid__room-label"></div>
+        <div class="grid__hours">
+          @for (h of hours(); track h) {
+            <span class="grid__hour">{{ h }}:00</span>
+          }
+        </div>
+      </div>
+
+      @for (room of b.rooms; track room.id) {
+        <div class="grid__row" [attr.data-room]="room.name">
+          <div class="grid__room-label">
+            <strong>{{ room.name }}</strong>
+            <small>{{ room.room_type }} · seats {{ room.client_capacity }}</small>
+          </div>
+          <div class="grid__lane">
+            @for (h of hours(); track h) {
+              <span class="grid__tick"></span>
+            }
+            @for (p of placed(room); track p.appointment.id) {
+              <button
+                type="button"
+                class="appt"
+                [class]="'appt appt--' + p.appointment.status"
+                [style.left.%]="p.leftPct"
+                [style.width.%]="p.widthPct"
+                (click)="select(p.appointment)"
+                [attr.data-testid]="'appt-' + p.appointment.id"
+              >
+                <span class="appt__client">{{ p.appointment.client.full_name }}</span>
+                <span class="appt__meta">
+                  {{ p.appointment.starts_at | wallClock }} ·
+                  {{ p.appointment.therapists[0]?.display_name }}
+                </span>
+              </button>
+              <span
+                class="appt__buffer"
+                [style.left.%]="p.leftPct + p.widthPct"
+                [style.width.%]="p.bufferPct"
+                title="15-minute buffer"
+              ></span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (!b.appointments.length) {
+      <p class="muted" data-testid="board-empty">Nothing booked on this day.</p>
+    }
+  }
+
+  @if (selected(); as appt) {
+    <aside class="panel" data-testid="appointment-panel">
+      <header class="panel__head">
+        <div>
+          <h2>{{ appt.client.full_name }}</h2>
+          <p class="muted">{{ appt.reference }} · {{ appt.status }}</p>
+        </div>
+        <button type="button" class="btn btn--ghost" (click)="selected.set(null)">Close</button>
+      </header>
+
+      <dl class="panel__facts">
+        <div><dt>Time</dt><dd>{{ appt.starts_at | wallClock }}–{{ appt.service_ends_at | wallClock }}</dd></div>
+        <div><dt>Room</dt><dd>{{ appt.room.name }}</dd></div>
+        <div>
+          <dt>Therapist{{ appt.therapists.length > 1 ? 's' : '' }}</dt>
+          <dd>{{ appt.therapists.length ? '' : '—' }}
+            @for (t of appt.therapists; track t.id) {<span>{{ t.display_name }} </span>}
+          </dd>
+        </div>
+        <div><dt>Total</dt><dd>${{ appt.total_price_cents / 100 | number: '1.2-2' }}</dd></div>
+        @if (appt.fee_charged_cents) {
+          <div><dt>Fee owed</dt><dd data-testid="fee">${{ appt.fee_charged_cents / 100 | number: '1.2-2' }}</dd></div>
+        }
+      </dl>
+
+      @if (appt.items?.length) {
+        <h3>Services</h3>
+        <ul class="panel__items">
+          @for (item of appt.items; track item.id) {
+            <li>
+              {{ item.name }}
+              <small>{{ item.duration_minutes ? item.duration_minutes + ' min' : 'no time' }}</small>
+              <span>${{ item.price_cents / 100 | number: '1.2-2' }}</span>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (appt.preference) {
+        <h3>Client preferences</h3>
+        <ul class="panel__prefs" data-testid="preferences">
+          @if (appt.preference.pressure) { <li><strong>Pressure:</strong> {{ appt.preference.pressure }}</li> }
+          @if (appt.preference.attention_areas) { <li><strong>Attention:</strong> {{ appt.preference.attention_areas }}</li> }
+          @if (appt.preference.avoid_areas) { <li><strong>Avoid:</strong> {{ appt.preference.avoid_areas }}</li> }
+          @if (appt.preference.other_requests) { <li><strong>Other:</strong> {{ appt.preference.other_requests }}</li> }
+        </ul>
+      }
+
+      @if (appt.client_note) {
+        <h3>Note from the client</h3>
+        <p>{{ appt.client_note }}</p>
+      }
+
+      <div class="panel__actions">
+        @for (action of nextActions(appt.status); track action) {
+          <button
+            type="button"
+            class="btn"
+            [class.btn--danger]="action === 'cancelled' || action === 'no_show'"
+            (click)="transition(appt, action)"
+            [attr.data-testid]="'action-' + action"
+          >
+            {{ label(action) }}
+          </button>
+        }
+      </div>
+    </aside>
+  }
+</section>

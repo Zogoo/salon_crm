@@ -131,11 +131,12 @@ module Api
       end
 
       def appointment_json(appt, detail: false)
+        loc = appt.location
         json = {
           id: appt.id, reference: appt.reference, status: appt.status,
-          starts_at: appt.starts_at.iso8601,
-          service_ends_at: appt.service_ends_at.iso8601,
-          ends_at: appt.ends_at.iso8601,
+          starts_at: local_iso(appt.starts_at, loc),
+          service_ends_at: local_iso(appt.service_ends_at, loc),
+          ends_at: local_iso(appt.ends_at, loc),
           duration_minutes: appt.duration_minutes,
           room: { id: appt.room_id, name: appt.room.name },
           client: { id: appt.client_id, full_name: appt.client.full_name, phone: appt.client.phone },

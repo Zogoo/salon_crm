@@ -78,7 +78,8 @@ module Api
           id: shift.id, work_date: shift.work_date,
           staff_profile_id: shift.staff_profile_id,
           display_name: shift.staff_profile.display_name,
-          starts_at: shift.starts_at.iso8601, ends_at: shift.ends_at.iso8601,
+          starts_at: local_iso(shift.starts_at, shift.location),
+          ends_at: local_iso(shift.ends_at, shift.location),
           notes: shift.notes
         }
       end

@@ -1,25 +1,50 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { TranslatePipe } from '@ngx-translate/core';
 
+import { Dashboard, ShiftBoard } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
+import { LocationContextService } from '../../core/services/location-context.service';
+import { MassagelabService } from '../../core/services/massagelab.service';
 
+/** FRS §15 — today at the selected location. */
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, TranslatePipe],
-  template: `
-    <section class="card">
-      <h1>{{ 'dashboard.title' | translate }}</h1>
-
-      @if (user(); as currentUser) {
-        <p>{{ 'dashboard.greeting' | translate: { name: currentUser.name } }}</p>
-      }
-
-      <p>{{ 'dashboard.intro' | translate }}</p>
-      <a routerLink="/notes">{{ 'dashboard.go_to_notes' | translate }}</a>
-    </section>
-  `,
+  imports: [FormsModule, RouterLink, DecimalPipe],
+  templateUrl: './dashboard.html',
+  styleUrl: './dashboard.scss',
 })
-export class Dashboard {
-  protected readonly user = inject(AuthService).user;
+export class DashboardPage implements OnInit {
+  private readonly api = inject(MassagelabService);
+  protected readonly ctx = inject(LocationContextService);
+  protected readonly auth = inject(AuthService);
+
+  protected readonly data = signal<Dashboard | null>(null);
+  protected readonly shifts = signal<ShiftBoard | null>(null);
+  protected readonly error = signal<string | null>(null);
+  protected date = new Date().toISOString().slice(0, 10);
+
+  ngOnInit(): void {
+    void this.ctx.load().then(() => this.reload());
+  }
+
+  protected reload(): void {
+    const loc = this.ctx.current();
+    if (!loc) return;
+    this.error.set(null);
+    this.api.dashboard(loc.id, this.date).subscribe({
+      next: (d) => this.data.set(d),
+      error: (err) => this.error.set(err?.error?.error ?? 'Could not load the dashboard'),
+    });
+    this.api.shifts(loc.id, this.date).subscribe({
+      next: (s) => this.shifts.set(s),
+      error: () => this.shifts.set(null),
+    });
+  }
+
+  protected onLocationChange(id: string): void {
+    this.ctx.select(Number(id));
+    this.reload();
+  }
 }

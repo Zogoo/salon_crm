@@ -36,7 +36,8 @@ module Api
           requested_therapist: { id: req.requested_staff_profile_id,
                                  display_name: req.requested_staff_profile.display_name },
           appointment: { id: appt.id, reference: appt.reference,
-                         starts_at: appt.starts_at.iso8601, status: appt.status,
+                         starts_at: local_iso(appt.starts_at, appt.location),
+                         status: appt.status,
                          client_name: appt.client.full_name,
                          location: appt.location.name }
         }

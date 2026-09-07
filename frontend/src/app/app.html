@@ -4,17 +4,24 @@
 
     @if (user(); as currentUser) {
       <nav>
-        <a routerLink="/dashboard">{{ 'nav.dashboard' | translate }}</a>
-        <a routerLink="/notes">{{ 'nav.notes' | translate }}</a>
+        <a routerLink="/dashboard" routerLinkActive="on" data-testid="nav-dashboard">Dashboard</a>
+        <a routerLink="/schedule" routerLinkActive="on" data-testid="nav-schedule">Schedule</a>
+        @if (currentUser.role !== 'staff') {
+          <a routerLink="/book" routerLinkActive="on" data-testid="nav-book">Book</a>
+          <a routerLink="/clients" routerLinkActive="on" data-testid="nav-clients">Clients</a>
+          <a routerLink="/approvals" routerLinkActive="on" data-testid="nav-approvals">Approvals</a>
+        }
       </nav>
       <div class="account">
-        <span>{{ currentUser.name }}</span>
-        <button type="button" (click)="signOut()">{{ 'nav.sign_out' | translate }}</button>
+        <span class="role" data-testid="current-role">{{ currentUser.role }}</span>
+        <span data-testid="current-user">{{ currentUser.name }}</span>
+        <button type="button" (click)="signOut()" data-testid="sign-out">
+          {{ 'nav.sign_out' | translate }}
+        </button>
       </div>
     } @else {
       <nav>
         <a routerLink="/sign-in">{{ 'nav.sign_in' | translate }}</a>
-        <a routerLink="/sign-up">{{ 'nav.sign_up' | translate }}</a>
       </nav>
     }
   </header>

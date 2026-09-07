@@ -1,0 +1,221 @@
+<section class="book">
+  <header class="book__head">
+    @if (ctx.canSwitch()) {
+      <select
+        aria-label="Location"
+        [value]="ctx.current()?.id"
+        (change)="onLocationChange($any($event.target).value)"
+        data-testid="booking-location"
+      >
+        @for (loc of ctx.locations(); track loc.id) {
+          <option [value]="loc.id">{{ loc.name }}</option>
+        }
+      </select>
+    } @else {
+      <strong>{{ ctx.current()?.name }}</strong>
+    }
+    <h1>New appointment</h1>
+    <button type="button" class="btn btn--ghost" (click)="goToBoard()">Back to schedule</button>
+  </header>
+
+  @if (booked(); as done) {
+    <div class="done" data-testid="booking-success">
+      <h2>Booked — {{ done.reference }}</h2>
+      @if (done.status === 'pending_approval') {
+        <p>
+          A specific therapist was requested, so this is <strong>awaiting approval</strong>. The
+          slot is held meanwhile.
+        </p>
+      } @else {
+        <p>Confirmed and on the schedule.</p>
+      }
+      <div class="done__actions">
+        <button type="button" class="btn" (click)="goToBoard()">Open the schedule</button>
+        <button type="button" class="btn btn--ghost" (click)="booked.set(null)">Book another</button>
+      </div>
+    </div>
+  } @else {
+    @if (error()) {
+      <p class="alert" role="alert" data-testid="booking-error">{{ error() }}</p>
+    }
+    @if (suggestions().length) {
+      <div class="alert alert--info" data-testid="suggestions">
+        That therapist's next available times:
+        @for (s of suggestions(); track s) {
+          <button type="button" class="chip" (click)="date = s.slice(0, 10); search()">
+            {{ s | wallClock: 'datetime' }}
+          </button>
+        }
+      </div>
+    }
+
+    <div class="book__grid">
+      <!-- 1 · Client -->
+      <fieldset>
+        <legend>1 · Client</legend>
+        <div class="row">
+          <input
+            type="search"
+            placeholder="Search name or phone"
+            [(ngModel)]="clientSearch"
+            (input)="searchClients()"
+            data-testid="client-search"
+          />
+          <button type="button" class="btn btn--ghost" (click)="showNewClient = !showNewClient">
+            Add new client
+          </button>
+        </div>
+
+        @if (showNewClient) {
+          <div class="newclient" data-testid="new-client-form">
+            <input placeholder="First name" [(ngModel)]="newClient.first_name" data-testid="nc-first" />
+            <input placeholder="Last name" [(ngModel)]="newClient.last_name" data-testid="nc-last" />
+            <input placeholder="Phone" [(ngModel)]="newClient.phone" data-testid="nc-phone" />
+            <input placeholder="Email (optional)" [(ngModel)]="newClient.email" />
+            <button type="button" class="btn" (click)="createClient()" data-testid="nc-save">Save</button>
+          </div>
+        }
+
+        <select size="5" [(ngModel)]="selectedClientId" data-testid="client-select">
+          @for (c of clients(); track c.id) {
+            <option [ngValue]="c.id">
+              {{ c.full_name }} · {{ c.phone }}
+              @if (c.no_show_count) { · {{ c.no_show_count }} no-show(s) }
+            </option>
+          }
+        </select>
+
+        @if (needsTwoClients()) {
+          <label class="field">
+            Second client
+            <select [(ngModel)]="secondClientId" data-testid="second-client">
+              <option [ngValue]="null">—</option>
+              @for (c of clients(); track c.id) {
+                <option [ngValue]="c.id">{{ c.full_name }}</option>
+              }
+            </select>
+          </label>
+        }
+      </fieldset>
+
+      <!-- 2 · Service -->
+      <fieldset>
+        <legend>2 · Service</legend>
+        <select
+          [ngModel]="selectedVariantId()"
+          (ngModelChange)="onVariantChange($event)"
+          data-testid="service-select"
+        >
+          <option [ngValue]="null">Choose a service…</option>
+          @for (s of bookable(); track s.id) {
+            <optgroup [label]="s.name">
+              @for (v of s.variants; track v.id) {
+                <option [ngValue]="v.id">
+                  {{ v.duration_minutes }} min · ${{ v.price_cents / 100 | number: '1.2-2' }}
+                  @if (v.therapist_count > 1) { · 2 therapists }
+                </option>
+              }
+            </optgroup>
+          }
+        </select>
+
+        <details>
+          <summary>Add-ons (30 min each)</summary>
+          @for (s of addOns(); track s.id) {
+            @for (v of s.variants; track v.id) {
+              <label class="check">
+                <input
+                  type="checkbox"
+                  [checked]="addOnIds().includes(v.id)"
+                  (change)="toggle('addOnIds', v.id, $any($event.target).checked)"
+                />
+                {{ s.name }} · ${{ v.price_cents / 100 | number: '1.2-2' }}
+              </label>
+            }
+          }
+        </details>
+
+        <details>
+          <summary>Enhancements (no extra time)</summary>
+          @for (s of enhancements(); track s.id) {
+            @for (v of s.variants; track v.id) {
+              <label class="check">
+                <input
+                  type="checkbox"
+                  [checked]="enhancementIds().includes(v.id)"
+                  (change)="toggle('enhancementIds', v.id, $any($event.target).checked)"
+                />
+                {{ s.name }} · ${{ v.price_cents / 100 | number: '1.2-2' }}
+              </label>
+            }
+          }
+        </details>
+
+        <p class="total">Total <strong>${{ totalCents() / 100 | number: '1.2-2' }}</strong></p>
+      </fieldset>
+
+      <!-- 3 · Time -->
+      <fieldset>
+        <legend>3 · Time</legend>
+        <label class="field">
+          Date
+          <input type="date" [(ngModel)]="date" data-testid="booking-date" />
+        </label>
+
+        <label class="field">
+          Therapist
+          <select [(ngModel)]="requestedStaffId" data-testid="therapist-select">
+            <option [ngValue]="null">No preference</option>
+            @for (t of staff(); track t.id) {
+              <option [ngValue]="t.id">{{ t.display_name }}</option>
+            }
+          </select>
+          <small class="hint">A named therapist needs Owner or Manager approval.</small>
+        </label>
+
+        <button
+          type="button"
+          class="btn"
+          [disabled]="!selectedVariantId() || searching()"
+          (click)="search()"
+          data-testid="search-slots"
+        >
+          {{ searching() ? 'Searching…' : 'Find times' }}
+        </button>
+
+        @if (slots().length) {
+          <div class="slots" data-testid="slots">
+            @for (slot of slots(); track slot.start_at) {
+              <button
+                type="button"
+                class="slot"
+                [class.slot--on]="selectedSlot?.start_at === slot.start_at"
+                (click)="selectedSlot = slot"
+                [attr.data-testid]="'slot-' + (slot.start_at | wallClock)"
+              >
+                {{ slot.start_at | wallClock }}
+              </button>
+            }
+          </div>
+        } @else if (!searching()) {
+          <p class="muted" data-testid="no-slots">No times found yet.</p>
+        }
+
+        <label class="field">
+          Note for the therapist
+          <textarea rows="2" [(ngModel)]="clientNote" data-testid="client-note"></textarea>
+        </label>
+
+        <button
+          type="button"
+          class="btn btn--primary"
+          [disabled]="!selectedSlot || !selectedClientId"
+          (click)="book()"
+          data-testid="confirm-booking"
+        >
+          Confirm booking
+        </button>
+      </fieldset>
+    </div>
+  }
+</section>

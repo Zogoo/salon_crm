@@ -1,0 +1,213 @@
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+
+import { ClientRecord, Service, ServiceVariant, Slot, StaffMember } from '../../core/models';
+import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
+import { LocationContextService } from '../../core/services/location-context.service';
+import { MassagelabService } from '../../core/services/massagelab.service';
+
+/** FRS §5 — the New Appointment screen. */
+@Component({
+  selector: 'app-booking',
+  imports: [FormsModule, DecimalPipe, WallClockPipe],
+  templateUrl: './booking.html',
+  styleUrl: './booking.scss',
+})
+export class BookingPage implements OnInit {
+  private readonly api = inject(MassagelabService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  protected readonly ctx = inject(LocationContextService);
+
+  protected readonly services = signal<Service[]>([]);
+  protected readonly staff = signal<StaffMember[]>([]);
+  protected readonly clients = signal<ClientRecord[]>([]);
+  protected readonly slots = signal<Slot[]>([]);
+  protected readonly searching = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly suggestions = signal<string[]>([]);
+  protected readonly booked = signal<{ reference: string; status: string } | null>(null);
+
+  protected date = new Date().toISOString().slice(0, 10);
+  protected clientSearch = '';
+  protected selectedClientId: number | null = null;
+  // Signals, not plain fields: the computed()s below derive from them, and a
+  // computed only recomputes when a signal it read has changed.
+  protected readonly selectedVariantId = signal<number | null>(null);
+  protected readonly addOnIds = signal<number[]>([]);
+  protected readonly enhancementIds = signal<number[]>([]);
+  // FRS §5.1: default is no preference — the roster is never the starting point.
+  protected requestedStaffId: number | null = null;
+  protected clientNote = '';
+  protected selectedSlot: Slot | null = null;
+  protected secondClientId: number | null = null;
+
+  protected showNewClient = false;
+  protected newClient = { first_name: '', last_name: '', phone: '', email: '' };
+
+  protected readonly bookable = computed(() => this.services().filter((s) => s.kind === 'standard'));
+  protected readonly addOns = computed(() => this.services().filter((s) => s.kind === 'add_on'));
+  protected readonly enhancements = computed(() =>
+    this.services().filter((s) => s.kind === 'enhancement'),
+  );
+
+  protected readonly chosenVariant = computed<ServiceVariant | null>(() => {
+    const id = this.selectedVariantId();
+    for (const s of this.services()) {
+      const v = s.variants.find((x) => x.id === id);
+      if (v) return v;
+    }
+    return null;
+  });
+
+  protected readonly needsTwoClients = computed(
+    () => (this.chosenVariant()?.required_client_capacity ?? 1) > 1,
+  );
+
+  protected readonly totalCents = computed(() => {
+    const ids = this.variantIds();
+    let total = 0;
+    for (const s of this.services()) {
+      for (const v of s.variants) if (ids.includes(v.id)) total += v.price_cents;
+    }
+    return total;
+  });
+
+  ngOnInit(): void {
+    const qDate = this.route.snapshot.queryParamMap.get('date');
+    if (qDate) this.date = qDate;
+    void this.ctx.load().then(() => this.loadForLocation());
+  }
+
+  protected loadForLocation(): void {
+    const loc = this.ctx.current();
+    if (!loc) return;
+    this.api.services(loc.id).subscribe(({ services }) => this.services.set(services));
+    this.api.staff(loc.id).subscribe(({ staff }) => this.staff.set(staff));
+    this.searchClients();
+  }
+
+  protected onLocationChange(id: string): void {
+    this.ctx.select(Number(id));
+    this.reset();
+    this.loadForLocation();
+  }
+
+  protected searchClients(): void {
+    this.api.clients(this.clientSearch).subscribe(({ clients }) => this.clients.set(clients));
+  }
+
+  protected createClient(): void {
+    this.api.createClient(this.newClient).subscribe({
+      next: (client) => {
+        this.clients.set([client, ...this.clients()]);
+        this.selectedClientId = client.id;
+        this.showNewClient = false;
+        this.newClient = { first_name: '', last_name: '', phone: '', email: '' };
+      },
+      error: (err) => this.error.set(this.messageFrom(err)),
+    });
+  }
+
+  protected variantIds(): number[] {
+    const ids: number[] = [];
+    const chosen = this.selectedVariantId();
+    if (chosen) ids.push(chosen);
+    return ids.concat(this.addOnIds(), this.enhancementIds());
+  }
+
+  protected onVariantChange(id: number | null): void {
+    this.selectedVariantId.set(id);
+    this.slots.set([]);
+    this.selectedSlot = null;
+  }
+
+  protected toggle(list: 'addOnIds' | 'enhancementIds', id: number, on: boolean): void {
+    const target = list === 'addOnIds' ? this.addOnIds : this.enhancementIds;
+    target.update((current) => (on ? [...current, id] : current.filter((x) => x !== id)));
+    this.slots.set([]);
+    this.selectedSlot = null;
+  }
+
+  protected search(): void {
+    const loc = this.ctx.current();
+    if (!loc || !this.selectedVariantId()) return;
+    this.searching.set(true);
+    this.error.set(null);
+    this.suggestions.set([]);
+    this.selectedSlot = null;
+
+    this.api
+      .availability(loc.id, this.variantIds(), this.date, this.requestedStaffId)
+      .subscribe({
+        next: (res) => {
+          this.slots.set(res.days[0]?.slots ?? []);
+          this.searching.set(false);
+        },
+        error: (err) => {
+          this.error.set(this.messageFrom(err));
+          this.searching.set(false);
+        },
+      });
+  }
+
+  protected book(): void {
+    const loc = this.ctx.current();
+    if (!loc || !this.selectedSlot || !this.selectedClientId) return;
+    this.error.set(null);
+
+    const payload: Record<string, unknown> = {
+      location_id: loc.id,
+      client_id: this.selectedClientId,
+      service_variant_ids: this.variantIds(),
+      start_at: this.selectedSlot.start_at,
+      client_note: this.clientNote || null,
+      booking_channel: 'manager',
+    };
+    if (this.requestedStaffId) payload['requested_staff_profile_id'] = this.requestedStaffId;
+    if (this.needsTwoClients() && this.secondClientId) {
+      payload['participant_client_ids'] = [this.secondClientId];
+    }
+
+    this.api.book(payload).subscribe({
+      next: (appt) => {
+        this.booked.set({ reference: appt.reference, status: appt.status });
+        this.slots.set([]);
+        this.selectedSlot = null;
+      },
+      error: (err) => {
+        this.error.set(this.messageFrom(err));
+        // BR-16: the API offers that same therapist's next times, never a substitute.
+        this.suggestions.set(err?.error?.error?.details?.suggested_slots ?? []);
+        this.search();
+      },
+    });
+  }
+
+  protected goToBoard(): void {
+    void this.router.navigate(['/schedule'], { queryParams: { date: this.date } });
+  }
+
+  private reset(): void {
+    this.selectedVariantId.set(null);
+    this.addOnIds.set([]);
+    this.enhancementIds.set([]);
+    this.requestedStaffId = null;
+    this.slots.set([]);
+    this.selectedSlot = null;
+    this.booked.set(null);
+  }
+
+  private messageFrom(err: unknown): string {
+    const e = err as { error?: { error?: unknown } };
+    const body = e?.error?.error;
+    if (typeof body === 'string') return body;
+    if (Array.isArray(body)) return body.join(', ');
+    if (body && typeof body === 'object' && 'message' in body) {
+      return String((body as { message: unknown }).message);
+    }
+    return 'Something went wrong';
+  }
+}
