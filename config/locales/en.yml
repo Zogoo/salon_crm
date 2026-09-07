@@ -1,0 +1,11 @@
+en:
+  auth:
+    missing_token: "Missing authorization token"
+    invalid_or_expired_token: "Invalid or expired token"
+    user_not_found: "User not found"
+    invalid_credentials: "Invalid email or password"
+  record:
+    not_found: "Record not found"
+  user_mailer:
+    welcome:
+      subject: "Welcome to Mongolian Massagelab"

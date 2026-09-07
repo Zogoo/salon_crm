@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+# Prepare the SQLite database before booting the server (Fly volumes start empty).
+if [ "${*}" == "bundle exec puma -C config/puma.rb" ]; then
+  echo "Preparing database..."
+  bundle exec rails db:prepare
+fi
+
+exec "${@}"

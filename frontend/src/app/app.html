@@ -1,0 +1,27 @@
+@if (ready()) {
+  <header class="topbar">
+    <a class="brand" routerLink="/dashboard">Mongolian Massagelab</a>
+
+    @if (user(); as currentUser) {
+      <nav>
+        <a routerLink="/dashboard">{{ 'nav.dashboard' | translate }}</a>
+        <a routerLink="/notes">{{ 'nav.notes' | translate }}</a>
+      </nav>
+      <div class="account">
+        <span>{{ currentUser.name }}</span>
+        <button type="button" (click)="signOut()">{{ 'nav.sign_out' | translate }}</button>
+      </div>
+    } @else {
+      <nav>
+        <a routerLink="/sign-in">{{ 'nav.sign_in' | translate }}</a>
+        <a routerLink="/sign-up">{{ 'nav.sign_up' | translate }}</a>
+      </nav>
+    }
+  </header>
+
+  <main>
+    <router-outlet />
+  </main>
+} @else {
+  <p class="loading">{{ 'common.loading' | translate }}</p>
+}

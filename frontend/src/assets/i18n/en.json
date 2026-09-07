@@ -1,0 +1,39 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "notes": "Notes",
+    "sign_in": "Sign in",
+    "sign_up": "Sign up",
+    "sign_out": "Sign out"
+  },
+  "auth": {
+    "sign_in": "Sign in",
+    "sign_up": "Sign up",
+    "email": "Email",
+    "password": "Password",
+    "password_confirmation": "Confirm password",
+    "name": "Name",
+    "no_account": "Need an account?",
+    "have_account": "Already have an account?"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "greeting": "Welcome, {{name}}",
+    "intro": "This is the Mongolian Massagelab starter. Notes are the example resource — replace them with your own domain.",
+    "go_to_notes": "Go to notes"
+  },
+  "notes": {
+    "title": "Notes",
+    "field_title": "Title",
+    "field_body": "Body",
+    "create": "Create note",
+    "update": "Update note",
+    "empty": "No notes yet. Create your first one."
+  },
+  "common": {
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete"
+  }
+}

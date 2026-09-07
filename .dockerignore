@@ -1,0 +1,14 @@
+.git
+.github
+log/*
+tmp/*
+storage/*
+node_modules
+frontend/node_modules
+frontend/.angular
+frontend/dist
+*.md
+.rspec
+.rubocop.yml
+spec/
+docs/

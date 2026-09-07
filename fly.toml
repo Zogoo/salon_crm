@@ -1,0 +1,57 @@
+# fly.toml — generated for massagelab. `rake fly:setup` can rewrite app,
+# region and APP_FRONTEND_URL. See https://fly.io/docs/reference/configuration/
+
+app = 'massagelab'
+primary_region = 'ord'
+console_command = '/app/bin/rails console'
+swap_size_mb = 512
+
+# NOTE: `fly console` creates an ephemeral machine WITHOUT the volume mounted.
+# Use `fly ssh console -C '/app/bin/rails console'` on the running web machine
+# where the SQLite volume is available.
+[build]
+
+[env]
+  RAILS_ASSUME_SSL = 'true'
+  RAILS_ENV = 'production'
+  RAILS_FORCE_SSL = 'true'
+  RAILS_LOG_TO_STDOUT = 'true'
+  RAILS_MAX_THREADS = '3'
+  RAILS_SERVE_STATIC_FILES = 'true'
+  WEB_CONCURRENCY = '1'
+  DATABASE_PATH = '/mnt/database_storage/production.sqlite3'
+  APP_FRONTEND_URL = 'https://massagelab.fly.dev'
+  # Switch to 'fly' after `rake fly:setup` provisions Tigris storage.
+  ACTIVE_STORAGE_SERVICE = 'local'
+
+[mounts]
+  source = 'database_storage'
+  destination = '/mnt/database_storage'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = '10s'
+    timeout = '2s'
+    grace_period = '5s'
+    method = 'GET'
+    path = '/up'
+    protocol = 'http'
+    tls_skip_verify = false
+
+    [http_service.checks.headers]
+      X-Forwarded-Proto = 'https'
+
+[[vm]]
+  memory = '512mb'
+  cpus = 1
+  cpu_kind = 'shared'
+
+[[statics]]
+  guest_path = '/app/public'
+  url_prefix = '/assets'
