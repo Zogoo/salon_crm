@@ -151,7 +151,7 @@ GEM
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
     jmespath (1.6.2)
-    json (3.0.0)
+    json (2.21.2)
     jwt (3.2.0)
       base64
     language_server-protocol (3.17.0.6)
@@ -369,6 +369,7 @@ DEPENDENCIES
   factory_bot_rails
   faker
   image_processing (~> 1.2)
+  json (~> 2.7)
   jwt
   pagy (~> 43)
   puma (>= 5.0)

@@ -631,7 +631,7 @@ graph LR
 
 | Concern | Choice |
 |---|---|
-| Server | 1 VM, **4 vCPU / 16 GB**. Sized against the confirmed peak of 100 appointments per location per day (400 system-wide), ~120 therapist accounts and 28 rooms. The RAM is for Postgres `shared_buffers` and the availability working set, not for concurrency — peak concurrent human users is about 25. |
+| Server | 1 VM, **4 vCPU / 16 GB**. Sized against the confirmed peak of 100 appointments per location per day (400 system-wide), ~120 therapist accounts and 29 rooms. The RAM is for Postgres `shared_buffers` and the availability working set, not for concurrency — peak concurrent human users is about 25. |
 | Orchestration | Docker Compose, or **Kamal** — designed for exactly this shape of deployment |
 | Web | Nginx → Puma (2 workers × 5 threads) |
 | Database | Postgres 16, `btree_gist` + `pg_trgm` + `citext` extensions |

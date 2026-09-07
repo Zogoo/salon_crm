@@ -1,5 +1,6 @@
 class ApplicationController < ActionController::API
   include Authenticatable
+  include Authorizable
 
   before_action :set_locale
   before_action :authenticate!
@@ -19,6 +20,10 @@ class ApplicationController < ActionController::API
       id: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
+      location_id: user.location_id,
+      accessible_location_ids: user.accessible_location_ids,
+      staff_profile_id: user.staff_profile&.id,
       avatar_url: avatar_url(user)
     }
   end

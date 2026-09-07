@@ -85,7 +85,7 @@ thousand clients per location) and revisitable if it is not.
 | Area | What ships |
 |---|---|
 | Identity | Owner / Manager / Staff; JWT auth from the scaffold; Manager pinned to one location, Owner across all four, Staff to their own records |
-| Organization | 4 locations seeded, 28 typed rooms with `client_capacity` and `exclusive` (FRS §20) |
+| Organization | 4 locations seeded, 29 typed rooms with `client_capacity` and `exclusive` (FRS §20) |
 | Catalogue | The full FRS §19 menu — massage, facial, head spa, bioelectric, 30-min add-ons, enhancements — with per-location effective-dated prices |
 | Workforce | Staff profiles, service qualifications, the six-rung session rate ladder, shifts |
 | Scheduling | Availability engine (doc 03): multi-therapist, capacity-based room matching, 15-minute buffer inside the stored interval, 15-minute grid; booking with conflict prevention; lifecycle transitions; specific-therapist requests |

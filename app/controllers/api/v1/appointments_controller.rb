@@ -1,0 +1,163 @@
+module Api
+  module V1
+    class AppointmentsController < ApplicationController
+      # BR-14: only Owner and Manager create appointments. Staff never.
+      before_action :require_booking!, only: %i[create transition]
+
+      def index
+        location = scoped_location!(params.require(:location_id))
+        date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        scope = Appointment.on_date(location, date)
+                           .includes(:room, :client, :appointment_items, staff_profiles: [])
+        scope = visible_to_current_user(scope)
+        render json: { date:, appointments: scope.order(:starts_at).map { |a| appointment_json(a) } }
+      end
+
+      def show
+        render json: appointment_json(find_appointment, detail: true)
+      end
+
+      # The day board: rooms down the side, appointments placed in them.
+      def calendar
+        location = scoped_location!(params.require(:location_id))
+        date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        appts = visible_to_current_user(
+          Appointment.on_date(location, date).includes(:client, :room, staff_profiles: [])
+        ).order(:starts_at)
+
+        render json: {
+          date:,
+          opens_at: location.opens_at.strftime("%H:%M"),
+          closes_at: location.closes_at.strftime("%H:%M"),
+          rooms: location.rooms.active.order(:position).map { |r|
+            { id: r.id, name: r.name, room_type: r.room_type, client_capacity: r.client_capacity }
+          },
+          appointments: appts.map { |a| appointment_json(a) }
+        }
+      end
+
+      def create
+        location = scoped_location!(create_params.require(:location_id))
+        client = Client.kept.find(create_params.require(:client_id))
+
+        appt = Scheduling::BookAppointment.call(
+          location:, client:, actor: current_user,
+          variant_ids: create_params.require(:service_variant_ids),
+          start_at: Time.zone.parse(create_params.require(:start_at)),
+          staff_profile_ids: create_params[:staff_profile_ids],
+          room_id: create_params[:room_id],
+          requested_staff_profile_id: create_params[:requested_staff_profile_id],
+          participant_client_ids: create_params[:participant_client_ids] || [],
+          booking_channel: create_params[:booking_channel] || "manager",
+          client_note: create_params[:client_note],
+          appointment_note: create_params[:appointment_note]
+        )
+        render json: appointment_json(appt, detail: true), status: :created
+      rescue Scheduling::BookAppointment::Conflict => e
+        render json: { error: { code: e.message, message: conflict_message(e.message),
+                                details: suggestions(e.message) } }, status: :conflict
+      rescue Scheduling::BookAppointment::Invalid, ArgumentError => e
+        render json: { error: e.message }, status: :unprocessable_content
+      end
+
+      def transition
+        appt = find_appointment
+        Scheduling::TransitionStatus.call(
+          appointment: appt, to: params.require(:to),
+          actor: current_user, reason: params[:reason]
+        )
+        render json: appointment_json(appt.reload, detail: true)
+      rescue Scheduling::TransitionStatus::Invalid => e
+        render json: { error: e.message }, status: :unprocessable_content
+      end
+
+      private
+
+      def create_params
+        params.require(:appointment).permit(
+          :location_id, :client_id, :start_at, :room_id, :requested_staff_profile_id,
+          :booking_channel, :client_note, :appointment_note,
+          service_variant_ids: [], staff_profile_ids: [], participant_client_ids: []
+        )
+      end
+
+      def find_appointment
+        appt = Appointment.includes(:client, :room, :location, :appointment_items, :staff_profiles)
+                          .find(params[:id])
+        raise ActiveRecord::RecordNotFound unless current_user.can_access_location?(appt.location_id)
+        raise ActiveRecord::RecordNotFound unless visible?(appt)
+        appt
+      end
+
+      # Staff see only appointments they are on — including as the second
+      # therapist on a couples booking, which is why this joins the join table.
+      def visible_to_current_user(scope)
+        return scope unless current_user.staff?
+        scope.joins(:appointment_staff)
+             .where(appointment_staff: { staff_profile_id: current_user.staff_profile&.id })
+      end
+
+      def visible?(appt)
+        return true unless current_user.staff?
+        appt.appointment_staff.exists?(staff_profile_id: current_user.staff_profile&.id)
+      end
+
+      def conflict_message(code)
+        {
+          "slot_taken" => "That time was just booked by someone else.",
+          "insufficient_therapists" => "This service needs two therapists and only one is free.",
+          "no_suitable_room" => "No room of the required type or capacity is free.",
+          "therapist_not_on_shift" => "That therapist is not on shift for the whole appointment.",
+          "therapist_on_break" => "That therapist is on a break at that time."
+        }.fetch(code, code)
+      end
+
+      # BR-16: if a named therapist was unavailable, offer that therapist's own
+      # next times rather than a different person.
+      def suggestions(code)
+        return {} unless params.dig(:appointment, :requested_staff_profile_id).present?
+        return {} unless %w[slot_taken therapist_not_on_shift therapist_on_break].include?(code)
+
+        location = Location.find(create_params[:location_id])
+        variants = ServiceVariant.where(id: create_params[:service_variant_ids]).includes(:service)
+        slots = Scheduling::NextAvailableForTherapist.call(
+          location:, variants:,
+          staff_profile_id: create_params[:requested_staff_profile_id],
+          after: Time.zone.parse(create_params[:start_at])
+        )
+        { suggested_slots: slots.map { |s| s.start_at.iso8601 } }
+      rescue StandardError
+        {}
+      end
+
+      def appointment_json(appt, detail: false)
+        json = {
+          id: appt.id, reference: appt.reference, status: appt.status,
+          starts_at: appt.starts_at.iso8601,
+          service_ends_at: appt.service_ends_at.iso8601,
+          ends_at: appt.ends_at.iso8601,
+          duration_minutes: appt.duration_minutes,
+          room: { id: appt.room_id, name: appt.room.name },
+          client: { id: appt.client_id, full_name: appt.client.full_name, phone: appt.client.phone },
+          therapists: appt.staff_profiles.map { |sp| { id: sp.id, display_name: sp.display_name } },
+          total_price_cents: appt.total_price_cents,
+          client_note: appt.client_note
+        }
+        if detail
+          json[:location] = { id: appt.location_id, name: appt.location.name }
+          json[:appointment_note] = appt.appointment_note
+          json[:fee_charged_cents] = appt.fee_charged_cents
+          json[:items] = appt.appointment_items.order(:position).map { |i|
+            { id: i.id, name: i.service_variant.name, kind: i.kind,
+              duration_minutes: i.duration_minutes, price_cents: i.price_cents }
+          }
+          json[:preference] = appt.client.client_preference&.then { |p|
+            { attention_areas: p.attention_areas, avoid_areas: p.avoid_areas,
+              pressure: p.pressure, other_requests: p.other_requests }
+          }
+        end
+        json
+      end
+    end
+  end
+end

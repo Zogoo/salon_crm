@@ -561,7 +561,7 @@ fees are their own revenue category — neither service revenue nor a liability.
 | **Availability** | Business-hours critical. Target 99.5%, with a printable daily schedule fallback per location. |
 | **Performance** | Availability search < 500 ms for a 7-day window at one location. Booking flow < 3 seconds end to end. |
 | **Concurrency** | Zero tolerance for double-booking a room or a therapist. Enforced by database constraint, not application code. |
-| **Scale** | 4 locations × up to 30 therapists = 120 therapist accounts, 4 manager accounts, 1 owner. ~28 rooms total. |
+| **Scale** | 4 locations × up to 30 therapists = 120 therapist accounts, 4 manager accounts, 1 owner. 29 rooms total. |
 | **Data protection** | Care notes and preference forms are encrypted at rest and access-controlled. Card data never touches our servers (Stripe Elements / SetupIntent). |
 | **PCI** | **SAQ-A only.** Online card data is tokenised client-side by Stripe. In-salon card payments run on the existing terminal and are only *recorded*. |
 | **Auditability** | All changes to rates, earnings, payments, refunds, gift card balances, membership state, appointment status and locked periods are audit-logged with actor, timestamp, before/after. |

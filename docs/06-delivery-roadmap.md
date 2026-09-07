@@ -42,7 +42,7 @@ later.
   kiosk** AngularJS shells (the client bundle is Release 2)
 - Users and the three staff roles; staff sessions; TOTP for Owner
 - Pundit skeleton with `verify_authorized` enforced from the first controller
-- **Seed the four locations, their business hours, and all 28 typed rooms** (FRS §20)
+- **Seed the four locations, their business hours, and all 29 typed rooms** (FRS §20)
 - Audit log infrastructure
 - CI pipeline, staging deploy, backup + restore drill
 

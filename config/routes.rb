@@ -12,6 +12,28 @@ Rails.application.routes.draw do
       end
 
       resources :notes
+
+      # --- Massagelab domain ---
+      resources :locations, only: %i[index show]
+      resources :services, only: :index
+      resources :staff, only: %i[index show]
+      resources :shifts, only: %i[index create destroy]
+      resources :clients, only: %i[index show create update] do
+        put :preferences, on: :member, action: :update_preferences
+      end
+      get "availability", to: "availability#index"
+      get "availability/next_for_therapist", to: "availability#next_for_therapist"
+      resources :appointments, only: %i[index show create] do
+        collection { get :calendar }
+        member { post :transition }
+      end
+      resources :approval_requests, only: :index do
+        member do
+          post :approve
+          post :reject
+        end
+      end
+      get "dashboard", to: "dashboard#show"
     end
   end
 

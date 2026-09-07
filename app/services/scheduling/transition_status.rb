@@ -1,0 +1,81 @@
+module Scheduling
+  # BR-21: a status transition is the only way to release a room and therapist.
+  # BR-18/BR-19: the 4-hour window decides cancelled vs late_cancelled, and a
+  # late cancel or no-show records a 20% fee as *owed* — Release 1 has no
+  # gateway, so nothing is charged (doc 08 §1).
+  class TransitionStatus < ApplicationService
+    Invalid = Class.new(StandardError)
+
+    ALLOWED = {
+      "pending_approval" => %w[scheduled cancelled],
+      "scheduled"        => %w[checked_in cancelled late_cancelled no_show],
+      "checked_in"       => %w[in_progress cancelled no_show],
+      "in_progress"      => %w[completed],
+      "completed"        => [],
+      "cancelled"        => [],
+      "late_cancelled"   => [],
+      "no_show"          => []
+    }.freeze
+
+    def initialize(appointment:, to:, actor: nil, reason: nil, now: Time.current)
+      @appt = appointment
+      @to = to.to_s
+      @actor = actor
+      @reason = reason
+      @now = now
+    end
+
+    def call
+      from = @appt.status
+      target = resolve_target(from)
+      unless ALLOWED.fetch(from, []).include?(target)
+        raise Invalid, "cannot move from #{from} to #{target}"
+      end
+
+      ImmediateTransaction.call do
+        apply_fee!(target)
+        @appt.update!(status: target, **cancellation_fields(target))
+        # Keep the denormalised copy in step, or the conflict query goes wrong.
+        @appt.appointment_staff.update_all(status: target)
+        bump_client_counters!(target)
+        AppointmentStatusEvent.create!(
+          appointment: @appt, from_status: from, to_status: target,
+          actor_user: @actor, occurred_at: @now, reason: @reason
+        )
+        @appt
+      end
+    end
+
+    private
+
+    # A cancellation inside the window is a late cancellation, whatever the
+    # caller asked for.
+    def resolve_target(_from)
+      return @to unless @to == "cancelled"
+      hours = @appt.location.cancellation_window_hours
+      @now > (@appt.starts_at - hours.hours) ? "late_cancelled" : "cancelled"
+    end
+
+    def cancellation_fields(target)
+      return {} unless %w[cancelled late_cancelled no_show].include?(target)
+      { cancelled_at: @now, cancellation_reason: @reason }
+    end
+
+    def apply_fee!(target)
+      percent = case target
+                when "no_show"        then @appt.location.no_show_fee_percent
+                when "late_cancelled" then @appt.location.late_cancel_fee_percent
+      end
+      return unless percent
+      @appt.fee_charged_cents = (@appt.total_price_cents * percent / 100.0).round
+    end
+
+    def bump_client_counters!(target)
+      column = { "no_show" => :no_show_count,
+                 "late_cancelled" => :late_cancel_count,
+                 "cancelled" => :cancel_count }[target]
+      return unless column
+      Client.where(id: @appt.client_id).update_counters(column => 1)
+    end
+  end
+end
