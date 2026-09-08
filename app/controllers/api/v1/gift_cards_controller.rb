@@ -40,24 +40,34 @@ module Api
         render json: { error: { code: e.message } }, status: :unprocessable_content
       end
 
-      def adjust
-        card = GiftCard.find(params[:id])
-        amount = params.require(:amount_cents).to_i
-        balance = card.current_balance_cents + amount
-        return render json: { error: { code: "negative_balance" } }, status: :unprocessable_content if balance.negative?
+      NegativeBalance = Class.new(StandardError)
 
-        ImmediateTransaction.call do
+      def adjust
+        amount = params.require(:amount_cents).to_i
+
+        card = ImmediateTransaction.call do
+          # Read the balance under the write lock, not before it. Two
+          # adjustments racing each other would otherwise both compute from the
+          # same starting figure, and one would be silently lost.
+          locked = GiftCard.lock.find(params[:id])
+          balance = locked.current_balance_cents + amount
+          raise NegativeBalance if balance.negative?
+
           GiftCardTransaction.create!(
-            gift_card: card, kind: "adjust", amount_cents: amount,
+            gift_card: locked, kind: "adjust", amount_cents: amount,
             balance_after_cents: balance, performed_by_user: current_user,
             occurred_at: Time.current, note: params[:reason]
           )
-          card.update!(current_balance_cents: balance,
-                       status: balance.zero? ? "depleted" : "active")
-          AuditLog.record!(auditable: card, action: "gift_card.adjusted", actor: current_user,
+          locked.update!(current_balance_cents: balance,
+                         status: balance.zero? ? "depleted" : "active")
+          AuditLog.record!(auditable: locked, action: "gift_card.adjusted", actor: current_user,
                            changes: { amount_cents: amount, reason: params[:reason] })
+          locked
         end
-        render json: card_json(card.reload, ledger: true)
+
+        render json: card_json(card, ledger: true)
+      rescue NegativeBalance
+        render json: { error: { code: "negative_balance" } }, status: :unprocessable_content
       end
 
       def void
@@ -84,8 +94,8 @@ module Api
           # BR-30: expiry is a flag, not a forfeiture. Say so, so the front desk
           # never tells a client their money is gone.
           expired: card.expired?,
-          expires_at: card.expires_at.iso8601,
-          sold_at: card.sold_at.iso8601,
+          expires_at: local_iso(card.expires_at, card.sold_at_location),
+          sold_at: local_iso(card.sold_at, card.sold_at_location),
           sold_at_location: { id: card.sold_at_location_id, name: card.sold_at_location.name },
           buyer: { client_id: card.buyer_client_id, name: card.buyer_name, phone: card.buyer_phone },
           recipient: { client_id: card.recipient_client_id, name: card.recipient_name }
@@ -93,7 +103,8 @@ module Api
         if ledger
           json[:ledger] = card.gift_card_transactions.order(:occurred_at).map { |t|
             { kind: t.kind, amount_cents: t.amount_cents, balance_after_cents: t.balance_after_cents,
-              occurred_at: t.occurred_at.iso8601, location_id: t.location_id, note: t.note }
+              occurred_at: local_iso(t.occurred_at, t.location || card.sold_at_location),
+              location_id: t.location_id, note: t.note }
           }
         end
         json

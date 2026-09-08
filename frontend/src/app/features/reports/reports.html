@@ -1,9 +1,9 @@
 <section class="rep">
   <header class="rep__head">
     @if (ctx.canSwitch()) {
-      <select aria-label="Location" [value]="ctx.current()?.id"
-              (change)="onLocationChange($any($event.target).value)" data-testid="rep-location">
-        @for (l of ctx.locations(); track l.id) { <option [value]="l.id" [selected]="l.id === ctx.current()?.id">{{ l.name }}</option> }
+      <select aria-label="Location" [ngModel]="ctx.current()?.id"
+              (ngModelChange)="onLocationChange($event)" data-testid="rep-location">
+        @for (l of ctx.locations(); track l.id) { <option [ngValue]="l.id">{{ l.name }}</option> }
       </select>
     } @else {
       <strong>{{ ctx.current()?.name }}</strong>

@@ -31,7 +31,7 @@ module Api
         {
           id: req.id, status: req.status,
           pending_for_minutes: req.pending_for_minutes,
-          auto_approves_at: req.auto_approves_at.iso8601,
+          auto_approves_at: local_iso(req.auto_approves_at, appt.location),
           past_review_target: req.past_review_target?,
           requested_therapist: { id: req.requested_staff_profile_id,
                                  display_name: req.requested_staff_profile.display_name },

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_08_100011) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_110001) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -398,7 +398,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_100011) do
     t.string "name", null: false
     t.integer "no_show_fee_percent", default: 20, null: false
     t.time "opens_at", null: false
-    t.text "reminder_offsets_minutes", default: "[1440,120]", null: false
+    t.text "reminder_offsets_minutes", default: "[1440,120]"
     t.integer "slot_granularity_minutes", default: 15, null: false
     t.string "status", default: "active", null: false
     t.string "timezone", default: "America/Chicago", null: false
@@ -492,7 +492,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_100011) do
     t.string "channel", null: false
     t.datetime "created_at", null: false
     t.text "error"
-    t.text "payload", default: "{}", null: false
+    t.text "payload", default: "{}"
     t.string "provider_message_id"
     t.bigint "recipient_id", null: false
     t.string "recipient_type", null: false
@@ -722,7 +722,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_100011) do
     t.datetime "created_at", null: false
     t.string "kind", null: false
     t.text "note"
-    t.text "requested_payload", default: "{}", null: false
+    t.text "requested_payload", default: "{}"
     t.text "review_note"
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"

@@ -87,8 +87,13 @@ module Api
         if params[:from].present?
           [ Date.parse(params[:from]), Date.parse(params[:to] || params[:from]) ]
         else
-          EarningPeriod.semi_monthly_bounds(Date.current)
+          EarningPeriod.semi_monthly_bounds(default_business_date)
         end
+      end
+
+      # The salon's business day, not UTC's — see Location#today.
+      def default_business_date
+        Location.find_by(id: current_user.accessible_location_ids.first)&.today || Date.current
       end
 
       def period_json(period, statements: false)

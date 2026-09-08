@@ -89,8 +89,8 @@ module Api
           client: { id: m.client_id, full_name: m.client.full_name },
           # BR-39a: the home location, and the fact it is not portable.
           location: { id: m.location_id, name: m.location.name },
-          current_period_end: m.current_period_end.iso8601,
-          cancellation_effective_at: m.cancellation_effective_at&.iso8601
+          current_period_end: local_iso(m.current_period_end, m.location),
+          cancellation_effective_at: local_iso(m.cancellation_effective_at, m.location)
         }
         if detail
           json[:default_service_variant_id] = m.default_service_variant_id
@@ -101,7 +101,7 @@ module Api
           }
           json[:credit_ledger] = m.membership_credit_transactions.order(:occurred_at).map { |t|
             { kind: t.kind, amount: t.amount, balance_after: t.balance_after,
-              occurred_at: t.occurred_at.iso8601,
+              occurred_at: local_iso(t.occurred_at, m.location),
               cross_location_override: t.cross_location_approved_by_user_id.present? }
           }
         end

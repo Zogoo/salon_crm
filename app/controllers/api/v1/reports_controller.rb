@@ -39,7 +39,7 @@ module Api
         render json: {
           total_cents: orders.sum(:total_cents),
           orders: orders.order(created_at: :desc).map { |o|
-            { id: o.id, number: o.number, created_at: o.created_at.iso8601,
+            { id: o.id, number: o.number, created_at: local_iso(o.created_at, o.location),
               amount_cents: o.total_cents, location: o.location.name,
               client: o.client && { id: o.client_id, full_name: o.client.full_name },
               description: o.order_line_items.first&.description }

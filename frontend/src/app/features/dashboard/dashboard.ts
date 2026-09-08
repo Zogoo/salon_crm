@@ -47,8 +47,8 @@ export class DashboardPage implements OnInit {
     });
   }
 
-  protected onLocationChange(id: string): void {
-    this.ctx.select(Number(id));
+  protected onLocationChange(id: number): void {
+    this.ctx.select(id);
     this.reload();
   }
 }

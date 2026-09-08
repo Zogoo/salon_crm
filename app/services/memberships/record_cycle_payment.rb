@@ -14,6 +14,9 @@ module Memberships
 
     def call
       ImmediateTransaction.call do
+        # Re-read under the write lock before deciding the cap — see
+        # Memberships::RedeemCredit for why the passed-in object is not enough.
+        @membership = Membership.lock.find(@membership.id)
         cycle = MembershipCycle.find_or_initialize_by(
           membership: @membership, period_start: @membership.current_period_start
         )
