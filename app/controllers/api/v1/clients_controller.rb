@@ -33,6 +33,18 @@ module Api
         end
       end
 
+      # BR-42: one client, one history. Merging repoints everything and marks
+      # the loser merged — it never deletes.
+      def merge
+        require_owner!
+        source = Client.find(params[:id])
+        target = Client.find(params.require(:into_client_id))
+        merged = Crm::MergeClients.call(source:, target:, actor: current_user)
+        render json: client_json(merged, detail: true)
+      rescue Crm::MergeClients::Invalid => e
+        render json: { error: { code: e.message } }, status: :unprocessable_content
+      end
+
       # FRS §11.1 — the preferences Form, versioned on every update (BR-43).
       def update_preferences
         client = Client.kept.find(params[:id])

@@ -13,11 +13,18 @@ class User < ApplicationRecord
                     format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :name, presence: true
   validates :password, length: { minimum: 8 }, allow_nil: true
+  STATUSES = %w[invited active suspended disabled].freeze
+
   validates :role, inclusion: { in: ROLES }
+  validates :status, inclusion: { in: STATUSES }
   validate :manager_must_have_one_location
   validate :acceptable_avatar
 
   ROLES.each { |r| define_method("#{r}?") { role == r } }
+
+  # BR-02: offboarding disables the login. A terminated therapist must not keep
+  # reach into schedules, earnings or the care notes of clients they saw.
+  def active_for_authentication? = status == "active"
 
   # BR-01: only the Owner sees all four locations. A Manager is pinned to one
   # and cannot switch; Staff are scoped to their own records.

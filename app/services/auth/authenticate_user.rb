@@ -9,6 +9,8 @@ module Auth
     def call
       user = User.find_by(email: @email)
       return unless user&.authenticate(@password)
+      # BR-02: an offboarded therapist cannot sign back in.
+      return unless user.active_for_authentication?
 
       user
     end

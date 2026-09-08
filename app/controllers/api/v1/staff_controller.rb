@@ -14,6 +14,21 @@ module Api
         render json: staff_json(profile, detail: true)
       end
 
+      # BR-02: blocked, not warned, while future appointments exist.
+      def offboard
+        require_owner!
+        profile = StaffProfile.find(params[:id])
+        Workforce::OffboardStaff.call(
+          staff_profile: profile, actor: current_user,
+          termination_date: params[:termination_date].presence || Date.current
+        )
+        render json: staff_json(profile.reload, detail: true)
+      rescue Workforce::OffboardStaff::Blocked => e
+        render json: { error: { code: "offboard_blocked",
+                                details: { appointment_ids: e.message.split(",").map(&:to_i) } } },
+               status: :locked
+      end
+
       private
 
       def visible?(profile)
