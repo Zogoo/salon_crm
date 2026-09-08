@@ -1,6 +1,6 @@
 # Build Plan — Scheduling Core
 
-**Version:** 1.1 · **Date:** 2026-09-07 · **Status:** Scheduling core delivered
+**Version:** 2.0 · **Date:** 2026-09-08 · **Status:** Release 1 delivered
 **Implements:** doc 06 Release 1, Phases 0 and 1
 **Stack authority:** the `project-preparator` scaffold at `../project-preparator`
 
@@ -80,7 +80,7 @@ thousand clients per location) and revisitable if it is not.
 
 ## 3. Scope of this build
 
-**In:** doc 06 Phase 0 and Phase 1 — the scheduling core, end to end.
+**In:** all of Release 1 — doc 06 Phases 0 through 4.
 
 | Area | What ships |
 |---|---|
@@ -92,10 +92,26 @@ thousand clients per location) and revisitable if it is not.
 | Clients | Profiles, phone search, "Add New Client", preferences form |
 | UI | Angular 21: sign-in, dashboard, day board, booking, clients, staff, shifts |
 
-**Out — deliberately, and not started:** orders, payments, tips, gift cards, membership, earnings
-and payout, ratings, notifications, reporting, data migration, and everything in Release 2. Each is
-specified in docs 01–05 and derives from appointment data, which is why the scheduling core is
-built first.
+Delivered beyond the scheduling core:
+
+| Area | What ships |
+|---|---|
+| Sales | Orders priced from the booking snapshot, recorded payments across all five methods, split payment, no overpayment, immutable payments with void, refunds |
+| Tips | Recorded per appointment, 100% to the therapist, split evenly across two with the odd cent to the primary |
+| Fees | The 4-hour window, the 20% calculation, written as an **open `Fee` order** — owed, never charged (Release 1 has no gateway) |
+| Gift cards | Physical issue with barcode lookup, append-only ledger, cross-location redemption, expiry that flags without forfeiting, nightly reconciliation |
+| Membership | Enrolment tied to the joining location, manual monthly billing that grants the credit, the 3-credit cap, upgrade pricing, the 15-day notice rule, cross-location override recorded on the ledger |
+| Earnings | BR-33 decomposition, tips, manual Owner entry, semi-monthly periods, statements, adjustments, locking |
+| Ratings | 1–10 with the two optional questions, in-location kiosk and SMS-token link, low-rating alerts to Owner **and** location Manager |
+| Care notes | Encrypted, append-only, scoped to the assigned therapist, every read audit-logged |
+| Notifications | Email + SMS confirmations, reminders at 24 h and 2 h, fee notices, rating requests — recorded rather than transmitted until an SMS account exists |
+| Reporting | Daily revenue by method with revenue / liability / fee kept apart, client log, staff earnings, gift card liability with ageing, ratings, outstanding fees |
+| Scheduled work | Plain jobs plus `rake massagelab:tick` and `:nightly` — the stack has no scheduler |
+| Data migration | Idempotent CSV import of clients, history and outstanding gift cards |
+
+**Out — Release 2 only:** client accounts, self-service booking, Stripe (deposits, automatic fee
+charges, membership billing), online gift card purchase. Also not built: XLSX and PDF export —
+reports export as CSV, which needs no new dependency.
 
 ---
 
@@ -133,6 +149,26 @@ Two arithmetic corrections to the documents themselves: the room total is **29**
 not 28 (7+8+8+6), and doc 06's posture section counted two degraded rules while
 listing three.
 
+### 7.2 Found while building Release 1
+
+Six more, all of which passed a green test suite until something exercised the real path.
+
+| # | Defect | Why it hid |
+|---|---|---|
+| 6 | **Every JSON POST worked but the `Membership` service namespace reopened the `Membership` model class** | `module Membership` and `class Membership` merge silently in Ruby. Renamed to `Memberships`, matching `GiftCards`. |
+| 7 | **Tip lines could never be saved** | Rails' `serialize ..., type: Array` treats `[]` as the type default and writes NULL, so a NOT NULL column rejected every tip. |
+| 8 | **Every care-note read returned 500** | The same trap on `audit_logs.changes_json` with an empty hash — which disabled the read logging that doc 04 §5 requires. |
+| 9 | **Tips silently recalculated to zero** | `Order#recalculate!` trusted an association that `destroy_all` had left loaded-and-empty. |
+| 10 | **A membership credit settled twice its value** | It lowered the total as a discount *and* counted as coverage. A discount is not a payment. |
+| 11 | **The low-rating alert only reached one person** | The notification idempotency index omitted the recipient, so the second of Owner-and-Manager collided and was dropped. |
+
+**The one worth reading twice** is the business-day bug. `Date.current` and
+`new Date().toISOString()` both follow UTC. The salon closes at 22:00 Central, which is 03:00–04:00
+UTC the next day, so the day board, dashboard, reports and rating kiosk all defaulted to *tomorrow*
+— and showed an empty day — for the last hours of every working day. It was invisible in tests
+because they ran at other times. `Location#today` and `todayIn()` now derive the date from the
+location's zone, with regression specs pinned to a late-evening instant on both sides.
+
 ### 7.1 Notes for whoever picks this up
 
 - **`Scheduling::BookAppointment` is load-bearing.** It is the only place an
@@ -146,6 +182,14 @@ listing three.
 - **The SQLite busy timeout is 15s, deliberately.** Eight concurrent bookings
   serialise, and 5s was short enough that the last one timed out rather than
   getting a clean conflict.
+- **Never write "today" as `Date.current` or `toISOString()`.** Use
+  `Location#today` server-side and `todayIn(timezone)` in the client. See §7.2.
+- **Rails writes NULL for a serialized empty array or hash.** Any such column
+  must be nullable, or the first empty value breaks the feature.
+- **Notifications are recorded, not transmitted.** `Notifications::Deliver` marks
+  a row sent; wiring Twilio and Action Mailer is a change to that one class. Doc
+  04 §10 puts the SMS bill near $400/month at peak, so it stays off until the
+  account exists.
 
 ---
 
@@ -184,6 +228,6 @@ Browser verification in Docker Compose covers: sign-in as each role, the day boa
 single and a couples appointment, the buffer being enforced, a specific-therapist request and its
 approval, client creation and search, and Manager location scoping.
 
-**Delivered:** 83 backend examples and 13 frontend tests, all passing. The browser walkthrough
+**Delivered:** 169 backend examples and 16 frontend tests, all passing. The browser walkthrough
 additionally confirmed the production image — Angular built into Rails `public/` and served by
 `SpaController`, deep links included — which is the single-app Fly.io deployment model.
