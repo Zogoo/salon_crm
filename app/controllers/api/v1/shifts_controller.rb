@@ -5,7 +5,7 @@ module Api
 
       def index
         location = scoped_location!(params.require(:location_id))
-        date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        date = params[:date].present? ? Date.parse(params[:date]) : location.today
         scope = Shift.published.where(location_id: location.id, work_date: date)
                      .includes(:staff_profile)
         scope = scope.where(staff_profile_id: current_user.staff_profile&.id) if current_user.staff?

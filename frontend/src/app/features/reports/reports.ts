@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ClientLogRow, DailyRevenue, GiftCardLiability } from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import { todayIn } from '../../core/salon-date';
 
 /**
  * FRS §9, §10, §12.
@@ -30,15 +31,24 @@ export class ReportsPage implements OnInit {
   protected readonly fees = signal<{ total_cents: number; orders: Record<string, unknown>[] } | null>(null);
   protected readonly error = signal<string | null>(null);
 
-  protected from = new Date().toISOString().slice(0, 10);
-  protected to = new Date().toISOString().slice(0, 10);
+  // Set once the location is known — the salon's day, not the browser's.
+  protected from = '';
+  protected to = '';
 
   ngOnInit(): void {
-    void this.ctx.load().then(() => this.runAll());
+    void this.ctx.load().then(() => {
+      const today = todayIn(this.ctx.current()?.timezone);
+      this.from = today;
+      this.to = today;
+      this.runAll();
+    });
   }
 
   protected onLocationChange(id: string): void {
     this.ctx.select(Number(id));
+    const today = todayIn(this.ctx.current()?.timezone);
+    this.from = today;
+    this.to = today;
     this.runAll();
   }
 

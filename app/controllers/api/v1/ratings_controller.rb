@@ -32,7 +32,7 @@ module Api
       # What the kiosk offers: today's completed appointments, not yet rated.
       def kiosk_queue
         location = scoped_location!(params.require(:location_id))
-        appts = Appointment.on_date(location, Date.current)
+        appts = Appointment.on_date(location, location.today)
                            .where(status: "completed")
                            .where.missing(:appointment_rating)
                            .includes(:client, :staff_profiles)

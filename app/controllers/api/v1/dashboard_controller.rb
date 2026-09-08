@@ -5,7 +5,7 @@ module Api
       # they are omitted at the serialiser, not hidden in the UI (doc 05 §13).
       def show
         location = scoped_location!(params.require(:location_id))
-        date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        date = params[:date].present? ? Date.parse(params[:date]) : location.today
 
         appts = Appointment.on_date(location, date)
         working = Shift.published.where(location_id: location.id, work_date: date)

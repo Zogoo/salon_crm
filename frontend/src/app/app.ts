@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
 import { TranslatePipe } from '@ngx-translate/core';
 
 import { AuthService } from './core/services/auth.service';
@@ -19,7 +20,19 @@ export class App implements OnInit {
   protected readonly ready = signal(false);
   protected readonly user = this.auth.user;
 
+  /**
+   * The rating kiosk sits unattended on a screen in a public room, so it must
+   * not offer a way into the rest of the console. Hiding the chrome is the
+   * cheap half of that; the bare route is the other half.
+   */
+  protected readonly bare = signal(false);
+
   ngOnInit(): void {
+    this.bare.set(this.router.url.startsWith('/kiosk'));
+    this.router.events
+      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
+      .subscribe((e) => this.bare.set(e.urlAfterRedirects.startsWith('/kiosk')));
+
     // Restore the session before the first render so guards see a real user.
     if (!this.auth.token) {
       this.ready.set(true);

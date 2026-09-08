@@ -1,4 +1,5 @@
 @if (ready()) {
+  @if (!bare()) {
   <header class="topbar">
     <a class="brand" routerLink="/dashboard">Mongolian Massagelab</a>
 
@@ -31,6 +32,7 @@
       </nav>
     }
   </header>
+  }
 
   <main>
     <router-outlet />

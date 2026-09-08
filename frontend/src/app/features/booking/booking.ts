@@ -7,6 +7,7 @@ import { ClientRecord, Service, ServiceVariant, Slot, StaffMember } from '../../
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import { todayIn } from '../../core/salon-date';
 
 /** FRS §5 — the New Appointment screen. */
 @Component({
@@ -30,7 +31,7 @@ export class BookingPage implements OnInit {
   protected readonly suggestions = signal<string[]>([]);
   protected readonly booked = signal<{ reference: string; status: string } | null>(null);
 
-  protected date = new Date().toISOString().slice(0, 10);
+  protected date = '';
   protected clientSearch = '';
   protected selectedClientId: number | null = null;
   // Signals, not plain fields: the computed()s below derive from them, and a
@@ -78,7 +79,10 @@ export class BookingPage implements OnInit {
   ngOnInit(): void {
     const qDate = this.route.snapshot.queryParamMap.get('date');
     if (qDate) this.date = qDate;
-    void this.ctx.load().then(() => this.loadForLocation());
+    void this.ctx.load().then(() => {
+      this.date ||= todayIn(this.ctx.current()?.timezone);
+      this.loadForLocation();
+    });
   }
 
   protected loadForLocation(): void {

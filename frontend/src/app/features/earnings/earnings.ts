@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { EarningPeriod, EarningsReport, StaffMember } from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import { todayIn } from '../../core/salon-date';
 
 /**
  * FRS §4 and §8 — the Staff Earnings section.
@@ -37,13 +38,13 @@ export class EarningsPage implements OnInit {
   protected manual = { duration_minutes: 60, quantity: 1, service_date: '', note: '' };
 
   ngOnInit(): void {
-    const today = new Date();
-    const [f, t] = this.semiMonthly(today);
-    this.from = f;
-    this.to = t;
-    this.manual.service_date = today.toISOString().slice(0, 10);
-
     void this.ctx.load().then(() => {
+      const salonToday = todayIn(this.ctx.current()?.timezone);
+      const [f, t] = this.semiMonthly(new Date(`${salonToday}T12:00:00Z`));
+      this.from = f;
+      this.to = t;
+      this.manual.service_date = salonToday;
+
       const loc = this.ctx.current();
       if (loc) this.api.staff(loc.id).subscribe(({ staff }) => this.staff.set(staff));
       this.loadPeriods();

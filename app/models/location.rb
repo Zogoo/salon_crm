@@ -25,6 +25,11 @@ class Location < ApplicationRecord
 
   def tz = ActiveSupport::TimeZone[timezone]
 
+  # The salon's current business date. `Date.current` follows Time.zone (UTC),
+  # which after 19:00 Central is already tomorrow — so a controller defaulting
+  # to "today" that way shows an empty board for the last hours of every day.
+  def today = tz.today
+
   # Local wall-clock opening/closing instants for a given date (doc 03 §5).
   def open_window(date)
     tz.local(date.year, date.month, date.day, opens_at.hour, opens_at.min)..

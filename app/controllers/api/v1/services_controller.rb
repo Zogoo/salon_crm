@@ -5,7 +5,7 @@ module Api
       # date, so no client ever implements price resolution (doc 05 §5).
       def index
         location = scoped_location!(params.require(:location_id))
-        on = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        on = params[:date].present? ? Date.parse(params[:date]) : location.today
 
         priced = ServiceVariant.active
                                .joins(:location_prices)

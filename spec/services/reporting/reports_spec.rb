@@ -30,7 +30,7 @@ RSpec.describe "Reporting" do
       Scheduling::TransitionStatus.call(appointment: no_show, to: "no_show")
 
       data = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ],
-                                          from: Date.current, to: Date.current + 7)
+                                          from: world[:location].today, to: world[:location].today + 7)
 
       expect(data[:service_revenue_cents]).to be_positive
       expect(data[:gift_card_liability_cents]).to eq(5_000)
@@ -43,7 +43,7 @@ RSpec.describe "Reporting" do
       complete_and_pay(method: "cash")
       complete_and_pay(method: "zelle")
       data = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ],
-                                          from: Date.current, to: Date.current + 7)
+                                          from: world[:location].today, to: world[:location].today + 7)
 
       expect(data[:by_method]["cash"]).to be_positive
       expect(data[:by_method]["zelle"]).to be_positive
@@ -55,7 +55,7 @@ RSpec.describe "Reporting" do
     it "counts tips separately from service revenue (BR-24a)" do
       complete_and_pay(tip: 2_500)
       data = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ],
-                                          from: Date.current, to: Date.current + 7)
+                                          from: world[:location].today, to: world[:location].today + 7)
       expect(data[:tips_cents]).to eq(2_500)
     end
   end
@@ -128,7 +128,7 @@ RSpec.describe "Reporting" do
                              channel: "kiosk", would_recommend: true)
 
       data = Reporting::Ratings.call(location_ids: [ world[:location].id ],
-                                     from: Date.current, to: Date.current + 7)
+                                     from: world[:location].today, to: world[:location].today + 7)
       expect(data[:count]).to eq(1)
       expect(data[:average]).to eq(9.0)
       expect(data[:recommend_rate]).to eq(100.0)

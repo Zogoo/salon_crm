@@ -14,7 +14,7 @@ module Api
       # FRS §9
       def client_log
         location = scoped_location!(params.require(:location_id))
-        date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        date = params[:date].present? ? Date.parse(params[:date]) : location.today
         rows = Reporting::ClientLog.call(location:, date:)
         respond_with_format({ date:, rows: }, csv_rows: client_log_csv(rows),
                             filename: "client-log-#{date}")
@@ -56,7 +56,9 @@ module Api
       end
 
       def range
-        from = params[:from].present? ? Date.parse(params[:from]) : Date.current
+        # The salon's business day, not UTC's — see Location#today.
+        default = Location.find_by(id: location_ids.first)&.today || Date.current
+        from = params[:from].present? ? Date.parse(params[:from]) : default
         to = params[:to].present? ? Date.parse(params[:to]) : from
         [ from, to ]
       end

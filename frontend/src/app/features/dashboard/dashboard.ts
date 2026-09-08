@@ -7,6 +7,7 @@ import { Dashboard, ShiftBoard } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import { todayIn } from '../../core/salon-date';
 
 /** FRS §15 — today at the selected location. */
 @Component({
@@ -23,10 +24,13 @@ export class DashboardPage implements OnInit {
   protected readonly data = signal<Dashboard | null>(null);
   protected readonly shifts = signal<ShiftBoard | null>(null);
   protected readonly error = signal<string | null>(null);
-  protected date = new Date().toISOString().slice(0, 10);
+  protected date = '';
 
   ngOnInit(): void {
-    void this.ctx.load().then(() => this.reload());
+    void this.ctx.load().then(() => {
+      this.date ||= todayIn(this.ctx.current()?.timezone);
+      this.reload();
+    });
   }
 
   protected reload(): void {

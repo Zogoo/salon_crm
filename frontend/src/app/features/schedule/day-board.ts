@@ -8,6 +8,7 @@ import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import { todayIn } from '../../core/salon-date';
 
 interface Placed {
   appointment: Appointment;
@@ -35,7 +36,7 @@ export class DayBoardPage implements OnInit {
   protected readonly selected = signal<Appointment | null>(null);
   protected readonly careNotes = signal<CareNote[]>([]);
   protected newCareNote = '';
-  protected date = new Date().toISOString().slice(0, 10);
+  protected date = '';
 
   protected readonly hours = computed(() => {
     const b = this.board();
@@ -46,7 +47,10 @@ export class DayBoardPage implements OnInit {
   });
 
   ngOnInit(): void {
-    void this.ctx.load().then(() => this.reload());
+    void this.ctx.load().then(() => {
+      this.date ||= todayIn(this.ctx.current()?.timezone);
+      this.reload();
+    });
   }
 
   protected reload(): void {

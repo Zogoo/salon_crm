@@ -6,7 +6,7 @@ module Api
 
       def index
         location = scoped_location!(params.require(:location_id))
-        date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        date = params[:date].present? ? Date.parse(params[:date]) : location.today
         scope = Appointment.on_date(location, date)
                            .includes(:room, :client, :appointment_items, staff_profiles: [])
         scope = visible_to_current_user(scope)
@@ -20,7 +20,7 @@ module Api
       # The day board: rooms down the side, appointments placed in them.
       def calendar
         location = scoped_location!(params.require(:location_id))
-        date = params[:date].present? ? Date.parse(params[:date]) : Date.current
+        date = params[:date].present? ? Date.parse(params[:date]) : location.today
         appts = visible_to_current_user(
           Appointment.on_date(location, date).includes(:client, :room, staff_profiles: [])
         ).order(:starts_at)
