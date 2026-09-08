@@ -89,6 +89,9 @@ Rails.application.routes.draw do
       get "reports/gift_card_liability", to: "reports#gift_card_liability"
       get "reports/ratings",             to: "reports#ratings"
       get "reports/outstanding_fees",    to: "reports#outstanding_fees"
+      get "reports/no_shows",            to: "reports#no_shows"
+      get "reports/utilization",         to: "reports#utilization"
+      get "reports/client_retention",    to: "reports#client_retention"
 
       # --- Client care and feedback ---
       resources :care_notes, only: %i[index create]

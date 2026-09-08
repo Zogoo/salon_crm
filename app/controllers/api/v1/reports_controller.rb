@@ -1,7 +1,9 @@
 module Api
   module V1
     class ReportsController < ApplicationController
-      before_action :require_owner!, only: %i[daily_revenue gift_card_liability ratings]
+      before_action :require_owner!,
+                    only: %i[daily_revenue gift_card_liability ratings
+                             no_shows utilization client_retention]
 
       # FRS §10
       def daily_revenue
@@ -28,6 +30,24 @@ module Api
       def ratings
         from, to = range
         render json: Reporting::Ratings.call(location_ids: location_ids, from:, to:)
+      end
+
+      # FRS §21
+      def no_shows
+        from, to = range
+        render json: Reporting::NoShows.call(location_ids:, from:, to:)
+      end
+
+      # BR-28 fixes the denominators; see the service.
+      def utilization
+        location = scoped_location!(params.require(:location_id))
+        from, to = range
+        render json: Reporting::Utilization.call(location:, from:, to:)
+      end
+
+      def client_retention
+        from, to = range
+        render json: Reporting::ClientRetention.call(location_ids:, from:, to:)
       end
 
       # BR-19 / OQ-11: fees are profile-only, so this digest is the only thing
