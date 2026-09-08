@@ -16,7 +16,11 @@ class Client < ApplicationRecord
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
 
   normalizes :email, with: ->(e) { e.strip.downcase }
-  normalizes :phone, with: ->(p) { p.gsub(/[^\d+]/, "") }
+  # Doc 02 §5: phone is normalised to E.164 on write. It is the client's
+  # identity, the front desk's search key and the SMS destination, so
+  # "(312) 555-0101" and "+13125550101" must resolve to one client — otherwise
+  # a data import quietly creates a second copy of everybody.
+  normalizes :phone, with: ->(p) { Client.to_e164(p) }
 
   before_save :refresh_search_name
 
@@ -34,6 +38,21 @@ class Client < ApplicationRecord
   }
 
   def full_name = "#{first_name} #{last_name}"
+
+  # US numbers only, which is all four locations. Anything already carrying a
+  # "+" is left alone rather than mangled.
+  def self.to_e164(raw)
+    value = raw.to_s.strip
+    return value if value.blank?
+    return "+#{value.gsub(/[^\d]/, '')}" if value.start_with?("+")
+
+    digits = value.gsub(/[^\d]/, "")
+    case digits.length
+    when 10 then "+1#{digits}"
+    when 11 then digits.start_with?("1") ? "+#{digits}" : "+#{digits}"
+    else digits.presence || value
+    end
+  end
 
   private
 

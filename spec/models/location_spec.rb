@@ -24,3 +24,30 @@ RSpec.describe Location do
     end
   end
 end
+
+RSpec.describe Client do
+  describe ".to_e164" do
+    # Doc 02 §5. The importer's whole job is not to duplicate people, so
+    # "(312) 555-0101" and "+13125550101" must land on one client.
+    it "normalises US formats to a single key" do
+      %w[(312)555-0101 312-555-0101 3125550101 +13125550101 13125550101].each do |input|
+        expect(described_class.to_e164(input)).to eq("+13125550101")
+      end
+    end
+
+    it "leaves an already-international number alone" do
+      expect(described_class.to_e164("+976 11 123456")).to eq("+97611123456")
+    end
+
+    it "does not invent a country code for something it cannot parse" do
+      expect(described_class.to_e164("12345")).to eq("12345")
+      expect(described_class.to_e164("")).to eq("")
+    end
+
+    it "finds the same client whichever format is entered" do
+      client = create(:client, phone: "(312) 555-4242")
+      expect(client.reload.phone).to eq("+13125554242")
+      expect(Client.find_by(phone: Client.to_e164("312-555-4242"))).to eq(client)
+    end
+  end
+end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_08_100009) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_100010) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -184,6 +184,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_100009) do
     t.index ["appointment_id"], name: "index_care_notes_on_appointment_id"
     t.index ["staff_profile_id"], name: "index_care_notes_on_staff_profile_id"
     t.index ["supersedes_note_id"], name: "index_care_notes_on_supersedes_note_id"
+  end
+
+  create_table "client_notes", force: :cascade do |t|
+    t.text "body", null: false
+    t.integer "client_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "created_by_user_id"
+    t.datetime "updated_at", null: false
+    t.index ["client_id", "created_at"], name: "index_client_notes_on_client_id_and_created_at"
+    t.index ["client_id"], name: "index_client_notes_on_client_id"
+    t.index ["created_by_user_id"], name: "index_client_notes_on_created_by_user_id"
   end
 
   create_table "client_preference_versions", force: :cascade do |t|
@@ -792,6 +803,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_100009) do
   add_foreign_key "care_notes", "appointments"
   add_foreign_key "care_notes", "care_notes", column: "supersedes_note_id"
   add_foreign_key "care_notes", "staff_profiles"
+  add_foreign_key "client_notes", "clients"
+  add_foreign_key "client_notes", "users", column: "created_by_user_id"
   add_foreign_key "client_preference_versions", "clients"
   add_foreign_key "client_preference_versions", "users", column: "updated_by_user_id"
   add_foreign_key "client_preferences", "clients"
