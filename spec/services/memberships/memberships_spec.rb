@@ -145,5 +145,38 @@ RSpec.describe "Membership" do
       expect(m.reload.cancellation_effective_at.to_date)
         .to eq((m.current_period_end + 1.month).to_date)
     end
+
+    # The boundary itself. FRS §23 says "at least 15 days", which is a rule
+    # about days — comparing instants made it arbitrary (08:00 qualified,
+    # 10:00 the same day did not) and rejected exactly-15-days outright.
+    it "treats exactly 15 days as sufficient notice" do
+      m = enrol
+      m.update!(current_period_end: 15.days.from_now)
+
+      expect(m.cancellation_effective_for.to_date).to eq(m.current_period_end.to_date)
+    end
+
+    it "treats 14 days as short notice" do
+      m = enrol
+      m.update!(current_period_end: 14.days.from_now)
+
+      expect(m.cancellation_effective_for.to_date)
+        .to eq((m.current_period_end + 1.month).to_date)
+    end
+
+    it "counts days in the salon's zone, so the hour of day never decides it" do
+      m = enrol
+      tz = m.location.tz
+      renewal = tz.local(2026, 10, 1, 9, 0)
+      m.update!(current_period_end: renewal)
+
+      # Both are 15 days before the renewal date; neither may be treated
+      # differently because of the time of day.
+      early = tz.local(2026, 9, 16, 8, 0)
+      late  = tz.local(2026, 9, 16, 22, 0)
+
+      expect(m.cancellation_effective_for(early).to_date).to eq(renewal.to_date)
+      expect(m.cancellation_effective_for(late).to_date).to eq(renewal.to_date)
+    end
   end
 end

@@ -30,3 +30,7 @@ legend { font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; co
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn--ghost { background: #fff; color: #1f2937; border-color: var(--border, #e2e4e9); }
 .btn--primary { background: #157a3f; }
+
+.taken li.voided { color: #9ca3af; text-decoration: line-through; }
+.taken li em { font-style: normal; font-size: .72rem; color: #b4232a; text-decoration: none; }
+.taken .link { background: none; border: 0; color: #b4232a; cursor: pointer; font-size: .75rem; padding: 0 .3rem; text-decoration: underline; }

@@ -217,3 +217,35 @@ RSpec.describe "Scheduling API", type: :request do
     end
   end
 end
+
+RSpec.describe "Voiding a payment", type: :request do
+  let(:world) { build_world(rooms: { single: 1 }) }
+  let(:owner) { create(:user, email: "void-owner@example.com", role: "owner") }
+  let(:manager) { create(:user, email: "void-mgr@example.com", role: "manager", location: world[:location]) }
+
+  def auth(user) = { "Authorization" => "Bearer #{Auth::JwtService.encode(user)}" }
+
+  let(:order) do
+    appt = book(world)
+    %w[checked_in in_progress completed].each { |t| Scheduling::TransitionStatus.call(appointment: appt, to: t) }
+    Sales::OpenOrder.call(appointment: appt.reload)
+  end
+  let!(:payment) { Sales::RecordPayment.call(order:, method: "cash", amount_cents: 1_000, actor: owner) }
+
+  it "lets the Owner void" do
+    post "/api/v1/orders/#{order.id}/payments/#{payment.id}/void",
+         params: { reason: "wrong amount" }, headers: auth(owner), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(payment.reload.status).to eq("voided")
+  end
+
+  # BR-23 reserves this to the Owner — a Manager sits at a public-facing desk.
+  it "refuses a Manager" do
+    post "/api/v1/orders/#{order.id}/payments/#{payment.id}/void",
+         params: { reason: "wrong amount" }, headers: auth(manager), as: :json
+
+    expect(response).to have_http_status(:forbidden)
+    expect(payment.reload.status).to eq("captured")
+  end
+end

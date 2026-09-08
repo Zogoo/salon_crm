@@ -21,12 +21,17 @@ class Membership < ApplicationRecord
   def redeemable_at?(location_id) = location_id == self.location_id
 
   # BR-40: notice inside the window pushes the end to the *following* period.
+  #
+  # Compared as **dates**, not instants. FRS §23 says "at least 15 days before
+  # their next monthly renewal date" — a day count. Comparing timestamps made
+  # the boundary arbitrary: cancelling at 08:00 exactly 15 days out qualified
+  # while 10:00 the same day did not, and "exactly 15 days" failed outright
+  # because the two Time values were microseconds apart.
   def cancellation_effective_for(now = Time.current)
-    if (current_period_end - now) >= NOTICE_DAYS.days
-      current_period_end
-    else
-      current_period_end + 1.month
-    end
+    zone = location&.tz || Time.zone
+    days_of_notice = (current_period_end.in_time_zone(zone).to_date - now.in_time_zone(zone).to_date).to_i
+
+    days_of_notice >= NOTICE_DAYS ? current_period_end : current_period_end + 1.month
   end
 
   def ledger_balance = membership_credit_transactions.sum(:amount)

@@ -67,6 +67,19 @@ module Api
         render json: { error: { code: e.message } }, status: :unprocessable_content
       end
 
+      # BR-23: payments are immutable; voiding is the sanctioned correction and
+      # is the Owner's alone.
+      def void_payment
+        require_owner!
+        payment = Payment.joins(:order)
+                         .where(orders: { location_id: current_user.accessible_location_ids })
+                         .find(params[:payment_id])
+        Sales::VoidPayment.call(payment:, actor: current_user, reason: params.require(:reason))
+        render json: order_json(payment.order.reload)
+      rescue Sales::VoidPayment::Invalid => e
+        render json: { error: { code: e.message } }, status: :unprocessable_content
+      end
+
       def settle
         order = find_order
         Sales::SettleOrder.call(order:, actor: current_user)

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { Order, PaymentMethod } from '../../core/models';
+import { AuthService } from '../../core/services/auth.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 
@@ -22,6 +23,7 @@ import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 export class CheckoutPage implements OnInit {
   private readonly api = inject(MassagelabService);
   private readonly route = inject(ActivatedRoute);
+  protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
   protected readonly order = signal<Order | null>(null);
@@ -40,6 +42,7 @@ export class CheckoutPage implements OnInit {
 
   protected readonly outstandingDollars = computed(() => (this.order()?.outstanding_cents ?? 0) / 100);
   protected readonly settled = computed(() => this.order()?.status === 'paid');
+  protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
 
   ngOnInit(): void {
     const appointmentId = Number(this.route.snapshot.paramMap.get('appointmentId'));
@@ -88,6 +91,18 @@ export class CheckoutPage implements OnInit {
     const order = this.order();
     if (!order) return;
     this.run(this.api.applyMembershipCredit(order.id));
+  }
+
+  /**
+   * BR-23: a payment cannot be edited, so a mis-keyed amount is corrected by
+   * voiding it and recording the right one. Owner only — the API enforces it.
+   */
+  protected voidPayment(paymentId: number): void {
+    const order = this.order();
+    if (!order) return;
+    const reason = window.prompt('Why is this payment being voided?');
+    if (!reason) return;
+    this.run(this.api.voidPayment(order.id, paymentId, reason));
   }
 
   protected settle(): void {

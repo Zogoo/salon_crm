@@ -58,7 +58,15 @@
           <h3>Taken so far</h3>
           <ul class="taken" data-testid="taken-list">
             @for (p of o.payments; track p.id) {
-              <li>{{ p.method }} <span>${{ p.amount_cents / 100 | number: '1.2-2' }}</span></li>
+              <li [class.voided]="p.status === 'voided'">
+                {{ p.method }}
+                @if (p.status === 'voided') { <em>voided</em> }
+                <span>${{ p.amount_cents / 100 | number: '1.2-2' }}</span>
+                @if (isOwner() && p.status !== 'voided') {
+                  <button type="button" class="link" (click)="voidPayment(p.id)"
+                          [attr.data-testid]="'void-' + p.id">void</button>
+                }
+              </li>
             }
             @for (g of o.gift_card_redemptions; track g.code) {
               <li>gift card {{ g.code }} <span>${{ g.amount_cents / 100 | number: '1.2-2' }}</span></li>

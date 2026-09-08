@@ -43,6 +43,7 @@ Rails.application.routes.draw do
           post :membership_credit
           post :tips
           post :settle
+          post "payments/:payment_id/void", action: :void_payment, as: :void_payment
         end
       end
       resources :gift_cards, only: %i[index show create] do

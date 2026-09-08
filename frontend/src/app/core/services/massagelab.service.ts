@@ -161,6 +161,13 @@ export class MassagelabService {
     return this.http.post<Order>(`${this.base}/orders/${id}/settle`, {});
   }
 
+  /** BR-23: payments are immutable; voiding is the sanctioned correction. */
+  voidPayment(orderId: number, paymentId: number, reason: string): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${orderId}/payments/${paymentId}/void`, {
+      reason,
+    });
+  }
+
   // --- Gift cards ---
 
   giftCards(search = '', status = ''): Observable<{ gift_cards: GiftCard[] }> {
