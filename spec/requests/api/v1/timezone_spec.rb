@@ -90,6 +90,22 @@ RSpec.describe "API timestamps carry the salon's offset", type: :request do
     expect(json["orders"].first["created_at"]).to match(ZONED)
   end
 
+  it "zones staff request timestamps" do
+    profile = world[:staff].first
+    StaffRequest.create!(staff_profile: profile, kind: "shift_change",
+                         status: "submitted", requested_payload: { "note" => "swap" })
+    get "/api/v1/staff_requests", headers: auth(owner)
+
+    expect(json["staff_requests"].first["created_at"]).to match(ZONED)
+  end
+
+  it "zones the gift card liability as-of instant" do
+    get "/api/v1/reports/gift_card_liability",
+        params: { location_id: world[:location].id }, headers: auth(owner)
+
+    expect(json["as_of"]).to match(ZONED)
+  end
+
   it "zones care note timestamps" do
     appt = book(world)
     Crm::RecordCareNote.call(appointment: appt, staff_profile: appt.staff_profiles.first, body: "n")

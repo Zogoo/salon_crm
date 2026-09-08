@@ -69,7 +69,7 @@ module Api
           requested_payload: r.requested_payload,
           note: r.note, review_note: r.review_note,
           reviewed_by_role: r.reviewer_role,
-          created_at: r.created_at.iso8601
+          created_at: local_iso(r.created_at, r.staff_profile.location)
         }
       end
     end

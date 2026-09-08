@@ -19,11 +19,14 @@ import {
   GiftCardLiability,
   Location,
   MembershipRecord,
+  NoShowReport,
   Order,
   PaymentMethod,
+  RetentionReport,
   Service,
   ShiftBoard,
   StaffMember,
+  UtilizationReport,
 } from '../models';
 
 /** One place for every domain call, so a view-layer change touches components only. */
@@ -268,6 +271,21 @@ export class MassagelabService {
       `${this.base}/reports/outstanding_fees`,
       { params },
     );
+  }
+
+  noShows(locationId: number, from: string, to: string): Observable<NoShowReport> {
+    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+    return this.http.get<NoShowReport>(`${this.base}/reports/no_shows`, { params });
+  }
+
+  utilization(locationId: number, from: string, to: string): Observable<UtilizationReport> {
+    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+    return this.http.get<UtilizationReport>(`${this.base}/reports/utilization`, { params });
+  }
+
+  clientRetention(locationId: number, from: string, to: string): Observable<RetentionReport> {
+    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+    return this.http.get<RetentionReport>(`${this.base}/reports/client_retention`, { params });
   }
 
   // --- Care notes and ratings ---

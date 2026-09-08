@@ -82,6 +82,87 @@
       </div>
     }
 
+    @if (noShows(); as n) {
+      <div class="panel" data-testid="rep-noshows">
+        <h2>No-shows &amp; late cancellations</h2>
+        <table class="table">
+          <tr><td>Appointments</td><td class="num">{{ n.appointments }}</td></tr>
+          <tr><td>No-shows</td>
+            <td class="num" data-testid="ns-count">{{ n.no_shows }}
+              <small>({{ n.no_show_rate | number: '1.0-1' }}%)</small></td></tr>
+          <tr><td>Late cancellations</td>
+            <td class="num">{{ n.late_cancellations }}
+              <small>({{ n.late_cancel_rate | number: '1.0-1' }}%)</small></td></tr>
+          <tr><td>Fees owed</td>
+            <td class="num" data-testid="ns-owed">${{ n.fees_owed_cents / 100 | number: '1.2-2' }}</td></tr>
+          <tr><td>Fees collected</td>
+            <td class="num">${{ n.fees_collected_cents / 100 | number: '1.2-2' }}</td></tr>
+        </table>
+        <small class="hint">A fee owed is not revenue. It counts only once collected,
+          and never as service revenue (BR-48).</small>
+        @if (entries(n.by_therapist).length) {
+          <h3>By therapist</h3>
+          <ul class="plain">
+            @for (e of entries(n.by_therapist); track e.key) {
+              <li>{{ e.key }}<span>{{ e.value }}</span></li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
+    @if (utilization(); as u) {
+      <div class="panel" data-testid="rep-utilization">
+        <h2>Room utilization</h2>
+        <!-- BR-28: the denominator is the room's open hours, not the wall clock. -->
+        <p class="hint">{{ u.open_minutes_per_room / 60 | number: '1.0-1' }} open hours per room
+          over this range.</p>
+        <h3>Rooms</h3>
+        <ul class="plain">
+          @for (r of u.rooms; track r.room_id) {
+            <li>{{ r.name }}<span>{{ r.utilization_percent | number: '1.0-1' }}%</span></li>
+          }
+          @if (!u.rooms.length) { <li class="muted">No rooms configured.</li> }
+        </ul>
+
+        <h3>Therapists</h3>
+        <!-- Against published shift hours, not the location's open hours. -->
+        <ul class="plain">
+          @for (t of u.therapists; track t.staff_profile_id) {
+            <li>{{ t.display_name }}
+              <span>{{ t.utilization_percent | number: '1.0-1' }}%</span></li>
+          }
+          @if (!u.therapists.length) { <li class="muted">Nobody on shift.</li> }
+        </ul>
+      </div>
+    }
+
+    @if (retention(); as c) {
+      <div class="panel" data-testid="rep-retention">
+        <h2>Client retention</h2>
+        <table class="table">
+          <tr><td>Clients seen</td>
+            <td class="num" data-testid="ret-seen">{{ c.clients_seen }}</td></tr>
+          <tr><td>New</td><td class="num">{{ c.new_clients }}</td></tr>
+          <tr><td>Returning</td><td class="num">{{ c.returning_clients }}</td></tr>
+          <tr><td>Visits</td><td class="num">{{ c.visits }}</td></tr>
+          <tr><td>Visits per client</td>
+            <td class="num">{{ c.average_visits_per_client | number: '1.0-2' }}</td></tr>
+          <tr><td>Lapsed <small>({{ c.lapsed.after_days }}+ days)</small></td>
+            <td class="num">{{ c.lapsed.count }}</td></tr>
+        </table>
+        @if (c.top_clients.length) {
+          <h3>Most frequent</h3>
+          <ul class="plain">
+            @for (t of c.top_clients; track t.client_id) {
+              <li>{{ t.full_name }}
+                <span>{{ t.visits }} · ${{ t.spend_cents / 100 | number: '1.2-2' }}</span></li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
     @if (log(); as rows) {
       <div class="panel wide" data-testid="rep-clientlog">
         <h2>Client log · {{ from }}</h2>

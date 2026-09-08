@@ -6,7 +6,6 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Order, PaymentMethod } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
-import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 
 /**
  * FRS §5, §7, §21 — the checkout.
@@ -16,7 +15,7 @@ import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
  */
 @Component({
   selector: 'app-checkout',
-  imports: [FormsModule, DecimalPipe, WallClockPipe],
+  imports: [FormsModule, DecimalPipe],
   templateUrl: './checkout.html',
   styleUrl: './checkout.scss',
 })

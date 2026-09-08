@@ -16,6 +16,7 @@ class ApplicationController < ActionController::API
   # it in the wrong column on the day board.
   def local_iso(time, location)
     return nil if time.blank?
+    return time.iso8601 if location.nil?
     time.in_time_zone(location.tz).iso8601
   end
 

@@ -24,7 +24,10 @@ module Api
 
       def gift_card_liability
         data = Reporting::GiftCardLiability.call(location_ids: location_ids)
-        render json: data
+        # Every timestamp we hand out carries the salon's offset; `as_of` is an
+        # instant like any other, and the client reads the wall clock straight
+        # off the string.
+        render json: data.merge(as_of: local_iso(data[:as_of], reporting_location))
       end
 
       def ratings
@@ -68,6 +71,13 @@ module Api
       end
 
       private
+
+      # Reports can span locations, but they are all in one zone; the first in
+      # scope is the one whose clock the report is read against, matching how
+      # `range` picks the default business day.
+      def reporting_location
+        Location.find_by(id: location_ids.first)
+      end
 
       def location_ids
         requested = Array(params[:location_id] || params[:location_ids]).map(&:to_i).reject(&:zero?)

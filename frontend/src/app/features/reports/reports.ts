@@ -2,7 +2,14 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { ClientLogRow, DailyRevenue, GiftCardLiability } from '../../core/models';
+import {
+  ClientLogRow,
+  DailyRevenue,
+  GiftCardLiability,
+  NoShowReport,
+  RetentionReport,
+  UtilizationReport,
+} from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
@@ -29,6 +36,9 @@ export class ReportsPage implements OnInit {
   protected readonly log = signal<ClientLogRow[] | null>(null);
   protected readonly liability = signal<GiftCardLiability | null>(null);
   protected readonly fees = signal<{ total_cents: number; orders: Record<string, unknown>[] } | null>(null);
+  protected readonly noShows = signal<NoShowReport | null>(null);
+  protected readonly utilization = signal<UtilizationReport | null>(null);
+  protected readonly retention = signal<RetentionReport | null>(null);
   protected readonly error = signal<string | null>(null);
 
   // Set once the location is known — the salon's day, not the browser's.
@@ -73,6 +83,18 @@ export class ReportsPage implements OnInit {
       next: (f) => this.fees.set(f),
       error: () => this.fees.set(null),
     });
+    this.api.noShows(loc.id, this.from, this.to).subscribe({
+      next: (r) => this.noShows.set(r),
+      error: () => this.noShows.set(null),
+    });
+    this.api.utilization(loc.id, this.from, this.to).subscribe({
+      next: (r) => this.utilization.set(r),
+      error: () => this.utilization.set(null),
+    });
+    this.api.clientRetention(loc.id, this.from, this.to).subscribe({
+      next: (r) => this.retention.set(r),
+      error: () => this.retention.set(null),
+    });
   }
 
   protected methodKeys(r: DailyRevenue): string[] {
@@ -81,5 +103,9 @@ export class ReportsPage implements OnInit {
 
   protected locationKeys(l: GiftCardLiability): string[] {
     return Object.keys(l.by_location);
+  }
+
+  protected entries(map: Record<string, number>): { key: string; value: number }[] {
+    return Object.keys(map).map((key) => ({ key, value: map[key] }));
   }
 }

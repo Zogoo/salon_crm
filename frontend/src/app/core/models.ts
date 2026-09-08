@@ -372,6 +372,53 @@ export interface GiftCardLiability {
   expired_but_spendable_cents: number;
 }
 
+export interface NoShowReport {
+  from: string;
+  to: string;
+  appointments: number;
+  no_shows: number;
+  late_cancellations: number;
+  no_show_rate: number;
+  late_cancel_rate: number;
+  fees_owed_cents: number;
+  fees_collected_cents: number;
+  by_weekday: Record<string, number>;
+  by_therapist: Record<string, number>;
+  by_channel: Record<string, number>;
+}
+
+export interface UtilizationReport {
+  from: string;
+  to: string;
+  open_minutes_per_room: number;
+  rooms: {
+    room_id: number;
+    name: string;
+    booked_minutes: number;
+    available_minutes: number;
+    utilization_percent: number;
+  }[];
+  therapists: {
+    staff_profile_id: number;
+    display_name: string;
+    booked_minutes: number;
+    available_minutes: number;
+    utilization_percent: number;
+  }[];
+}
+
+export interface RetentionReport {
+  from: string;
+  to: string;
+  clients_seen: number;
+  new_clients: number;
+  returning_clients: number;
+  visits: number;
+  average_visits_per_client: number;
+  lapsed: { after_days: number; count: number; client_ids: number[] };
+  top_clients: { client_id: number; full_name: string; visits: number; spend_cents: number }[];
+}
+
 export interface CareNote {
   id: number;
   body: string;
