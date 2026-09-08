@@ -1,0 +1,112 @@
+<section class="mem">
+  <div class="panel">
+    <h1>Enrol a member</h1>
+    <p class="muted">$80/month at {{ ctx.current()?.name }}. A membership is tied to the location
+      it was bought at — using it elsewhere needs Owner or Manager approval.</p>
+
+    @if (error()) {
+      <p class="alert" role="alert" data-testid="mem-error">{{ error() }}</p>
+    }
+
+    <label class="field">Client
+      <select [(ngModel)]="newClientId" data-testid="mem-client">
+        <option [ngValue]="null">Choose…</option>
+        @for (c of clients(); track c.id) {
+          <option [ngValue]="c.id">{{ c.full_name }} · {{ c.phone }}</option>
+        }
+      </select>
+    </label>
+    <label class="field">Included monthly massage
+      <select [(ngModel)]="newVariantId" data-testid="mem-variant">
+        @for (o of included(); track o.id) { <option [ngValue]="o.id">{{ o.label }}</option> }
+      </select>
+    </label>
+    <button type="button" class="btn" (click)="enrol()" data-testid="mem-enrol">Enrol</button>
+  </div>
+
+  <div class="panel">
+    <h1>Members</h1>
+    <ul class="list" data-testid="mem-list">
+      @for (m of memberships(); track m.id) {
+        <li>
+          <button type="button" (click)="open(m)" [attr.data-testid]="'mem-' + m.id">
+            <strong>{{ m.client.full_name }}</strong>
+            <span class="credits">{{ m.credits_balance }}/{{ m.credits_cap }}</span>
+            <div class="muted">{{ m.location.name }} · {{ m.status }}</div>
+          </button>
+        </li>
+      }
+      @if (!memberships().length) { <li class="muted">No members yet.</li> }
+    </ul>
+  </div>
+
+  @if (selected(); as m) {
+    <div class="panel" data-testid="mem-detail">
+      <h1>{{ m.client.full_name }}</h1>
+      <dl class="facts">
+        <div><dt>Status</dt><dd>{{ m.status }}</dd></div>
+        <div><dt>Credits</dt><dd data-testid="mem-credits">{{ m.credits_balance }} / {{ m.credits_cap }}</dd></div>
+        <div><dt>Home</dt><dd>{{ m.location.name }}</dd></div>
+        <div><dt>Renews</dt><dd>{{ m.current_period_end | wallClock: 'date' }}</dd></div>
+      </dl>
+
+      @if (m.at_cap) {
+        <p class="note" data-testid="mem-at-cap">
+          At the three-credit cap. The next payment is still taken, but grants no further credit.
+        </p>
+      }
+      @if (m.cancellation_effective_at) {
+        <p class="note" data-testid="mem-cancelling">
+          Cancelling — ends {{ m.cancellation_effective_at | wallClock: 'date' }}.
+          Notice inside 15 days pushes this past the following renewal.
+        </p>
+      }
+
+      <div class="row">
+        <select [(ngModel)]="payMethod" data-testid="mem-pay-method">
+          @for (mm of methods; track mm) { <option [value]="mm">{{ mm }}</option> }
+        </select>
+        <button type="button" class="btn" (click)="recordPayment(m)" data-testid="mem-pay">
+          Record $80 payment
+        </button>
+      </div>
+      <small class="hint">Recording the payment is what grants the monthly credit.</small>
+
+      @if (m.status !== 'pending_cancellation' && m.status !== 'cancelled') {
+        <button type="button" class="btn btn--danger" (click)="cancel(m)" data-testid="mem-cancel">
+          Request cancellation
+        </button>
+      }
+
+      @if (m.credit_ledger?.length) {
+        <h3>Credit ledger</h3>
+        <table class="ledger" data-testid="mem-ledger">
+          <tr><th>When</th><th>Kind</th><th class="num">Δ</th><th class="num">Balance</th></tr>
+          @for (t of m.credit_ledger; track t.occurred_at) {
+            <tr>
+              <td>{{ t.occurred_at | wallClock: 'date' }}</td>
+              <td>{{ t.kind }}@if (t.cross_location_override) { <small> (override)</small> }</td>
+              <td class="num">{{ t.amount }}</td>
+              <td class="num">{{ t.balance_after }}</td>
+            </tr>
+          }
+        </table>
+      }
+
+      @if (m.cycles?.length) {
+        <h3>Billing</h3>
+        <table class="ledger" data-testid="mem-cycles">
+          <tr><th>Period</th><th>Charged</th><th class="num">Amount</th><th>Credit</th></tr>
+          @for (c of m.cycles; track c.period_start) {
+            <tr>
+              <td>{{ c.period_start }}</td>
+              <td>{{ c.charged_at || '—' }}</td>
+              <td class="num">${{ c.amount_cents / 100 | number: '1.2-2' }}</td>
+              <td>{{ c.credit_granted ? 'granted' : (c.forfeited_to_cap ? 'at cap' : '—') }}</td>
+            </tr>
+          }
+        </table>
+      }
+    </div>
+  }
+</section>

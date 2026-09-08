@@ -1,0 +1,32 @@
+.checkout { display: flex; flex-direction: column; gap: 1rem; }
+.checkout__head { display: flex; align-items: center; gap: 1rem; }
+.checkout__head h1 { font-size: 1.15rem; margin: 0; }
+.checkout__head > :last-child { margin-left: auto; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; align-items: start; }
+.panel { border: 1px solid var(--border, #e2e4e9); border-radius: .6rem; padding: 1rem; background: #fff; display: flex; flex-direction: column; gap: .75rem; }
+.panel h2 { font-size: 1rem; margin: 0; }
+.panel h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin: .4rem 0 0; }
+.lines { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.lines td { padding: .25rem 0; }
+.lines .num { text-align: right; font-variant-numeric: tabular-nums; }
+.lines tfoot td { border-top: 1px solid var(--border, #e2e4e9); padding-top: .4rem; }
+.lines .total td { font-weight: 700; }
+.lines .outstanding td { font-weight: 700; color: #b4232a; }
+.lines .credit td { color: #15803d; }
+.lines small { color: #6b7280; }
+.taken { list-style: none; margin: 0; padding: 0; font-size: .88rem; display: flex; flex-direction: column; gap: .2rem; }
+.taken li { display: flex; }
+.taken li span { margin-left: auto; font-variant-numeric: tabular-nums; }
+fieldset { border: 1px solid var(--border, #e2e4e9); border-radius: .5rem; padding: .7rem; display: flex; flex-direction: column; gap: .5rem; }
+legend { font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; padding: 0 .3rem; }
+.row { display: flex; gap: .4rem; flex-wrap: wrap; }
+.row input, .row select { font: inherit; padding: .4rem .5rem; border: 1px solid var(--border, #e2e4e9); border-radius: .4rem; flex: 1; min-width: 6rem; }
+.hint { color: #6b7280; font-size: .75rem; }
+.done { text-align: center; padding: 1rem; }
+.done h2 { color: #15803d; }
+.muted { color: #6b7280; }
+.alert { background: #fdecec; border: 1px solid #f5c2c2; color: #7a1c1c; padding: .6rem .75rem; border-radius: .4rem; }
+.btn { border: 1px solid transparent; background: #1f6feb; color: #fff; padding: .45rem .8rem; border-radius: .4rem; cursor: pointer; font-size: .88rem; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn--ghost { background: #fff; color: #1f2937; border-color: var(--border, #e2e4e9); }
+.btn--primary { background: #157a3f; }

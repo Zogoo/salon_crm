@@ -150,7 +150,35 @@
         <p>{{ appt.client_note }}</p>
       }
 
+      <h3>Care notes</h3>
+      <p class="hint">What to avoid, what needed attention, what to consider next time.
+        Append-only — a correction is a new note.</p>
+      @if (careNotes().length) {
+        <ul class="panel__notes" data-testid="care-notes">
+          @for (n of careNotes(); track n.id) {
+            <li>
+              <span>{{ n.body }}</span>
+              <small>{{ n.author }} · {{ n.created_at | wallClock: 'date' }}</small>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">No notes yet.</p>
+      }
+      @if (auth.user()?.role === 'staff') {
+        <div class="panel__addnote">
+          <textarea rows="2" [(ngModel)]="newCareNote" placeholder="Add a care note"
+                    data-testid="care-note-input"></textarea>
+          <button type="button" class="btn btn--ghost" (click)="addCareNote(appt)"
+                  data-testid="care-note-save">Add note</button>
+        </div>
+      }
+
       <div class="panel__actions">
+        @if (appt.status === 'completed' && auth.user()?.role !== 'staff') {
+          <button type="button" class="btn btn--primary" (click)="checkout(appt)"
+                  data-testid="go-checkout">Checkout</button>
+        }
         @for (action of nextActions(appt.status); track action) {
           <button
             type="button"

@@ -222,3 +222,160 @@ export interface ShiftBoard {
   }[];
   not_working: { staff_profile_id: number; display_name: string }[];
 }
+
+// --- Money, gift cards, membership, earnings ---
+
+export type PaymentMethod = 'card' | 'cash' | 'zelle' | 'online' | 'other';
+
+export interface Order {
+  id: number;
+  number: string;
+  status: string;
+  kind: string;
+  subtotal_cents: number;
+  discount_cents: number;
+  tip_cents: number;
+  total_cents: number;
+  paid_cents: number;
+  redeemed_cents: number;
+  credited_cents: number;
+  outstanding_cents: number;
+  appointment_id: number | null;
+  client: { id: number; full_name: string } | null;
+  line_items: {
+    id: number;
+    description: string;
+    quantity: number;
+    line_total_cents: number;
+    revenue_category: string;
+  }[];
+  payments: { id: number; method: string; amount_cents: number; status: string; reference: string | null }[];
+  discounts: { id: number; kind: string; amount_cents: number; reason: string | null }[];
+  gift_card_redemptions: { code: string; amount_cents: number }[];
+  tips: { staff_profile_id: number; amount_cents: number; display_name: string }[];
+}
+
+export interface GiftCard {
+  id: number;
+  code: string;
+  status: string;
+  initial_value_cents: number;
+  current_balance_cents: number;
+  redeemable: boolean;
+  expired: boolean;
+  expires_at: string;
+  sold_at: string;
+  sold_at_location: { id: number; name: string };
+  buyer: { client_id: number | null; name: string | null; phone: string | null };
+  recipient: { client_id: number | null; name: string | null };
+  ledger?: {
+    kind: string;
+    amount_cents: number;
+    balance_after_cents: number;
+    occurred_at: string;
+    location_id: number | null;
+    note: string | null;
+  }[];
+}
+
+export interface MembershipRecord {
+  id: number;
+  status: string;
+  price_cents: number;
+  credits_balance: number;
+  credits_cap: number;
+  at_cap: boolean;
+  client: { id: number; full_name: string };
+  location: { id: number; name: string };
+  current_period_end: string;
+  cancellation_effective_at: string | null;
+  default_service_variant_id?: number | null;
+  cycles?: {
+    period_start: string;
+    charged_at: string | null;
+    amount_cents: number;
+    credit_granted: boolean;
+    forfeited_to_cap: boolean;
+  }[];
+  credit_ledger?: {
+    kind: string;
+    amount: number;
+    balance_after: number;
+    occurred_at: string;
+    cross_location_override: boolean;
+  }[];
+}
+
+export interface EarningsReport {
+  staff_profile_id: number;
+  display_name: string;
+  period: { from: string; to: string };
+  sessions: { duration_minutes: number; quantity: number; earnings_cents: number }[];
+  tips_cents: number;
+  total_cents: number;
+}
+
+export interface EarningPeriod {
+  id: number;
+  starts_on: string;
+  ends_on: string;
+  kind: string;
+  status: string;
+  locked: boolean;
+  statements?: EarningStatement[];
+}
+
+export interface EarningStatement {
+  id: number;
+  staff_profile_id: number;
+  display_name: string;
+  total_sessions: number;
+  service_earnings_cents: number;
+  tips_cents: number;
+  adjustments_cents: number;
+  gross_amount_cents: number;
+  locked: boolean;
+}
+
+export interface DailyRevenue {
+  from: string;
+  to: string;
+  by_method: Record<string, number>;
+  service_revenue_cents: number;
+  gift_card_liability_cents: number;
+  membership_liability_cents: number;
+  fees_cents: number;
+  tips_cents: number;
+  collected_cents: number;
+}
+
+export interface ClientLogRow {
+  appointment_id: number;
+  reference: string;
+  time: string;
+  client_name: string;
+  therapists: string[];
+  services: string[];
+  duration_minutes: number;
+  service_price_cents: number;
+  tip_cents: number;
+  total_paid_cents: number;
+  payment_methods: string[];
+}
+
+export interface GiftCardLiability {
+  as_of: string;
+  total_outstanding_cents: number;
+  card_count: number;
+  by_location: Record<string, { count: number; cents: number }>;
+  by_issue_month: Record<string, { count: number; cents: number }>;
+  expired_but_spendable_cents: number;
+}
+
+export interface CareNote {
+  id: number;
+  body: string;
+  created_at: string;
+  author: string;
+  supersedes_note_id: number | null;
+}

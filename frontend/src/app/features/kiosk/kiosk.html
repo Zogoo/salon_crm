@@ -1,0 +1,66 @@
+<section class="kiosk">
+  @if (done()) {
+    <div class="thanks" data-testid="kiosk-thanks">
+      <h1>Thank you</h1>
+      <p>Your feedback goes straight to the owner and the manager here.</p>
+    </div>
+  } @else if (chosen(); as appt) {
+    <div class="rate">
+      <header>
+        <h1>How was your session?</h1>
+        <p class="muted">{{ appt.client_name }} · {{ appt.therapist }} · {{ appt.time }}</p>
+      </header>
+
+      @if (error()) { <p class="alert" role="alert" data-testid="kiosk-error">{{ error() }}</p> }
+
+      <div class="scores" data-testid="kiosk-scores">
+        @for (s of scores; track s) {
+          <button type="button" class="score" [class.on]="score === s"
+                  (click)="score = s" [attr.data-testid]="'score-' + s">{{ s }}</button>
+        }
+      </div>
+      <p class="scale"><span>1 · very dissatisfied</span><span>10 · excellent</span></p>
+
+      <label class="field">What could we improve?
+        <textarea rows="2" [(ngModel)]="improvement" data-testid="kiosk-improve"></textarea>
+      </label>
+      <label class="field">Anything else?
+        <textarea rows="2" [(ngModel)]="feedback" data-testid="kiosk-feedback"></textarea>
+      </label>
+
+      <div class="recommend">
+        <span>Would you recommend us?</span>
+        <button type="button" class="pill" [class.on]="wouldRecommend === true"
+                (click)="wouldRecommend = true" data-testid="rec-yes">Yes</button>
+        <button type="button" class="pill" [class.on]="wouldRecommend === false"
+                (click)="wouldRecommend = false" data-testid="rec-no">No</button>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn btn--ghost" (click)="back()">Back</button>
+        <button type="button" class="btn btn--big" [disabled]="score === null"
+                (click)="submit()" data-testid="kiosk-submit">Submit</button>
+      </div>
+    </div>
+  } @else {
+    <div class="pick">
+      <h1>Rate your visit</h1>
+      <p class="muted">{{ ctx.current()?.name }} — tap your name.</p>
+
+      @if (queue().length) {
+        <ul class="queue" data-testid="kiosk-queue">
+          @for (w of queue(); track w.id) {
+            <li>
+              <button type="button" (click)="choose(w)" [attr.data-testid]="'kiosk-appt-' + w.id">
+                <strong>{{ w.client_name }}</strong>
+                <span class="muted">{{ w.time }} · {{ w.therapist }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted" data-testid="kiosk-empty">Nothing to rate just now.</p>
+      }
+    </div>
+  }
+</section>

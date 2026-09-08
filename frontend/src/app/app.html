@@ -10,6 +10,12 @@
           <a routerLink="/book" routerLinkActive="on" data-testid="nav-book">Book</a>
           <a routerLink="/clients" routerLinkActive="on" data-testid="nav-clients">Clients</a>
           <a routerLink="/approvals" routerLinkActive="on" data-testid="nav-approvals">Approvals</a>
+          <a routerLink="/gift-cards" routerLinkActive="on" data-testid="nav-giftcards">Gift cards</a>
+          <a routerLink="/membership" routerLinkActive="on" data-testid="nav-membership">Membership</a>
+        }
+        @if (currentUser.role === 'owner') {
+          <a routerLink="/earnings" routerLinkActive="on" data-testid="nav-earnings">Earnings</a>
+          <a routerLink="/reports" routerLinkActive="on" data-testid="nav-reports">Reports</a>
         }
       </nav>
       <div class="account">

@@ -1,0 +1,149 @@
+<section class="checkout">
+  <header class="checkout__head">
+    <h1>Checkout</h1>
+    <button type="button" class="btn btn--ghost" (click)="backToBoard()">Back to schedule</button>
+  </header>
+
+  @if (error()) {
+    <p class="alert" role="alert" data-testid="checkout-error">{{ error() }}</p>
+  }
+
+  @if (order(); as o) {
+    <div class="grid">
+      <div class="panel">
+        <h2>{{ o.client?.full_name }} · {{ o.number }}</h2>
+
+        <table class="lines" data-testid="order-lines">
+          <tbody>
+            @for (li of o.line_items; track li.id) {
+              <tr>
+                <td>{{ li.description }}</td>
+                <td class="num">${{ li.line_total_cents / 100 | number: '1.2-2' }}</td>
+              </tr>
+            }
+            @for (d of o.discounts; track d.id) {
+              <tr class="credit">
+                <td>{{ d.reason || d.kind }}</td>
+                <td class="num">−${{ d.amount_cents / 100 | number: '1.2-2' }}</td>
+              </tr>
+            }
+            @if (o.tip_cents) {
+              <tr>
+                <td>Tip
+                  @for (t of o.tips; track t.staff_profile_id) { <small>· {{ t.display_name }}</small> }
+                </td>
+                <td class="num">${{ o.tip_cents / 100 | number: '1.2-2' }}</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr class="total">
+              <td>Total</td>
+              <td class="num" data-testid="order-total">${{ o.total_cents / 100 | number: '1.2-2' }}</td>
+            </tr>
+            <tr>
+              <td>Taken</td>
+              <td class="num">${{ (o.paid_cents + o.redeemed_cents) / 100 | number: '1.2-2' }}</td>
+            </tr>
+            <tr class="outstanding">
+              <td>Outstanding</td>
+              <td class="num" data-testid="order-outstanding">
+                ${{ o.outstanding_cents / 100 | number: '1.2-2' }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+
+        @if (o.payments.length || o.gift_card_redemptions.length) {
+          <h3>Taken so far</h3>
+          <ul class="taken" data-testid="taken-list">
+            @for (p of o.payments; track p.id) {
+              <li>{{ p.method }} <span>${{ p.amount_cents / 100 | number: '1.2-2' }}</span></li>
+            }
+            @for (g of o.gift_card_redemptions; track g.code) {
+              <li>gift card {{ g.code }} <span>${{ g.amount_cents / 100 | number: '1.2-2' }}</span></li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="panel">
+        @if (settled()) {
+          <div class="done" data-testid="checkout-done">
+            <h2>Settled</h2>
+            <p>{{ o.number }} is paid and closed. Therapist earnings have been recorded.</p>
+            <button type="button" class="btn" (click)="backToBoard()">Back to schedule</button>
+          </div>
+        } @else {
+          <h2>Take payment</h2>
+
+          <fieldset>
+            <legend>Tip</legend>
+            <div class="row">
+              @for (p of tipPresets; track p) {
+                <button type="button" class="btn btn--ghost" (click)="tipFromPercent(p)"
+                        [attr.data-testid]="'tip-' + p">{{ p }}%</button>
+              }
+            </div>
+            <div class="row">
+              <input type="number" step="0.01" min="0" [(ngModel)]="tipDollars"
+                     data-testid="tip-amount" aria-label="Custom tip" />
+              <button type="button" class="btn btn--ghost" (click)="applyTip()" data-testid="tip-apply">
+                Set tip
+              </button>
+            </div>
+            <small class="hint">The tip goes to the therapist in full.</small>
+          </fieldset>
+
+          <fieldset>
+            <legend>Gift card</legend>
+            <div class="row">
+              <input placeholder="Scan or type code" [(ngModel)]="giftCardCode"
+                     data-testid="gc-code" aria-label="Gift card code" />
+              <input type="number" step="0.01" min="0" [(ngModel)]="giftCardDollars"
+                     data-testid="gc-amount" aria-label="Gift card amount" />
+              <button type="button" class="btn btn--ghost" (click)="redeem()"
+                      [disabled]="busy()" data-testid="gc-redeem">Redeem</button>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Membership</legend>
+            <button type="button" class="btn btn--ghost" (click)="applyMembership()"
+                    [disabled]="busy()" data-testid="apply-membership">
+              Apply membership credit
+            </button>
+            <small class="hint">Covers the included 60-minute massage; the member pays any difference.</small>
+          </fieldset>
+
+          <fieldset>
+            <legend>Payment</legend>
+            <div class="row">
+              <select [(ngModel)]="method" data-testid="pay-method" aria-label="Payment method">
+                @for (m of methods; track m) {
+                  <option [value]="m">{{ m }}</option>
+                }
+              </select>
+              <input type="number" step="0.01" min="0" [(ngModel)]="amountDollars"
+                     data-testid="pay-amount" aria-label="Amount" />
+              <button type="button" class="btn" (click)="pay()" [disabled]="busy()"
+                      data-testid="pay-submit">Record</button>
+            </div>
+            <button type="button" class="btn btn--ghost" (click)="payRemainder()"
+                    [disabled]="busy() || o.outstanding_cents <= 0" data-testid="pay-remainder">
+              Record the remaining ${{ outstandingDollars() | number: '1.2-2' }}
+            </button>
+            <small class="hint">A single appointment may be split across two methods.</small>
+          </fieldset>
+
+          <button type="button" class="btn btn--primary" (click)="settle()"
+                  [disabled]="busy() || o.outstanding_cents > 0" data-testid="settle">
+            Settle and close
+          </button>
+        }
+      </div>
+    </div>
+  } @else if (!error()) {
+    <p class="muted">Opening the order…</p>
+  }
+</section>

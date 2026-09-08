@@ -3,7 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { Appointment, DayBoard, Room } from '../../core/models';
+import { Appointment, CareNote, DayBoard, Room } from '../../core/models';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { LocationContextService } from '../../core/services/location-context.service';
@@ -33,6 +33,8 @@ export class DayBoardPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly selected = signal<Appointment | null>(null);
+  protected readonly careNotes = signal<CareNote[]>([]);
+  protected newCareNote = '';
   protected date = new Date().toISOString().slice(0, 10);
 
   protected readonly hours = computed(() => {
@@ -102,10 +104,40 @@ export class DayBoardPage implements OnInit {
   }
 
   protected select(appointment: Appointment): void {
+    this.newCareNote = '';
+    this.careNotes.set([]);
     this.api.appointment(appointment.id).subscribe({
       next: (full) => this.selected.set(full),
       error: () => this.selected.set(appointment),
     });
+    // Every read is audit-logged server-side — it is the only way to answer
+    // "who looked at this" (doc 04 §5).
+    this.api.careNotes(appointment.id).subscribe({
+      next: ({ care_notes }) => this.careNotes.set(care_notes),
+      error: () => this.careNotes.set([]),
+    });
+  }
+
+  /** BR-44: append-only. A correction is a new note, never an edit. */
+  protected addCareNote(appointment: Appointment): void {
+    const body = this.newCareNote.trim();
+    if (!body) return;
+    this.api.addCareNote(appointment.id, body).subscribe({
+      next: (note) => {
+        this.careNotes.set([...this.careNotes(), note]);
+        this.newCareNote = '';
+      },
+      error: (err) =>
+        this.error.set(
+          err?.error?.error?.code === 'not_assigned_to_this_appointment'
+            ? 'Only a therapist on this appointment can write its care note.'
+            : 'Could not save the note',
+        ),
+    });
+  }
+
+  protected checkout(appointment: Appointment): void {
+    void this.router.navigate(['/checkout', appointment.id]);
   }
 
   protected transition(appointment: Appointment, to: string): void {

@@ -1,0 +1,111 @@
+<section class="rep">
+  <header class="rep__head">
+    @if (ctx.canSwitch()) {
+      <select aria-label="Location" [value]="ctx.current()?.id"
+              (change)="onLocationChange($any($event.target).value)" data-testid="rep-location">
+        @for (l of ctx.locations(); track l.id) { <option [value]="l.id">{{ l.name }}</option> }
+      </select>
+    } @else {
+      <strong>{{ ctx.current()?.name }}</strong>
+    }
+    <input type="date" [(ngModel)]="from" data-testid="rep-from" aria-label="From" />
+    <input type="date" [(ngModel)]="to" data-testid="rep-to" aria-label="To" />
+    <button type="button" class="btn" (click)="runAll()" data-testid="rep-run">Run</button>
+  </header>
+
+  @if (error()) { <p class="alert" role="alert">{{ error() }}</p> }
+
+  <div class="grid">
+    @if (revenue(); as r) {
+      <div class="panel" data-testid="rep-revenue">
+        <h2>Revenue</h2>
+        <table class="table">
+          @for (m of methodKeys(r); track m) {
+            <tr><td>{{ m }}</td>
+              <td class="num" [attr.data-testid]="'rev-' + m">${{ r.by_method[m] / 100 | number: '1.2-2' }}</td></tr>
+          }
+          <tr class="total"><td>Collected</td>
+            <td class="num" data-testid="rev-collected">${{ r.collected_cents / 100 | number: '1.2-2' }}</td></tr>
+        </table>
+
+        <h3>What that is made of</h3>
+        <table class="table">
+          <tr><td>Service revenue</td>
+            <td class="num" data-testid="rev-service">${{ r.service_revenue_cents / 100 | number: '1.2-2' }}</td></tr>
+          <tr class="liab"><td>Gift cards sold <small>(liability)</small></td>
+            <td class="num" data-testid="rev-giftcards">${{ r.gift_card_liability_cents / 100 | number: '1.2-2' }}</td></tr>
+          <tr class="liab"><td>Membership billed <small>(liability)</small></td>
+            <td class="num">${{ r.membership_liability_cents / 100 | number: '1.2-2' }}</td></tr>
+          <tr><td>Fees</td><td class="num">${{ r.fees_cents / 100 | number: '1.2-2' }}</td></tr>
+          <tr><td>Tips <small>(the therapist's)</small></td>
+            <td class="num">${{ r.tips_cents / 100 | number: '1.2-2' }}</td></tr>
+        </table>
+        <small class="hint">Gift card and membership sales are liabilities, not revenue — they are
+          recognised when redeemed. Never add these rows together.</small>
+      </div>
+    }
+
+    @if (liability(); as l) {
+      <div class="panel" data-testid="rep-liability">
+        <h2>Gift card liability</h2>
+        <p class="big">${{ l.total_outstanding_cents / 100 | number: '1.2-2' }}
+          <small>across {{ l.card_count }} cards</small></p>
+        <table class="table">
+          @for (name of locationKeys(l); track name) {
+            <tr><td>{{ name }}</td>
+              <td class="num">${{ l.by_location[name].cents / 100 | number: '1.2-2' }}</td></tr>
+          }
+        </table>
+        @if (l.expired_but_spendable_cents) {
+          <p class="note" data-testid="rep-expired">
+            ${{ l.expired_but_spendable_cents / 100 | number: '1.2-2' }} sits on cards past their
+            expiry date. That money is still the client's and still spendable — it never falls off
+            the books by itself.
+          </p>
+        }
+      </div>
+    }
+
+    @if (fees(); as f) {
+      <div class="panel" data-testid="rep-fees">
+        <h2>Unpaid no-show fees</h2>
+        <p class="big">${{ f.total_cents / 100 | number: '1.2-2' }}</p>
+        <small class="hint">The front desk is not warned at booking time, so this list is the only
+          thing standing between an unpaid fee and it being forgotten.</small>
+        <ul class="plain">
+          @for (o of f.orders; track $any(o).id) {
+            <li>{{ $any(o).client?.full_name || 'walk-in' }}
+              <span>${{ $any(o).amount_cents / 100 | number: '1.2-2' }}</span></li>
+          }
+          @if (!f.orders.length) { <li class="muted">Nothing outstanding.</li> }
+        </ul>
+      </div>
+    }
+
+    @if (log(); as rows) {
+      <div class="panel wide" data-testid="rep-clientlog">
+        <h2>Client log · {{ from }}</h2>
+        @if (rows.length) {
+          <table class="table">
+            <tr><th>Time</th><th>Client</th><th>Therapist</th><th>Service</th>
+              <th class="num">Price</th><th class="num">Tip</th><th class="num">Paid</th><th>Method</th></tr>
+            @for (r of rows; track r.appointment_id) {
+              <tr>
+                <td>{{ r.time }}</td>
+                <td>{{ r.client_name }}</td>
+                <td>{{ r.therapists.join(', ') }}</td>
+                <td>{{ r.services.join(', ') }}</td>
+                <td class="num">${{ r.service_price_cents / 100 | number: '1.2-2' }}</td>
+                <td class="num">${{ r.tip_cents / 100 | number: '1.2-2' }}</td>
+                <td class="num">${{ r.total_paid_cents / 100 | number: '1.2-2' }}</td>
+                <td>{{ r.payment_methods.join(', ') }}</td>
+              </tr>
+            }
+          </table>
+        } @else {
+          <p class="muted">No completed appointments on this date.</p>
+        }
+      </div>
+    }
+  </div>
+</section>

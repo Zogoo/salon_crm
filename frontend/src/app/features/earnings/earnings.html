@@ -1,0 +1,97 @@
+<section class="earn">
+  <div class="panel">
+    <h1>Staff earnings</h1>
+    @if (error()) { <p class="alert" role="alert" data-testid="earn-error">{{ error() }}</p> }
+
+    <div class="row">
+      <label class="field">Therapist
+        <select [(ngModel)]="staffId" data-testid="earn-staff">
+          <option [ngValue]="null">Choose…</option>
+          @for (s of staff(); track s.id) { <option [ngValue]="s.id">{{ s.display_name }}</option> }
+        </select>
+      </label>
+      <label class="field">From<input type="date" [(ngModel)]="from" data-testid="earn-from" /></label>
+      <label class="field">To<input type="date" [(ngModel)]="to" data-testid="earn-to" /></label>
+      <button type="button" class="btn" (click)="runReport()" data-testid="earn-run">Run</button>
+    </div>
+
+    @if (report(); as r) {
+      <h2>{{ r.display_name }} · {{ r.period.from }} → {{ r.period.to }}</h2>
+      <table class="table" data-testid="earn-table">
+        <tr><th>Session</th><th class="num">Quantity</th><th class="num">Earnings</th></tr>
+        @for (row of r.sessions; track row.duration_minutes) {
+          <tr [attr.data-testid]="'earn-row-' + row.duration_minutes">
+            <td>{{ row.duration_minutes }} minutes</td>
+            <td class="num">{{ row.quantity }}</td>
+            <td class="num">${{ row.earnings_cents / 100 | number: '1.2-2' }}</td>
+          </tr>
+        }
+        <tr><td>Tips</td><td class="num"></td>
+          <td class="num" data-testid="earn-tips">${{ r.tips_cents / 100 | number: '1.2-2' }}</td></tr>
+        <tr class="total"><td>Total</td><td class="num"></td>
+          <td class="num" data-testid="earn-total">${{ r.total_cents / 100 | number: '1.2-2' }}</td></tr>
+      </table>
+      <small class="hint">A 60-minute massage booked with a 30-minute add-on is paid — and counted
+        here — as one 90-minute session.</small>
+
+      <h3>Add a session or tip by hand</h3>
+      <div class="row">
+        <input type="date" [(ngModel)]="manual.service_date" data-testid="manual-date" aria-label="Date" />
+        <select [(ngModel)]="manual.duration_minutes" data-testid="manual-duration" aria-label="Length">
+          @for (d of [30, 45, 60, 75, 90, 120]; track d) { <option [ngValue]="d">{{ d }} min</option> }
+        </select>
+        <input type="number" min="1" [(ngModel)]="manual.quantity" data-testid="manual-qty" aria-label="Quantity" />
+        <input placeholder="Reason" [(ngModel)]="manual.note" data-testid="manual-note" />
+        <button type="button" class="btn btn--ghost" (click)="addManual()" data-testid="manual-add">Add</button>
+      </div>
+    }
+  </div>
+
+  <div class="panel">
+    <h1>Periods</h1>
+    <ul class="list" data-testid="period-list">
+      @for (p of periods(); track p.id) {
+        <li>
+          <button type="button" (click)="openPeriod(p)" [attr.data-testid]="'period-' + p.id">
+            {{ p.starts_on }} → {{ p.ends_on }}
+            <span class="status" [class.locked]="p.locked">{{ p.status }}</span>
+          </button>
+        </li>
+      }
+      @if (!periods().length) { <li class="muted">No periods yet — they open on the 1st and 16th.</li> }
+    </ul>
+
+    @if (selectedPeriod(); as p) {
+      <h2>{{ p.starts_on }} → {{ p.ends_on }}</h2>
+      <div class="row">
+        <button type="button" class="btn btn--ghost" (click)="build(p)"
+                [disabled]="p.locked" data-testid="period-build">Rebuild</button>
+        <button type="button" class="btn btn--danger" (click)="lock(p)"
+                [disabled]="p.locked" data-testid="period-lock">Lock</button>
+      </div>
+      @if (p.locked) {
+        <p class="note" data-testid="period-locked-note">
+          Locked — these lines are read-only. Corrections go into the next period as adjustments.
+        </p>
+      }
+
+      @if (p.statements?.length) {
+        <table class="table" data-testid="statements">
+          <tr><th>Therapist</th><th class="num">Sessions</th><th class="num">Service</th>
+            <th class="num">Tips</th><th class="num">Gross</th></tr>
+          @for (s of p.statements; track s.id) {
+            <tr>
+              <td>{{ s.display_name }}</td>
+              <td class="num">{{ s.total_sessions }}</td>
+              <td class="num">${{ s.service_earnings_cents / 100 | number: '1.2-2' }}</td>
+              <td class="num">${{ s.tips_cents / 100 | number: '1.2-2' }}</td>
+              <td class="num">${{ s.gross_amount_cents / 100 | number: '1.2-2' }}</td>
+            </tr>
+          }
+        </table>
+      } @else {
+        <p class="muted">No statements yet — rebuild to generate them.</p>
+      }
+    }
+  </div>
+</section>

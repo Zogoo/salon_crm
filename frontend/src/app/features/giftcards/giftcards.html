@@ -1,0 +1,93 @@
+<section class="gc">
+  <div class="panel">
+    <h1>Sell a gift card</h1>
+    <p class="muted">Sold at {{ ctx.current()?.name }} — the sale stays attributed here for
+      reporting, but the card is redeemable at any location.</p>
+
+    @if (error()) {
+      <p class="alert" role="alert" data-testid="gc-error">{{ error() }}</p>
+    }
+
+    <label class="field">Amount ($)
+      <input type="number" step="1" min="1" [(ngModel)]="form.amountDollars" data-testid="gc-new-amount" />
+    </label>
+    <label class="field">Paid by
+      <select [(ngModel)]="form.payment_method" data-testid="gc-new-method">
+        @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+      </select>
+    </label>
+    <label class="field">Buyer name
+      <input [(ngModel)]="form.buyer_name" data-testid="gc-buyer" />
+    </label>
+    <label class="field">Buyer phone
+      <input [(ngModel)]="form.buyer_phone" data-testid="gc-buyer-phone" />
+    </label>
+    <label class="field">Recipient name
+      <input [(ngModel)]="form.recipient_name" data-testid="gc-recipient" />
+    </label>
+    <button type="button" class="btn" (click)="issue()" data-testid="gc-issue">Issue card</button>
+
+    @if (issued(); as card) {
+      <p class="ok" data-testid="gc-issued">
+        Issued <strong>{{ card.code }}</strong> — ${{ card.current_balance_cents / 100 | number: '1.2-2' }}
+      </p>
+    }
+  </div>
+
+  <div class="panel">
+    <h1>Find a card</h1>
+    <input type="search" placeholder="Scan barcode, or search code / buyer"
+           [(ngModel)]="search" (input)="reload()" data-testid="gc-search" />
+
+    <ul class="list" data-testid="gc-list">
+      @for (c of cards(); track c.id) {
+        <li>
+          <button type="button" (click)="open(c)" [attr.data-testid]="'gc-' + c.id">
+            <strong>{{ c.code }}</strong>
+            <span class="bal">${{ c.current_balance_cents / 100 | number: '1.2-2' }}</span>
+            <div class="muted">
+              {{ c.sold_at_location.name }} · {{ c.status }}
+              @if (c.expired) { · <span class="warn">expired but still spendable</span> }
+            </div>
+          </button>
+        </li>
+      }
+      @if (!cards().length) { <li class="muted">No cards found.</li> }
+    </ul>
+  </div>
+
+  @if (selected(); as card) {
+    <div class="panel" data-testid="gc-detail">
+      <h1>{{ card.code }}</h1>
+      <dl class="facts">
+        <div><dt>Balance</dt><dd data-testid="gc-balance">${{ card.current_balance_cents / 100 | number: '1.2-2' }}</dd></div>
+        <div><dt>Face value</dt><dd>${{ card.initial_value_cents / 100 | number: '1.2-2' }}</dd></div>
+        <div><dt>Sold at</dt><dd>{{ card.sold_at_location.name }}</dd></div>
+        <div><dt>Sold</dt><dd>{{ card.sold_at | wallClock: 'date' }}</dd></div>
+        <div><dt>Expires</dt><dd>{{ card.expires_at | wallClock: 'date' }}</dd></div>
+      </dl>
+
+      @if (card.expired) {
+        <p class="note" data-testid="gc-expired-note">
+          This card is past its expiry date, but the balance is still the client's. They can spend
+          it; if prices have risen since, they pay the difference.
+        </p>
+      }
+
+      @if (card.ledger?.length) {
+        <h3>Ledger</h3>
+        <table class="ledger" data-testid="gc-ledger">
+          <tr><th>When</th><th>Kind</th><th class="num">Amount</th><th class="num">Balance</th></tr>
+          @for (t of card.ledger; track t.occurred_at) {
+            <tr>
+              <td>{{ t.occurred_at | wallClock: 'date' }}</td>
+              <td>{{ t.kind }}</td>
+              <td class="num">${{ t.amount_cents / 100 | number: '1.2-2' }}</td>
+              <td class="num">${{ t.balance_after_cents / 100 | number: '1.2-2' }}</td>
+            </tr>
+          }
+        </table>
+      }
+    </div>
+  }
+</section>

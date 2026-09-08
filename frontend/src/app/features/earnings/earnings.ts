@@ -1,0 +1,110 @@
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+
+import { EarningPeriod, EarningsReport, StaffMember } from '../../core/models';
+import { LocationContextService } from '../../core/services/location-context.service';
+import { MassagelabService } from '../../core/services/massagelab.service';
+
+/**
+ * FRS §4 and §8 — the Staff Earnings section.
+ *
+ * The quantity column counts sessions **as paid** (BR-33): a 60-minute massage
+ * booked with a 30-minute add-on is one unit in the 90-minute row, not one in
+ * each of 60 and 30.
+ */
+@Component({
+  selector: 'app-earnings',
+  imports: [FormsModule, DecimalPipe],
+  templateUrl: './earnings.html',
+  styleUrl: './earnings.scss',
+})
+export class EarningsPage implements OnInit {
+  private readonly api = inject(MassagelabService);
+  protected readonly ctx = inject(LocationContextService);
+
+  protected readonly periods = signal<EarningPeriod[]>([]);
+  protected readonly selectedPeriod = signal<EarningPeriod | null>(null);
+  protected readonly staff = signal<StaffMember[]>([]);
+  protected readonly report = signal<EarningsReport | null>(null);
+  protected readonly error = signal<string | null>(null);
+
+  protected staffId: number | null = null;
+  protected from = '';
+  protected to = '';
+
+  // FRS §4: manual session and tip entry, for corrections or off-system work.
+  protected manual = { duration_minutes: 60, quantity: 1, service_date: '', note: '' };
+
+  ngOnInit(): void {
+    const today = new Date();
+    const [f, t] = this.semiMonthly(today);
+    this.from = f;
+    this.to = t;
+    this.manual.service_date = today.toISOString().slice(0, 10);
+
+    void this.ctx.load().then(() => {
+      const loc = this.ctx.current();
+      if (loc) this.api.staff(loc.id).subscribe(({ staff }) => this.staff.set(staff));
+      this.loadPeriods();
+    });
+  }
+
+  /** FRS §8: the two standing periods are 1st–15th and 16th–end of month. */
+  private semiMonthly(date: Date): [string, string] {
+    const y = date.getFullYear();
+    const m = date.getMonth();
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    return date.getDate() <= 15
+      ? [iso(new Date(Date.UTC(y, m, 1))), iso(new Date(Date.UTC(y, m, 15)))]
+      : [iso(new Date(Date.UTC(y, m, 16))), iso(new Date(Date.UTC(y, m + 1, 0)))];
+  }
+
+  protected loadPeriods(): void {
+    this.api.earningPeriods().subscribe(({ periods }) => this.periods.set(periods));
+  }
+
+  protected openPeriod(p: EarningPeriod): void {
+    this.api.periodStatements(p.id).subscribe((full) => this.selectedPeriod.set(full));
+  }
+
+  protected build(p: EarningPeriod): void {
+    this.api.buildPeriod(p.id).subscribe((full) => {
+      this.selectedPeriod.set(full);
+      this.loadPeriods();
+    });
+  }
+
+  protected lock(p: EarningPeriod): void {
+    this.api.lockPeriod(p.id).subscribe((full) => {
+      this.selectedPeriod.set(full);
+      this.loadPeriods();
+    });
+  }
+
+  protected runReport(): void {
+    if (!this.staffId) return;
+    this.error.set(null);
+    this.api.staffEarnings(this.staffId, this.from, this.to).subscribe({
+      next: (r) => this.report.set(r),
+      error: (err) => this.error.set(err?.error?.error ?? 'Could not load earnings'),
+    });
+  }
+
+  protected addManual(): void {
+    if (!this.staffId) return;
+    this.error.set(null);
+    this.api
+      .addEarningLine({
+        staff_profile_id: this.staffId,
+        service_date: this.manual.service_date,
+        duration_minutes: this.manual.duration_minutes,
+        quantity: this.manual.quantity,
+        note: this.manual.note,
+      })
+      .subscribe({
+        next: () => this.runReport(),
+        error: (err) => this.error.set(err?.error?.error?.code ?? 'Could not add the line'),
+      });
+  }
+}

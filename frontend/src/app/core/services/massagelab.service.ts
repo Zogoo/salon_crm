@@ -7,10 +7,20 @@ import {
   Appointment,
   ApprovalRequest,
   Availability,
+  CareNote,
+  ClientLogRow,
   ClientRecord,
+  DailyRevenue,
   DayBoard,
   Dashboard,
+  EarningPeriod,
+  EarningsReport,
+  GiftCard,
+  GiftCardLiability,
   Location,
+  MembershipRecord,
+  Order,
+  PaymentMethod,
   Service,
   ShiftBoard,
   StaffMember,
@@ -108,5 +118,173 @@ export class MassagelabService {
 
   decideApproval(id: number, decision: 'approve' | 'reject'): Observable<ApprovalRequest> {
     return this.http.post<ApprovalRequest>(`${this.base}/approval_requests/${id}/${decision}`, {});
+  }
+
+  // --- Checkout ---
+
+  openOrder(appointmentId: number): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders`, {
+      order: { appointment_id: appointmentId },
+    });
+  }
+
+  order(id: number): Observable<Order> {
+    return this.http.get<Order>(`${this.base}/orders/${id}`);
+  }
+
+  addPayment(id: number, method: PaymentMethod, amountCents: number, reference?: string) {
+    return this.http.post<Order>(`${this.base}/orders/${id}/payments`, {
+      method,
+      amount_cents: amountCents,
+      reference,
+    });
+  }
+
+  redeemGiftCard(id: number, code: string, amountCents: number): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/gift_card_redemptions`, {
+      code,
+      amount_cents: amountCents,
+    });
+  }
+
+  applyMembershipCredit(id: number, override = false): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/membership_credit`, {
+      cross_location_override: override,
+    });
+  }
+
+  setTip(id: number, amountCents: number): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/tips`, { amount_cents: amountCents });
+  }
+
+  settleOrder(id: number): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/settle`, {});
+  }
+
+  // --- Gift cards ---
+
+  giftCards(search = '', status = ''): Observable<{ gift_cards: GiftCard[] }> {
+    let params = new HttpParams();
+    if (search) params = params.set('search', search);
+    if (status) params = params.set('status', status);
+    return this.http.get<{ gift_cards: GiftCard[] }>(`${this.base}/gift_cards`, { params });
+  }
+
+  giftCard(code: string): Observable<GiftCard> {
+    return this.http.get<GiftCard>(`${this.base}/gift_cards/${code}`);
+  }
+
+  issueGiftCard(payload: Record<string, unknown>): Observable<GiftCard> {
+    return this.http.post<GiftCard>(`${this.base}/gift_cards`, { gift_card: payload });
+  }
+
+  // --- Membership ---
+
+  memberships(): Observable<{ memberships: MembershipRecord[] }> {
+    return this.http.get<{ memberships: MembershipRecord[] }>(`${this.base}/memberships`);
+  }
+
+  membership(id: number): Observable<MembershipRecord> {
+    return this.http.get<MembershipRecord>(`${this.base}/memberships/${id}`);
+  }
+
+  enrolMembership(payload: Record<string, unknown>): Observable<MembershipRecord> {
+    return this.http.post<MembershipRecord>(`${this.base}/memberships`, { membership: payload });
+  }
+
+  recordMembershipPayment(id: number, method: PaymentMethod): Observable<MembershipRecord> {
+    return this.http.post<MembershipRecord>(`${this.base}/memberships/${id}/record_payment`, {
+      method,
+    });
+  }
+
+  cancelMembership(id: number): Observable<MembershipRecord> {
+    return this.http.post<MembershipRecord>(
+      `${this.base}/memberships/${id}/request_cancellation`,
+      {},
+    );
+  }
+
+  // --- Earnings ---
+
+  earningPeriods(): Observable<{ periods: EarningPeriod[] }> {
+    return this.http.get<{ periods: EarningPeriod[] }>(`${this.base}/earning_periods`);
+  }
+
+  buildPeriod(id: number): Observable<EarningPeriod> {
+    return this.http.post<EarningPeriod>(`${this.base}/earning_periods/${id}/build`, {});
+  }
+
+  lockPeriod(id: number): Observable<EarningPeriod> {
+    return this.http.post<EarningPeriod>(`${this.base}/earning_periods/${id}/lock`, {});
+  }
+
+  periodStatements(id: number): Observable<EarningPeriod> {
+    return this.http.get<EarningPeriod>(`${this.base}/earning_periods/${id}/statements`);
+  }
+
+  staffEarnings(staffProfileId: number, from: string, to: string): Observable<EarningsReport> {
+    const params = new HttpParams()
+      .set('staff_profile_id', staffProfileId)
+      .set('from', from)
+      .set('to', to);
+    return this.http.get<EarningsReport>(`${this.base}/reports/staff_earnings`, { params });
+  }
+
+  addEarningLine(payload: Record<string, unknown>) {
+    return this.http.post(`${this.base}/earning_lines`, payload);
+  }
+
+  // --- Reports ---
+
+  dailyRevenue(locationId: number, from: string, to: string): Observable<DailyRevenue> {
+    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+    return this.http.get<DailyRevenue>(`${this.base}/reports/daily_revenue`, { params });
+  }
+
+  clientLog(locationId: number, date: string): Observable<{ date: string; rows: ClientLogRow[] }> {
+    const params = new HttpParams().set('location_id', locationId).set('date', date);
+    return this.http.get<{ date: string; rows: ClientLogRow[] }>(
+      `${this.base}/reports/client_log`,
+      { params },
+    );
+  }
+
+  giftCardLiability(locationId: number): Observable<GiftCardLiability> {
+    const params = new HttpParams().set('location_id', locationId);
+    return this.http.get<GiftCardLiability>(`${this.base}/reports/gift_card_liability`, { params });
+  }
+
+  outstandingFees(locationId: number) {
+    const params = new HttpParams().set('location_id', locationId);
+    return this.http.get<{ total_cents: number; orders: Record<string, unknown>[] }>(
+      `${this.base}/reports/outstanding_fees`,
+      { params },
+    );
+  }
+
+  // --- Care notes and ratings ---
+
+  careNotes(appointmentId: number): Observable<{ care_notes: CareNote[] }> {
+    const params = new HttpParams().set('appointment_id', appointmentId);
+    return this.http.get<{ care_notes: CareNote[] }>(`${this.base}/care_notes`, { params });
+  }
+
+  addCareNote(appointmentId: number, body: string): Observable<CareNote> {
+    return this.http.post<CareNote>(`${this.base}/care_notes`, {
+      appointment_id: appointmentId,
+      body,
+    });
+  }
+
+  kioskQueue(locationId: number) {
+    const params = new HttpParams().set('location_id', locationId);
+    return this.http.get<{
+      appointments: { id: number; reference: string; client_name: string; therapist: string; time: string }[];
+    }>(`${this.base}/ratings/kiosk_queue`, { params });
+  }
+
+  submitRating(payload: Record<string, unknown>) {
+    return this.http.post(`${this.base}/ratings`, payload);
   }
 }
