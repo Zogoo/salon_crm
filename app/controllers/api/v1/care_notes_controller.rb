@@ -7,7 +7,7 @@ module Api
         appt = find_appointment!
         AuditLog.record!(auditable: appt, action: "care_notes.read", actor: current_user)
         notes = appt.care_notes.includes(:staff_profile).order(:created_at)
-        render json: { care_notes: notes.map { |n| note_json(n) } }
+        render json: { care_notes: notes.map { |n| note_json(n, appt.location) } }
       end
 
       def create
@@ -19,7 +19,7 @@ module Api
           appointment: appt, staff_profile: profile, body: params.require(:body),
           supersedes: params[:supersedes_note_id] && CareNote.find(params[:supersedes_note_id])
         )
-        render json: note_json(note), status: :created
+        render json: note_json(note, appt.location), status: :created
       rescue Crm::RecordCareNote::Forbidden
         render json: { error: { code: "not_assigned_to_this_appointment" } }, status: :forbidden
       end
@@ -36,8 +36,9 @@ module Api
         appt
       end
 
-      def note_json(note)
-        { id: note.id, body: note.body, created_at: note.created_at.iso8601,
+      def note_json(note, location)
+        { id: note.id, body: note.body,
+          created_at: local_iso(note.created_at, location),
           author: note.staff_profile.display_name,
           supersedes_note_id: note.supersedes_note_id }
       end

@@ -4,6 +4,8 @@ class AuditLog < ApplicationRecord
   self.record_timestamps = false
 
   belongs_to :actor_user, class_name: "User", optional: true
+  # Nullable: Rails writes NULL for an empty hash (it is the type's default),
+  # and an audit row with no changes — every read — is legitimate.
   serialize :changes_json, coder: JSON, type: Hash
 
   def self.record!(auditable:, action:, actor: nil, changes: {}, ip: nil)

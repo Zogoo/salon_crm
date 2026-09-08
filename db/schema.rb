@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_08_100010) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_100011) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -166,7 +166,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_100010) do
     t.integer "actor_user_id"
     t.bigint "auditable_id", null: false
     t.string "auditable_type", null: false
-    t.text "changes_json", default: "{}", null: false
+    t.text "changes_json"
     t.string "ip_address"
     t.datetime "occurred_at", null: false
     t.index ["actor_user_id", "occurred_at"], name: "index_audit_logs_on_actor_user_id_and_occurred_at"
