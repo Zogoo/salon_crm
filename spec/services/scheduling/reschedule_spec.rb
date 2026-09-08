@@ -49,6 +49,45 @@ RSpec.describe Scheduling::RescheduleAppointment do
     expect(original.reload.status).to eq("scheduled")
   end
 
+  # A move inside the cancellation window used to be reclassified as a late
+  # cancellation, which billed the client a fee for keeping their appointment
+  # and counted the move against them in the no-show report.
+  it "does not charge a late-cancellation fee for a move inside the window" do
+    original = book(world)
+    window = original.location.cancellation_window_hours
+    travel_to(original.starts_at - (window - 1).hours) do
+      described_class.call(appointment: original, start_at: world[:at] + 6.hours, actor: owner)
+    end
+
+    expect(original.reload.status).to eq("cancelled")
+    expect(original.fee_charged_cents).to be_nil.or eq(0)
+    expect(Order.where(appointment_id: original.id)).to be_empty
+  end
+
+  it "does not count a move against the client's cancellation record" do
+    original = book(world)
+    client = original.client
+    before = [ client.cancel_count, client.late_cancel_count ]
+
+    travel_to(original.starts_at - 1.hour) do
+      described_class.call(appointment: original, start_at: world[:at] + 7.hours, actor: owner)
+    end
+
+    client.reload
+    expect([ client.cancel_count, client.late_cancel_count ]).to eq(before)
+  end
+
+  # The reclassification still has to apply to a real cancellation.
+  it "still charges a real late cancellation inside the window" do
+    appt = book(world)
+    travel_to(appt.starts_at - 1.hour) do
+      Scheduling::TransitionStatus.call(appointment: appt, to: "cancelled", actor: owner)
+    end
+
+    expect(appt.reload.status).to eq("late_cancelled")
+    expect(appt.fee_charged_cents).to be > 0
+  end
+
   it "refuses to reschedule something already completed" do
     appt = book(world)
     %w[checked_in in_progress completed].each { |t| Scheduling::TransitionStatus.call(appointment: appt, to: t) }

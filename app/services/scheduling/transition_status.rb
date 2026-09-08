@@ -17,12 +17,18 @@ module Scheduling
       "no_show"          => []
     }.freeze
 
-    def initialize(appointment:, to:, actor: nil, reason: nil, now: Time.current)
+    # `rescheduling:` marks the release half of a move (doc 03 §4.6). The
+    # client is keeping their appointment, so none of the machinery that exists
+    # to record a client giving up a slot applies: no late-cancel
+    # reclassification, no fee, no counter against the client.
+    def initialize(appointment:, to:, actor: nil, reason: nil, now: Time.current,
+                   rescheduling: false)
       @appt = appointment
       @to = to.to_s
       @actor = actor
       @reason = reason
       @now = now
+      @rescheduling = rescheduling
     end
 
     def call
@@ -53,6 +59,8 @@ module Scheduling
     # caller asked for.
     def resolve_target(_from)
       return @to unless @to == "cancelled"
+      return @to if @rescheduling
+
       hours = @appt.location.cancellation_window_hours
       @now > (@appt.starts_at - hours.hours) ? "late_cancelled" : "cancelled"
     end
@@ -98,6 +106,8 @@ module Scheduling
     end
 
     def bump_client_counters!(target)
+      return if @rescheduling
+
       column = { "no_show" => :no_show_count,
                  "late_cancelled" => :late_cancel_count,
                  "cancelled" => :cancel_count }[target]

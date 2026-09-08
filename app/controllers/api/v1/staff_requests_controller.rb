@@ -47,8 +47,10 @@ module Api
 
       def decide(decision)
         request = StaffRequest.find(params[:id])
+        # The reviewer's note comes back as `review_note`, so accept that name
+        # as well as `note` — `note` alone reads as the requester's own note.
         Workforce::ApproveStaffRequest.call(request:, actor: current_user, decision:,
-                                            note: params[:note])
+                                            note: params[:review_note] || params[:note])
         render json: request_json(request.reload)
       rescue Workforce::ApproveStaffRequest::Forbidden => e
         # A distinct code, because the console shows a specific message for the

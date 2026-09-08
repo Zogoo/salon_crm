@@ -21,7 +21,7 @@ module Scheduling
         # Release first, so the appointment does not collide with itself when
         # the new time overlaps the old.
         TransitionStatus.call(appointment: @appt, to: "cancelled", actor: @actor,
-                              reason: "rescheduled")
+                              reason: "rescheduled", rescheduling: true)
 
         BookAppointment.call(
           location: @appt.location, client: @appt.client, actor: @actor,
