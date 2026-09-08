@@ -9,7 +9,7 @@
           (change)="onLocationChange($any($event.target).value)"
         >
           @for (loc of ctx.locations(); track loc.id) {
-            <option [value]="loc.id">{{ loc.name }}</option>
+            <option [value]="loc.id" [selected]="loc.id === ctx.current()?.id">{{ loc.name }}</option>
           }
         </select>
       } @else {

@@ -91,10 +91,11 @@ module Seeds
     # 09:00–22:00 shifts for the next 30 days, so the day board and the
     # availability search have something to work with immediately.
     def seed_shifts(staff, days: 30)
-      today = Date.current
       staff.each do |profile|
         location = profile.location
         tz = location.tz
+        # The salon's day, not UTC's — otherwise the seed can start tomorrow.
+        today = location.today
         (0...days).each do |offset|
           date = today + offset
           next if date.sunday?

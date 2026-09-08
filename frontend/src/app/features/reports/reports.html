@@ -3,7 +3,7 @@
     @if (ctx.canSwitch()) {
       <select aria-label="Location" [value]="ctx.current()?.id"
               (change)="onLocationChange($any($event.target).value)" data-testid="rep-location">
-        @for (l of ctx.locations(); track l.id) { <option [value]="l.id">{{ l.name }}</option> }
+        @for (l of ctx.locations(); track l.id) { <option [value]="l.id" [selected]="l.id === ctx.current()?.id">{{ l.name }}</option> }
       </select>
     } @else {
       <strong>{{ ctx.current()?.name }}</strong>
