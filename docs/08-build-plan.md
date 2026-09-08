@@ -169,6 +169,24 @@ UTC the next day, so the day board, dashboard, reports and rating kiosk all defa
 because they ran at other times. `Location#today` and `todayIn()` now derive the date from the
 location's zone, with regression specs pinned to a late-evening instant on both sides.
 
+### 7.3 Found closing the endpoint gap
+
+The documented endpoints that had no route were implemented last, so nothing had
+exercised them. Three of the four defects below were only visible from outside
+the test suite.
+
+| # | Defect | Why it hid |
+|---|---|---|
+| 12 | **A reschedule billed the client a late-cancellation fee** | The release half of a move went through `TransitionStatus`, whose rule is that a cancellation inside the window becomes a late cancellation *whatever the caller asked for*. Right for someone giving up a slot, wrong for someone keeping it at another time. It also opened an order, bumped the client's counter under BR-20, and reported the move as a late cancellation. Doc 03 §4.6 says the old row ends as plain `cancelled`. |
+| 13 | **Two endpoints served UTC timestamps** | Gift card liability's `as_of` and staff request `created_at` bypassed `local_iso`. `config.time_zone` is UTC, so a request raised at 21:00 Central was displayed as 02:00 the next day — the client reads the wall clock straight off the string. The timezone spec now covers both. |
+| 14 | **The reviewer's note on a staff request was dropped** | The response returns it as `review_note`; the controller read only `note`. A caller echoing the field it was given lost the note with no error. |
+| 15 | **A nested service was not a rollback boundary** | `ImmediateTransaction` yielded straight into an open transaction, so only the outermost boundary could unwind. Correct as long as exceptions propagate all the way — but it meant any caller rescuing in between would keep a nested service's partial writes, and it made the reschedule rollback spec unable to observe what it asserted. Nested calls now take a savepoint, which does not release the write lock. |
+
+Defect 12 is the one to read twice: it moved real money. Everything about the
+transition was individually correct — the window rule, the fee percentage, the
+counter — and the composition was wrong, because a reschedule had been modelled
+as a cancellation followed by a booking rather than as a move.
+
 ### 7.1 Notes for whoever picks this up
 
 - **`Scheduling::BookAppointment` is load-bearing.** It is the only place an
