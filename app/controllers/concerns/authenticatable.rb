@@ -17,7 +17,7 @@ module Authenticatable
 
     # BR-02: a disabled account keeps its token until expiry, so the check has
     # to happen here rather than only at sign-in.
-    return render_unauthorized(I18n.t("auth.account_disabled", default: "Account disabled")) unless
+    render_unauthorized(I18n.t("auth.account_disabled", default: "Account disabled")) unless
       @current_user.active_for_authentication?
   rescue JWT::DecodeError, JWT::ExpiredSignature
     render_unauthorized(I18n.t("auth.invalid_or_expired_token"))

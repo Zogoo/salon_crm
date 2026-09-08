@@ -3,12 +3,13 @@ module Api
     class StaffRequestsController < ApplicationController
       def index
         scope = StaffRequest.includes(:staff_profile, :shift)
-        scope = case current_user.role
-                when "owner"   then scope
-                when "manager" then scope.joins(:staff_profile)
-                                        .where(staff_profiles: { location_id: current_user.location_id })
-                else scope.where(staff_profile_id: current_user.staff_profile&.id)
-                end
+        scope =
+          case current_user.role
+          when "owner"   then scope
+          when "manager" then scope.joins(:staff_profile)
+                                   .where(staff_profiles: { location_id: current_user.location_id })
+          else scope.where(staff_profile_id: current_user.staff_profile&.id)
+          end
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.where(kind: params[:kind]) if params[:kind].present?
         render json: { staff_requests: scope.order(created_at: :desc).map { |r| request_json(r) } }

@@ -70,11 +70,12 @@ module Scheduling
       ids = @staff_ids
       ids = [ @requested_staff_id.to_i ] if ids.empty? && @requested_staff_id.present?
 
-      staff = if ids.any?
-                StaffProfile.active.where(id: ids).to_a
-              else
-                assign_staff(shape, finish)
-              end
+      staff =
+        if ids.any?
+          StaffProfile.active.where(id: ids).to_a
+        else
+          assign_staff(shape, finish)
+        end
 
       raise Invalid, "therapist not found" if staff.size < ids.size
       unless staff.size == shape.therapist_count

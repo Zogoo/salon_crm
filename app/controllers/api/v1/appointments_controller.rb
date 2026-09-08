@@ -60,6 +60,23 @@ module Api
         render json: { error: e.message }, status: :unprocessable_content
       end
 
+      # Doc 03 §4.6 — a new booking plus a release, never a mutation.
+      def reschedule
+        appt = find_appointment
+        fresh = Scheduling::RescheduleAppointment.call(
+          appointment: appt, start_at: Time.zone.parse(params.require(:start_at)),
+          actor: current_user,
+          staff_profile_ids: params[:staff_profile_ids],
+          room_id: params[:room_id]
+        )
+        render json: appointment_json(fresh, detail: true), status: :created
+      rescue Scheduling::BookAppointment::Conflict => e
+        render json: { error: { code: e.message, message: conflict_message(e.message) } },
+               status: :conflict
+      rescue Scheduling::BookAppointment::Invalid => e
+        render json: { error: { code: e.message } }, status: :unprocessable_content
+      end
+
       def transition
         appt = find_appointment
         Scheduling::TransitionStatus.call(

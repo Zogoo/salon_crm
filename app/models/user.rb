@@ -30,8 +30,8 @@ class User < ApplicationRecord
   # and cannot switch; Staff are scoped to their own records.
   def accessible_location_ids
     return Location.pluck(:id) if owner?
-    return [location_id].compact if manager?
-    [staff_profile&.location_id].compact
+    return [ location_id ].compact if manager?
+    [ staff_profile&.location_id ].compact
   end
 
   def can_access_location?(id) = owner? || accessible_location_ids.include?(id.to_i)

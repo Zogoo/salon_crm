@@ -63,10 +63,11 @@ module Scheduling
     end
 
     def apply_fee!(target)
-      percent = case target
-                when "no_show"        then @appt.location.no_show_fee_percent
-                when "late_cancelled" then @appt.location.late_cancel_fee_percent
-      end
+      percent =
+        case target
+        when "no_show"        then @appt.location.no_show_fee_percent
+        when "late_cancelled" then @appt.location.late_cancel_fee_percent
+        end
       return unless percent
       @appt.fee_charged_cents = (@appt.total_price_cents * percent / 100.0).round
     end

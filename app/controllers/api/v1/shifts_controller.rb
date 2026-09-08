@@ -12,12 +12,13 @@ module Api
 
         working = scope.order(:starts_at)
         # FRS §3/§15: the Owner needs to see who is *not* working, too.
-        off = if current_user.staff?
-                StaffProfile.none
-              else
-                StaffProfile.active.where(location_id: location.id)
-                            .where.not(id: working.map(&:staff_profile_id))
-              end
+        off =
+          if current_user.staff?
+            StaffProfile.none
+          else
+            StaffProfile.active.where(location_id: location.id)
+                        .where.not(id: working.map(&:staff_profile_id))
+          end
 
         render json: {
           date:,
@@ -63,6 +64,42 @@ module Api
         end
 
         shift.destroy!
+        head :no_content
+      end
+
+      # The availability engine already subtracts breaks (doc 03 §2.3); there
+      # was no way to record one.
+      def create_break
+        shift = Shift.find(params[:id])
+        raise ActiveRecord::RecordNotFound unless current_user.can_access_location?(shift.location_id)
+
+        tz = shift.location.tz
+        brk = ShiftBreak.new(
+          shift:,
+          starts_at: tz.parse("#{shift.work_date} #{params.require(:starts_at)}"),
+          ends_at: tz.parse("#{shift.work_date} #{params.require(:ends_at)}"),
+          reason: params[:reason]
+        )
+        # BR-07 in spirit: a break must not be dropped on top of a booking.
+        clashes = AppointmentStaff.active
+                                  .where(staff_profile_id: shift.staff_profile_id)
+                                  .overlapping(brk.starts_at, brk.ends_at)
+        if clashes.exists?
+          return render json: { error: { code: "break_has_appointments",
+                                         details: { appointment_ids: clashes.pluck(:appointment_id) } } },
+                        status: :unprocessable_content
+        end
+
+        brk.save!
+        render json: { id: brk.id, starts_at: local_iso(brk.starts_at, shift.location),
+                       ends_at: local_iso(brk.ends_at, shift.location), reason: brk.reason },
+               status: :created
+      end
+
+      def destroy_break
+        brk = ShiftBreak.joins(:shift).find(params[:break_id])
+        raise ActiveRecord::RecordNotFound unless current_user.can_access_location?(brk.shift.location_id)
+        brk.destroy!
         head :no_content
       end
 

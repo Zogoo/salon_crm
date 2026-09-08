@@ -15,11 +15,12 @@ class Room < ApplicationRecord
   # is what lets Skokie's three-table room take a couple or a single.
   scope :suitable_for, ->(variant) {
     rel = active.where("client_capacity >= ?", variant.required_client_capacity)
-    rel = if variant.requires_room_type.present?
-            rel.where(room_type: variant.requires_room_type)
-          else
-            rel.where(exclusive: false)
-          end
+    rel =
+      if variant.requires_room_type.present?
+        rel.where(room_type: variant.requires_room_type)
+      else
+        rel.where(exclusive: false)
+      end
     rel
   }
 end

@@ -19,7 +19,12 @@ Rails.application.routes.draw do
       resources :staff, only: %i[index show] do
         member { post :offboard }
       end
-      resources :shifts, only: %i[index create destroy]
+      resources :shifts, only: %i[index create destroy] do
+        member do
+          post "breaks", action: :create_break
+          delete "breaks/:break_id", action: :destroy_break
+        end
+      end
       resources :clients, only: %i[index show create update] do
         member do
           put :preferences, action: :update_preferences
@@ -30,7 +35,10 @@ Rails.application.routes.draw do
       get "availability/next_for_therapist", to: "availability#next_for_therapist"
       resources :appointments, only: %i[index show create] do
         collection { get :calendar }
-        member { post :transition }
+        member do
+          post :transition
+          post :reschedule
+        end
       end
       resources :staff_requests, only: %i[index create] do
         member do

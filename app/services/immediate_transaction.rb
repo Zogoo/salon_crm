@@ -16,10 +16,12 @@ module ImmediateTransaction
   module_function
 
   def call(&block)
-    conn = ActiveRecord::Base.connection
-    # A nested call joins the outer transaction, which already holds the lock.
-    return yield if conn.transaction_open?
-
+    # `requires_new: true` gives a real transaction at the top level and a
+    # SAVEPOINT when nested. A nested call could simply join the outer
+    # transaction — it already holds the lock — but then a service would not be
+    # a rollback boundary of its own, and any caller that rescued between the
+    # two would keep its partial writes. The savepoint does not release the
+    # write lock, so the guarantee above is unaffected.
     ActiveRecord::Base.transaction(requires_new: true, &block)
   end
 end
