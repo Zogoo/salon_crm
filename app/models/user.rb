@@ -26,6 +26,46 @@ class User < ApplicationRecord
   # reach into schedules, earnings or the care notes of clients they saw.
   def active_for_authentication? = status == "active"
 
+  # --- second factor (doc 05 §3) ---
+
+  def otp_enabled? = otp_enabled_at.present? && otp_secret.present?
+
+  # The Owner holds every location, every rate and every money report, so the
+  # spec requires a second factor on that account specifically.
+  def otp_required? = owner?
+
+  def verify_otp(code)
+    return false unless otp_enabled? && code.present?
+
+    # drift_behind allows the previous 30s window, so a code entered as it
+    # rolls over is still accepted.
+    ROTP::TOTP.new(otp_secret).verify(code.to_s.strip, drift_behind: 30).present?
+  end
+
+  # --- password reset ---
+
+  # Stored as a digest: a leaked row must not be replayable against the reset
+  # endpoint, exactly as a password must not be.
+  def issue_password_reset!
+    raw = SecureRandom.urlsafe_base64(32)
+    update!(password_reset_token_digest: self.class.digest_token(raw),
+            password_reset_sent_at: Time.current)
+    raw
+  end
+
+  def password_reset_valid?(window: 2.hours)
+    password_reset_sent_at.present? && password_reset_sent_at > window.ago
+  end
+
+  def clear_password_reset! = update!(password_reset_token_digest: nil, password_reset_sent_at: nil)
+
+  def self.digest_token(raw) = Digest::SHA256.hexdigest(raw.to_s)
+
+  def self.find_by_reset_token(raw)
+    return nil if raw.blank?
+    find_by(password_reset_token_digest: digest_token(raw))
+  end
+
   # BR-01: only the Owner sees all four locations. A Manager is pinned to one
   # and cannot switch; Staff are scoped to their own records.
   def accessible_location_ids

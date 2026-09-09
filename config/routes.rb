@@ -99,6 +99,18 @@ Rails.application.routes.draw do
         end
       end
       post "care_notes/:id/supersede", to: "care_notes#supersede"
+      # Doc 05 §3 names these /session and /me; the /auth/* paths above are
+      # kept because the console already uses them.
+      post   "session",         to: "auth#sign_in"
+      delete "session",         to: "auth#sign_out"
+      get    "me",              to: "auth#me"
+      post   "me/otp",          to: "auth#enrol_otp"
+      post   "me/otp/confirm",  to: "auth#confirm_otp"
+      post   "password_resets", to: "auth#request_password_reset"
+      put    "password_resets/:token", to: "auth#reset_password"
+      get    "earning_statements/:id/pdf", to: "earnings#statement_pdf"
+      post   "kiosk/ratings",   to: "ratings#create"
+
       resources :staff_requests, only: %i[index create] do
         member do
           post :approve
@@ -117,6 +129,7 @@ Rails.application.routes.draw do
       # --- Money and operations ---
       resources :orders, only: %i[create show] do
         member do
+          get  :receipt
           post :discounts
           post :line_items
           post :refunds

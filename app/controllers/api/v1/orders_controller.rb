@@ -16,6 +16,13 @@ module Api
         render json: order_json(find_order)
       end
 
+      def receipt
+        order = find_order
+        send_data Documents::ReceiptPdf.call(order:),
+                  filename: "receipt-#{order.number}.pdf", type: "application/pdf",
+                  disposition: "inline"
+      end
+
       def payments
         order = find_order
         Sales::RecordPayment.call(

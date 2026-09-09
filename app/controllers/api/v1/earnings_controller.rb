@@ -77,6 +77,18 @@ module Api
         render json: statement_json(st.reload, detail: true)
       end
 
+      # Owner, or the therapist reading their own — a statement is pay data.
+      def statement_pdf
+        statement = EarningStatement.includes(:staff_profile, :earning_period).find(params[:id])
+        unless current_user.owner? || current_user.staff_profile&.id == statement.staff_profile_id
+          return render_forbidden
+        end
+
+        send_data Documents::EarningStatementPdf.call(statement:),
+                  filename: "statement-#{statement.id}.pdf", type: "application/pdf",
+                  disposition: "inline"
+      end
+
       private
 
       def visible?(staff)

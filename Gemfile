@@ -46,6 +46,11 @@ gem "bcrypt", "~> 3.1"
 gem "pagy", "~> 43"
 gem "rack-cors"
 gem "csv"
+# Printable receipt and earnings statement (doc 05 §§"Money", "Earnings").
+gem "prawn", "~> 2.5"
+gem "prawn-table", "~> 0.2"
+# TOTP enrolment, required for the Owner account (doc 05 §3).
+gem "rotp", "~> 6.3"
 gem "aws-sdk-s3", "~> 1.220", require: false
 
 group :development, :test do
