@@ -112,7 +112,7 @@ export class MassagelabService {
 
   shifts(locationId: number, date: string): Observable<ShiftBoard> {
     const params = new HttpParams().set('location_id', locationId).set('date', date);
-    return this.http.get<ShiftBoard>(`${this.base}/shifts`, { params });
+    return this.http.get<ShiftBoard>(`${this.base}/shifts/day`, { params });
   }
 
   approvalRequests(): Observable<{ approval_requests: ApprovalRequest[] }> {

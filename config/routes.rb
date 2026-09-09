@@ -28,9 +28,14 @@ Rails.application.routes.draw do
         end
       end
       get "manager_payouts", to: "manager_payouts#index"
-      resources :shifts, only: %i[index create destroy] do
+      resources :shifts, only: %i[index create update destroy] do
+        collection do
+          get  :day
+          post :publish
+        end
         member do
-          post "breaks", action: :create_break
+          get    "breaks", action: :breaks
+          post   "breaks", action: :create_break
           delete "breaks/:break_id", action: :destroy_break
         end
       end

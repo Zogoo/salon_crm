@@ -72,7 +72,7 @@ RSpec.describe "API timestamps carry the salon's offset", type: :request do
   end
 
   it "zones shift times" do
-    get "/api/v1/shifts",
+    get "/api/v1/shifts/day",
         params: { location_id: world[:location].id, date: world[:date].to_s },
         headers: auth(owner)
 

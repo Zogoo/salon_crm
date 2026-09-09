@@ -68,13 +68,10 @@ module Workforce
 
     # BR-07: never shorten a shift out from under a booked appointment.
     def assert_no_orphans!(shift, starts, ends)
-      enclosed = AppointmentStaff.active
-                                 .where(staff_profile_id: shift.staff_profile_id)
-                                 .overlapping(shift.starts_at, shift.ends_at)
-      orphans = enclosed.reject { |row| row.starts_at >= starts && row.ends_at <= ends }
+      orphans = Scheduling::ShiftCoverage.orphaned_by_change(shift, starts_at: starts, ends_at: ends)
       return if orphans.empty?
 
-      raise Invalid, "would_orphan_appointments:#{orphans.map(&:appointment_id).join(',')}"
+      raise Invalid, "would_orphan_appointments:#{Scheduling::ShiftCoverage.appointment_ids(orphans).join(',')}"
     end
 
     # BR-03a: a location change *moves* the therapist rather than adding a
