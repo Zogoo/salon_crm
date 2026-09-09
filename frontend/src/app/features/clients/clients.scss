@@ -1,22 +1,17 @@
 @use '../../../styles/tokens' as *;
 
-.gc {
+.clients {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--sp-4);
   align-items: start;
 
-  @include expanded-up { grid-template-columns: 1fr 1fr; }
+  @include expanded-up { grid-template-columns: minmax(0, 20rem) minmax(0, 1fr); }
 }
 
-.form-grid {
-  display: grid;
-  gap: var(--sp-4);
-  grid-template-columns: 1fr;
-  @include medium-up { grid-template-columns: 1fr 1fr; }
-}
+.clients__detail { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
 
-.picker { display: flex; flex-direction: column; gap: var(--sp-1); max-height: 22rem; overflow-y: auto; }
+.picker { display: flex; flex-direction: column; gap: var(--sp-1); max-height: 26rem; overflow-y: auto; }
 
 .picker__item {
   @include touch-target;
@@ -45,7 +40,11 @@
   small { @include type-body-sm; color: var(--md-on-surface-variant); }
 }
 
-.picker__amount { @include type-title-sm; font-variant-numeric: tabular-nums; }
+.form-grid {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: 1fr;
+  @include medium-up { grid-template-columns: 1fr 1fr; }
+}
 
-.sub-head { @include type-title-sm; margin-bottom: var(--sp-1); }
-.sub-hint { @include type-body-sm; color: var(--md-on-surface-variant); margin-bottom: var(--sp-3); }
+.row { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }

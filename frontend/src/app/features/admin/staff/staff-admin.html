@@ -1,166 +1,223 @@
-<section class="admin">
-  <header class="admin__head">
-    <select [ngModel]="ctx.current()?.id" (ngModelChange)="onLocationChange($event)"
-            [disabled]="!ctx.canSwitch()" data-testid="staff-location">
-      @for (l of ctx.locations(); track l.id) {
-        <option [ngValue]="l.id">{{ l.name }}</option>
-      }
-    </select>
-    <label class="check">
-      <input type="checkbox" [checked]="showOffboarded()" (change)="toggleOffboarded()" />
-      Show offboarded
-    </label>
-    <button type="button" class="btn" (click)="creating = !creating" data-testid="staff-new">
+<ui-page
+  title="Staff"
+  sub="Onboard therapists, set what they are qualified for, and set their pay. Pay is effective-dated: a change opens a new period and never rewrites what has already been earned."
+>
+  <div pageActions>
+    <ui-button icon="person_add" (click)="creating = !creating" data-testid="staff-new">
       {{ creating ? 'Cancel' : 'Add therapist' }}
-    </button>
-  </header>
+    </ui-button>
+  </div>
 
-  @if (error(); as e) { <p class="alert" data-testid="staff-error">{{ e }}</p> }
-  @if (notice(); as n) { <p class="note" data-testid="staff-notice">{{ n }}</p> }
+  @if (error()) { <ui-banner tone="error" data-testid="staff-error">{{ error() }}</ui-banner> }
+  @if (notice()) { <ui-banner tone="success" data-testid="staff-notice">{{ notice() }}</ui-banner> }
 
   @if (creating) {
-    <div class="panel" data-testid="staff-create">
-      <h2>Add a therapist</h2>
-      <div class="grid2">
-        <label>Name<input [(ngModel)]="newStaff.display_name" data-testid="new-name" /></label>
-        <label>Email<input type="email" [(ngModel)]="newStaff.email" data-testid="new-email" /></label>
-        <label>Employee code <small>(optional)</small><input [(ngModel)]="newStaff.employee_code" /></label>
-        <label>Role
+    <ui-card heading="Add a therapist" data-testid="staff-create">
+      <div class="form-grid">
+        <ui-field label="Name">
+          <input [(ngModel)]="newStaff.display_name" data-testid="new-name" />
+        </ui-field>
+        <ui-field label="Email" hint="They sign in with this.">
+          <input type="email" [(ngModel)]="newStaff.email" data-testid="new-email" />
+        </ui-field>
+        <ui-field label="Employee code" [optional]="true" hint="Generated if you leave this blank.">
+          <input [(ngModel)]="newStaff.employee_code" />
+        </ui-field>
+        <ui-field label="Role">
           <select [(ngModel)]="newStaff.role">
             <option value="staff">Therapist</option>
             <option value="manager">Manager</option>
           </select>
-        </label>
-        <label>Engagement
+        </ui-field>
+        <ui-field label="Paid as">
           <select [(ngModel)]="newStaff.engagement_type">
-            <option value="contractor_1099">Contractor (paid per session)</option>
-            <option value="manager_flat">Manager (flat monthly)</option>
+            <option value="contractor_1099">Per session (contractor)</option>
+            <option value="manager_flat">Flat monthly (manager)</option>
           </select>
-        </label>
-        <label>Rates effective from<input type="date" [(ngModel)]="rateEffectiveFrom" /></label>
+        </ui-field>
+        <ui-field label="Rates effective from">
+          <input type="date" [(ngModel)]="rateEffectiveFrom" />
+        </ui-field>
       </div>
-      <h3>Pay ladder</h3>
-      <table class="table">
-        <tr><th>Minutes</th><th class="num">Rate ($)</th></tr>
-        @for (d of ladder; track d) {
-          <tr>
-            <td>{{ d }}</td>
-            <td class="num">
-              <input type="number" min="0" step="0.01" [(ngModel)]="rateForm[d]"
-                     [attr.data-testid]="'new-rate-' + d" />
-            </td>
-          </tr>
-        }
-      </table>
-      <p class="hint">
-        A therapist needs a location and at least one qualification to be schedulable (BR-01),
-        so every service at this location is granted on creation — trim it afterwards.
-        Managers are on a flat monthly rate instead and ignore this ladder (BR-36).
+
+      <div>
+        <h3 class="sub-head">Pay ladder</h3>
+        <p class="sub-hint">
+          A therapist is paid per completed session, by length. All six are required — a gap means
+          pay silently fails on some bookings. Managers ignore this and take a flat monthly rate.
+        </p>
+        <ui-table label="New pay ladder">
+          <table>
+            <thead><tr><th>Session length</th><th class="num">Rate</th></tr></thead>
+            <tbody>
+              @for (d of ladder; track d) {
+                <tr>
+                  <td>{{ d }} min</td>
+                  <td class="num">
+                    <input type="number" min="0" step="0.01" [(ngModel)]="rateForm[d]"
+                           [attr.data-testid]="'new-rate-' + d" />
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </ui-table>
+      </div>
+
+      <p class="sub-hint">
+        Every service at this location is granted on creation, because a therapist needs at least
+        one qualification to be schedulable. Trim the list afterwards.
       </p>
-      <button type="button" class="btn" (click)="create()" data-testid="new-save">Add</button>
-    </div>
+      <ui-button icon="check" (click)="create()" data-testid="new-save">Add therapist</ui-button>
+    </ui-card>
   }
 
-  <div class="cols">
-    <div class="panel" data-testid="staff-list">
-      <h2>Team</h2>
-      <ul class="plain">
-        @for (m of staff(); track m.id) {
-          <li>
-            <button type="button" class="linkish" (click)="select(m)"
-                    [class.on]="selected()?.id === m.id" [attr.data-testid]="'staff-' + m.id">
-              {{ m.display_name }}
-              <small>{{ m.employee_code }}</small>
-            </button>
-            @if (m.status !== 'active') { <span class="tag">{{ m.status }}</span> }
-          </li>
-        }
-        @if (!staff().length) { <li class="muted">Nobody here yet.</li> }
-      </ul>
-    </div>
+  <div class="split">
+    <ui-card heading="Team" data-testid="staff-list">
+      <label cardAction class="toggle">
+        <input type="checkbox" [checked]="showOffboarded()" (change)="toggleOffboarded()" />
+        Include offboarded
+      </label>
 
-    @if (selected(); as member) {
-      <div class="panel wide" data-testid="staff-detail">
-        <h2>{{ member.display_name }}</h2>
-        <p class="hint">{{ member.email }} · {{ member.engagement_type }} · hired {{ member.hire_date }}</p>
-
-        <h3>Qualifications</h3>
-        <p class="hint">Per service — every duration of it comes with the qualification (BR-01).</p>
-        <ul class="checks">
-          @for (s of services(); track s.id) {
+      @if (staff().length) {
+        <ul class="picker">
+          @for (m of staff(); track m.id) {
             <li>
-              <label class="check">
-                <input type="checkbox" [checked]="qualified(s.id)"
-                       (change)="toggleQualification(s.id, $any($event.target).checked)"
-                       [attr.data-testid]="'qual-' + s.id" />
-                {{ s.name }}
-              </label>
+              <button type="button" class="picker__item" [class.on]="selected()?.id === m.id"
+                      (click)="select(m)" [attr.data-testid]="'staff-' + m.id">
+                <span class="picker__main">
+                  <strong>{{ m.display_name }}</strong>
+                  <small>{{ m.employee_code }}</small>
+                </span>
+                @if (m.status !== 'active') {
+                  <ui-chip [tone]="tone(m.status)">{{ humanStatus(m.status) }}</ui-chip>
+                }
+              </button>
             </li>
           }
         </ul>
+      } @else {
+        <ui-empty icon="badge" title="Nobody here yet"
+                  hint="Add a therapist to make them schedulable at this location." />
+      }
+    </ui-card>
+
+    @if (selected(); as member) {
+      <div class="detail" data-testid="staff-detail">
+        <ui-card [heading]="member.display_name" [sub]="memberSummary(member)">
+          <ui-chip cardAction [tone]="tone(member.status)">{{ humanStatus(member.status) }}</ui-chip>
+        </ui-card>
+
+        <ui-card
+          heading="Qualifications"
+          sub="Granted per service — every length of that service comes with it. A therapist with none drops out of every search."
+        >
+          <ul class="checks">
+            @for (s of services(); track s.id) {
+              <li>
+                <label class="toggle">
+                  <input type="checkbox" [checked]="qualified(s.id)"
+                         (change)="toggleQualification(s.id, $any($event.target).checked)"
+                         [attr.data-testid]="'qual-' + s.id" />
+                  {{ s.name }}
+                </label>
+              </li>
+            }
+          </ul>
+        </ui-card>
 
         @if (isManagerEngagement()) {
-          <h3>Pay</h3>
-          <p class="note">
-            Managers are on a flat monthly rate and never earn per session (BR-36).
-          </p>
+          <ui-card heading="Pay">
+            <ui-banner tone="info">
+              Managers are paid a flat monthly rate and never earn per session, so there is no
+              ladder here.
+            </ui-banner>
+          </ui-card>
         } @else {
-          <h3>Pay ladder</h3>
-          <p class="hint">
-            Saving opens a new period from the date below. The ladder already in force is closed
-            the day before, so pay for work already done never changes (BR-35).
-          </p>
-          <table class="table">
-            <tr><th>Minutes</th><th class="num">Rate ($)</th></tr>
-            @for (d of ladder; track d) {
-              <tr>
-                <td>{{ d }}</td>
-                <td class="num">
-                  <input type="number" min="0" step="0.01" [(ngModel)]="rateForm[d]"
-                         [attr.data-testid]="'rate-' + d" />
-                </td>
-              </tr>
-            }
-          </table>
-          <div class="row">
-            <label>Effective from<input type="date" [(ngModel)]="rateEffectiveFrom"
-                                        data-testid="rate-from" /></label>
-            <label>Note<input [(ngModel)]="rateNote" placeholder="Annual review" /></label>
-            <button type="button" class="btn" (click)="saveRates()" data-testid="rate-save">
-              Save ladder
-            </button>
-          </div>
+          <ui-card
+            heading="Pay ladder"
+            sub="Saving opens a new period from the date you choose and closes the current one the day before. Sessions already worked keep the rate they were worked at."
+          >
+            <ui-table label="Pay ladder">
+              <table>
+                <thead><tr><th>Session length</th><th class="num">Rate</th></tr></thead>
+                <tbody>
+                  @for (d of ladder; track d) {
+                    <tr>
+                      <td>{{ d }} min</td>
+                      <td class="num">
+                        <input type="number" min="0" step="0.01" [(ngModel)]="rateForm[d]"
+                               [attr.data-testid]="'rate-' + d" />
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </ui-table>
 
-          @if (currentRates().length) {
-            <h3>In force</h3>
-            <ul class="plain">
-              @for (r of currentRates(); track r.duration_minutes) {
-                <li>{{ r.duration_minutes }} min
-                  <span>${{ r.rate_cents / 100 | number: '1.2-2' }} from {{ r.effective_from }}</span></li>
-              }
-            </ul>
-          }
-          @if (pastRates().length) {
-            <h3>Previous periods</h3>
-            <ul class="plain muted">
-              @for (r of pastRates(); track r.effective_from + '-' + r.duration_minutes) {
-                <li>{{ r.duration_minutes }} min
-                  <span>${{ r.rate_cents / 100 | number: '1.2-2' }}
-                    · {{ r.effective_from }} to {{ r.effective_to }}</span></li>
-              }
-            </ul>
-          }
+            <div class="form-grid">
+              <ui-field label="Effective from">
+                <input type="date" [(ngModel)]="rateEffectiveFrom" data-testid="rate-from" />
+              </ui-field>
+              <ui-field label="Note" [optional]="true">
+                <input [(ngModel)]="rateNote" placeholder="Annual review" />
+              </ui-field>
+            </div>
+            <ui-button icon="save" (click)="saveRates()" data-testid="rate-save">Save ladder</ui-button>
+
+            @if (currentRates().length) {
+              <div>
+                <h3 class="sub-head">In force now</h3>
+                <ui-table label="Current rates">
+                  <table>
+                    <thead><tr><th>Length</th><th class="num">Rate</th><th>From</th></tr></thead>
+                    <tbody>
+                      @for (r of currentRates(); track r.duration_minutes) {
+                        <tr>
+                          <td>{{ r.duration_minutes }} min</td>
+                          <td class="num">${{ r.rate_cents / 100 | number: '1.2-2' }}</td>
+                          <td>{{ r.effective_from }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </ui-table>
+              </div>
+            }
+
+            @if (pastRates().length) {
+              <div>
+                <h3 class="sub-head">Earlier periods</h3>
+                <p class="sub-hint">Kept so past pay can always be explained.</p>
+                <ui-table label="Previous rates">
+                  <table>
+                    <thead><tr><th>Length</th><th class="num">Rate</th><th>Period</th></tr></thead>
+                    <tbody>
+                      @for (r of pastRates(); track r.effective_from + '-' + r.duration_minutes) {
+                        <tr>
+                          <td>{{ r.duration_minutes }} min</td>
+                          <td class="num">${{ r.rate_cents / 100 | number: '1.2-2' }}</td>
+                          <td>{{ r.effective_from }} → {{ r.effective_to }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </ui-table>
+              </div>
+            }
+          </ui-card>
         }
 
         @if (member.status === 'active') {
-          <h3>Offboarding</h3>
-          <p class="hint">
-            Soft, never a delete (BR-02). Blocked while they still have booked appointments.
-          </p>
-          <button type="button" class="btn danger" (click)="offboard(member)"
-                  data-testid="offboard">Offboard</button>
+          <ui-card
+            heading="Offboarding"
+            sub="Soft, never a delete. Blocked while they still have appointments on the books, and it disables their sign-in."
+          >
+            <ui-button variant="danger" icon="person_remove" (click)="offboard(member)"
+                       data-testid="offboard">Offboard {{ member.display_name }}</ui-button>
+          </ui-card>
         }
       </div>
     }
   </div>
-</section>
+</ui-page>

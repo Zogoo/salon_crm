@@ -1,100 +1,108 @@
-<section class="admin">
-  <header class="admin__head">
-    <select [ngModel]="ctx.current()?.id" (ngModelChange)="onLocationChange($event)"
-            [disabled]="!ctx.canSwitch()" data-testid="roster-location">
-      @for (l of ctx.locations(); track l.id) {
-        <option [ngValue]="l.id">{{ l.name }}</option>
-      }
-    </select>
-    <label>From<input type="date" [(ngModel)]="from" data-testid="roster-from" /></label>
-    <label>To<input type="date" [(ngModel)]="to" data-testid="roster-to" /></label>
-    <button type="button" class="btn" (click)="reload()" data-testid="roster-run">Show</button>
-  </header>
-
-  @if (error(); as e) { <p class="alert" data-testid="roster-error">{{ e }}</p> }
-  @if (notice(); as n) { <p class="note" data-testid="roster-notice">{{ n }}</p> }
-
-  <div class="panel" data-testid="roster-new">
-    <h2>Draft a shift</h2>
-    <div class="row">
-      <label>Therapist
-        <select [(ngModel)]="newShift.staff_profile_id" data-testid="new-shift-staff">
-          @for (s of staff(); track s.id) {
-            <option [ngValue]="s.id">{{ s.display_name }}</option>
-          }
-        </select>
-      </label>
-      <label>Date<input type="date" [(ngModel)]="newShift.work_date" data-testid="new-shift-date" /></label>
-      <label>Starts<input type="time" [(ngModel)]="newShift.starts_at" /></label>
-      <label>Ends<input type="time" [(ngModel)]="newShift.ends_at" /></label>
-      <button type="button" class="btn" (click)="create()" data-testid="new-shift-save">Draft</button>
-    </div>
-    <p class="hint">
-      A drafted shift does not make anyone bookable. Publish it below — and publishing is
-      all-or-nothing, so a clash stops the whole batch rather than leaving half a week live.
-    </p>
+<ui-page
+  title="Roster"
+  sub="Draft shifts, then publish them. A drafted shift makes nobody bookable — publishing is what puts a therapist on the schedule."
+>
+  <div pageActions class="row">
+    <ui-field label="From"><input type="date" [(ngModel)]="from" data-testid="roster-from" /></ui-field>
+    <ui-field label="To"><input type="date" [(ngModel)]="to" data-testid="roster-to" /></ui-field>
+    <ui-button variant="tonal" icon="search" (click)="reload()" data-testid="roster-run">Show</ui-button>
   </div>
 
+  @if (error()) { <ui-banner tone="error" data-testid="roster-error">{{ error() }}</ui-banner> }
+  @if (notice()) { <ui-banner tone="success" data-testid="roster-notice">{{ notice() }}</ui-banner> }
+
+  <ui-card heading="Draft a shift" data-testid="roster-new">
+    <div class="form-grid">
+      <ui-field label="Therapist">
+        <select [(ngModel)]="newShift.staff_profile_id" data-testid="new-shift-staff">
+          @for (s of staff(); track s.id) { <option [ngValue]="s.id">{{ s.display_name }}</option> }
+        </select>
+      </ui-field>
+      <ui-field label="Date">
+        <input type="date" [(ngModel)]="newShift.work_date" data-testid="new-shift-date" />
+      </ui-field>
+      <ui-field label="Starts"><input type="time" [(ngModel)]="newShift.starts_at" /></ui-field>
+      <ui-field label="Ends"><input type="time" [(ngModel)]="newShift.ends_at" /></ui-field>
+    </div>
+    <ui-button icon="add" (click)="create()" data-testid="new-shift-save">Draft shift</ui-button>
+  </ui-card>
+
   @if (drafts().length) {
-    <div class="panel" data-testid="roster-drafts">
-      <h2>Drafts</h2>
-      <ul class="plain">
+    <ui-card
+      heading="Drafts"
+      sub="Publishing is all or nothing: if one shift clashes, none are published, so a week is never half live."
+      data-testid="roster-drafts"
+    >
+      <ul class="checks checks--stack">
         @for (s of drafts(); track s.id) {
           <li>
-            <label class="check">
+            <label class="toggle">
               <input type="checkbox" (change)="toggleSelected(s.id, $any($event.target).checked)"
                      [attr.data-testid]="'draft-' + s.id" />
-              {{ nameFor(s) }} · {{ s.work_date }}
+              {{ nameFor(s) }} · {{ s.work_date }} ·
               {{ wallClock(s.starts_at) }}–{{ wallClock(s.ends_at) }}
             </label>
           </li>
         }
       </ul>
-      <button type="button" class="btn" (click)="publish()"
-              [disabled]="!selectedIds().length" data-testid="roster-publish">
-        Publish {{ selectedIds().length || '' }}
-      </button>
-    </div>
+      <ui-button icon="publish" (click)="publish()" [disabled]="!selectedIds().length"
+                 data-testid="roster-publish">
+        Publish {{ selectedIds().length || '' }} shift{{ selectedIds().length === 1 ? '' : 's' }}
+      </ui-button>
+    </ui-card>
   }
 
-  <div class="panel wide" data-testid="roster-list">
-    <h2>Roster {{ from }} → {{ to }}</h2>
+  <ui-card [heading]="'Roster ' + from + ' → ' + to" data-testid="roster-list">
     @if (shifts().length) {
-      <table class="table">
-        <tr><th>Date</th><th>Therapist</th><th>Hours</th><th>Status</th><th></th></tr>
-        @for (s of shifts(); track s.id) {
-          <tr>
-            <td>{{ s.work_date }}</td>
-            <td>{{ nameFor(s) }}</td>
-            <td>{{ wallClock(s.starts_at) }}–{{ wallClock(s.ends_at) }}</td>
-            <td><span class="tag" [class.live]="s.status === 'published'">{{ s.status }}</span></td>
-            <td class="right">
-              <button type="button" class="linkish" (click)="startEdit(s)"
-                      [attr.data-testid]="'edit-' + s.id">Edit</button>
-              <button type="button" class="linkish danger" (click)="remove(s)"
-                      [attr.data-testid]="'delete-' + s.id">Remove</button>
-            </td>
-          </tr>
-        }
-      </table>
+      <ui-table label="Roster">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Therapist</th><th>Hours</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody>
+            @for (s of shifts(); track s.id) {
+              <tr>
+                <td>{{ s.work_date }}</td>
+                <td>{{ nameFor(s) }}</td>
+                <td>{{ wallClock(s.starts_at) }}–{{ wallClock(s.ends_at) }}</td>
+                <td><ui-chip [tone]="tone(s.status)">{{ humanStatus(s.status) }}</ui-chip></td>
+                <td class="num">
+                  <ui-button variant="text" icon="edit" (click)="startEdit(s)"
+                             [attr.data-testid]="'edit-' + s.id" ariaLabel="Edit shift" />
+                  <ui-button variant="text" icon="delete" (click)="remove(s)"
+                             [attr.data-testid]="'delete-' + s.id" ariaLabel="Remove shift" />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </ui-table>
     } @else {
-      <p class="muted">No shifts in this range.</p>
+      <ui-empty icon="event_busy" title="No shifts in this range"
+                hint="Draft one above, or widen the dates." />
     }
-  </div>
+  </ui-card>
 
-  @if (editing) {
-    <div class="panel" data-testid="roster-edit">
-      <h2>Edit shift</h2>
-      <div class="row">
-        <label>Date<input type="date" [(ngModel)]="edit.work_date" /></label>
-        <label>Starts<input type="time" [(ngModel)]="edit.starts_at" data-testid="edit-starts" /></label>
-        <label>Ends<input type="time" [(ngModel)]="edit.ends_at" data-testid="edit-ends" /></label>
-        <button type="button" class="btn" (click)="saveEdit()" data-testid="edit-save">Save</button>
-        <button type="button" class="btn ghost" (click)="editing = null">Cancel</button>
+  @if (editing; as shift) {
+    <ui-sheet heading="Edit shift" [sub]="nameFor(shift)" (closed)="editing = null"
+              data-testid="roster-edit">
+      <div class="form-grid">
+        <ui-field label="Date"><input type="date" [(ngModel)]="edit.work_date" /></ui-field>
+        <ui-field label="Starts">
+          <input type="time" [(ngModel)]="edit.starts_at" data-testid="edit-starts" />
+        </ui-field>
+        <ui-field label="Ends">
+          <input type="time" [(ngModel)]="edit.ends_at" data-testid="edit-ends" />
+        </ui-field>
       </div>
-      <p class="hint">
-        Shortening a shift is refused if a booked appointment would be left uncovered (BR-07).
+      <p class="sub-hint">
+        Shortening a shift is refused if it would leave an appointment without a therapist — the
+        message names which ones to move first.
       </p>
-    </div>
+      <div class="row">
+        <ui-button icon="save" (click)="saveEdit()" data-testid="edit-save">Save</ui-button>
+        <ui-button variant="outlined" (click)="editing = null">Cancel</ui-button>
+      </div>
+    </ui-sheet>
   }
-</section>
+</ui-page>

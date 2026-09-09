@@ -6,6 +6,17 @@ import { CatalogueService, CatalogueVariant, Service, VariantPrice } from '../..
 import { LocationContextService } from '../../../core/services/location-context.service';
 import { MassagelabService } from '../../../core/services/massagelab.service';
 import { todayIn } from '../../../core/salon-date';
+import {
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiField,
+  UiPage,
+  UiTable,
+  humanise,
+} from '../../../ui';
 
 /**
  * FRS §19 / doc 05 §5 — the service menu and the price list.
@@ -17,9 +28,20 @@ import { todayIn } from '../../../core/salon-date';
  */
 @Component({
   selector: 'app-catalogue-admin',
-  imports: [FormsModule, DecimalPipe],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiChip,
+    UiEmpty,
+    UiTable,
+    UiBanner,
+  ],
   templateUrl: './catalogue-admin.html',
-  styleUrl: './catalogue-admin.scss',
+  styleUrl: '../admin-shared.scss',
 })
 export class CatalogueAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -32,6 +54,11 @@ export class CatalogueAdminPage implements OnInit {
   protected readonly categories = signal<{ id: number; name: string }[]>([]);
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
+
+  /** The lengths therapist pay is defined for (FRS §4). */
+  protected readonly ladder = [30, 45, 60, 75, 90, 120];
+
+  protected humanStatus(value: string) { return humanise(value); }
 
   protected creating = false;
   protected newService = { name: '', kind: 'standard', service_category_id: 0 };

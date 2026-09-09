@@ -6,11 +6,37 @@ import { GiftCard, PaymentMethod } from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
+import {
+  Fact,
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiFacts,
+  UiField,
+  UiPage,
+  UiTable,
+  humanise,
+} from '../../ui';
 
 /** FRS §12, §13 — sell, look up (barcode or code), and read the ledger. */
 @Component({
   selector: 'app-giftcards',
-  imports: [FormsModule, DecimalPipe, WallClockPipe],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    WallClockPipe,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiChip,
+    UiEmpty,
+    UiTable,
+    UiFacts,
+    UiBanner,
+  ],
   templateUrl: './giftcards.html',
   styleUrl: './giftcards.scss',
 })
@@ -24,6 +50,19 @@ export class GiftCardsPage implements OnInit {
   protected readonly issued = signal<GiftCard | null>(null);
 
   protected search = '';
+
+  protected humanStatus(value: string) { return humanise(value); }
+
+  protected cardFacts(card: GiftCard): Fact[] {
+    const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+    return [
+      { label: 'Balance', value: money(card.current_balance_cents) },
+      { label: 'Face value', value: money(card.initial_value_cents) },
+      { label: 'Sold at', value: card.sold_at_location?.name },
+      { label: 'Sold', value: card.sold_at?.slice(0, 10) },
+      { label: 'Expires', value: card.expires_at?.slice(0, 10), hint: 'Flags the card; never forfeits the balance.' },
+    ];
+  }
   protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
   protected form = {
     amountDollars: 100,

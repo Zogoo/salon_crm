@@ -2,6 +2,19 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { RosterShift, StaffMember } from '../../../core/models';
+import {
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiField,
+  UiPage,
+  UiSheet,
+  UiTable,
+  humanise,
+  statusTone,
+} from '../../../ui';
 import { LocationContextService } from '../../../core/services/location-context.service';
 import { MassagelabService } from '../../../core/services/massagelab.service';
 import { todayIn } from '../../../core/salon-date';
@@ -17,9 +30,20 @@ import { todayIn } from '../../../core/salon-date';
  */
 @Component({
   selector: 'app-roster-admin',
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiChip,
+    UiEmpty,
+    UiTable,
+    UiBanner,
+    UiSheet,
+  ],
   templateUrl: './roster-admin.html',
-  styleUrl: './roster-admin.scss',
+  styleUrl: '../admin-shared.scss',
 })
 export class RosterAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -30,6 +54,9 @@ export class RosterAdminPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
   protected readonly selectedIds = signal<number[]>([]);
+
+  protected tone(status: string) { return statusTone(status); }
+  protected humanStatus(status: string) { return humanise(status); }
 
   protected from = '';
   protected to = '';

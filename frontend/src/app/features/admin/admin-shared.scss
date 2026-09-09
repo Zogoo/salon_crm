@@ -1,0 +1,105 @@
+@use '../../../styles/tokens' as *;
+
+// Layout shared by the four administration screens: a list on the left, the
+// selected record on the right, collapsing to one column on a phone. They were
+// four copies of the same file; this is the one copy.
+
+.split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-4);
+  align-items: start;
+
+  @include expanded-up { grid-template-columns: minmax(0, 20rem) minmax(0, 1fr); }
+}
+
+.detail { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+
+.form-grid {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: 1fr;
+  @include medium-up { grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+}
+
+.row { display: flex; gap: var(--sp-3); align-items: flex-end; flex-wrap: wrap; }
+
+.picker { display: flex; flex-direction: column; gap: var(--sp-1); max-height: 26rem; overflow-y: auto; }
+
+.picker__item {
+  @include touch-target;
+  @include state-layer;
+  @include focus-ring;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--md-shape-sm);
+  cursor: pointer;
+  text-align: left;
+
+  &.on { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+}
+
+.picker__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+  strong { @include type-body-lg; }
+  small { @include type-body-sm; color: var(--md-on-surface-variant); }
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+}
+
+.toggle {
+  @include type-body-md;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.sub-head { @include type-title-sm; margin-bottom: var(--sp-1); }
+.sub-hint {
+  @include type-body-sm;
+  color: var(--md-on-surface-variant);
+  margin-bottom: var(--sp-3);
+  max-width: 66ch;
+}
+
+.num input { max-width: 8rem; }
+
+.split--even {
+  @include expanded-up { grid-template-columns: 1fr 1fr; }
+}
+
+.checks--stack { flex-direction: column; gap: 0; }
+
+.rows { display: flex; flex-direction: column; gap: var(--sp-1); }
+
+.rows li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface-container-low);
+}
+
+.rows__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+  strong { @include type-body-md; }
+  small { @include type-body-sm; color: var(--md-on-surface-variant); }
+}

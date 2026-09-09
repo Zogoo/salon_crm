@@ -3,6 +3,18 @@ import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { Qualification, Service, SessionRate, StaffMember } from '../../../core/models';
+import {
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiField,
+  UiPage,
+  UiTable,
+  humanise,
+  statusTone,
+} from '../../../ui';
 import { LocationContextService } from '../../../core/services/location-context.service';
 import { MassagelabService } from '../../../core/services/massagelab.service';
 import { todayIn } from '../../../core/salon-date';
@@ -19,9 +31,20 @@ const LADDER = [30, 45, 60, 75, 90, 120] as const;
  */
 @Component({
   selector: 'app-staff-admin',
-  imports: [FormsModule, DecimalPipe],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiChip,
+    UiEmpty,
+    UiTable,
+    UiBanner,
+  ],
   templateUrl: './staff-admin.html',
-  styleUrl: './staff-admin.scss',
+  styleUrl: '../admin-shared.scss',
 })
 export class StaffAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -37,6 +60,14 @@ export class StaffAdminPage implements OnInit {
   protected readonly showOffboarded = signal(false);
 
   protected readonly ladder = LADDER;
+
+  protected tone(status: string) { return statusTone(status); }
+  protected humanStatus(status: string) { return humanise(status); }
+
+  protected memberSummary(member: StaffMember): string {
+    const paid = member.engagement_type === 'manager_flat' ? 'flat monthly' : 'per session';
+    return `${member.email ?? ''} · paid ${paid} · hired ${member.hire_date ?? '—'}`;
+  }
 
   // The ladder being edited, in dollars — cents are an API detail.
   protected rateForm: Record<number, number> = {};

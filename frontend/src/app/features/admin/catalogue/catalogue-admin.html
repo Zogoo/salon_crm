@@ -1,144 +1,195 @@
-<section class="admin">
-  <header class="admin__head">
-    <select [ngModel]="ctx.current()?.id" (ngModelChange)="onLocationChange($event)"
-            [disabled]="!ctx.canSwitch()" data-testid="cat-location">
-      @for (l of ctx.locations(); track l.id) {
-        <option [ngValue]="l.id">{{ l.name }}</option>
-      }
-    </select>
-    <button type="button" class="btn" (click)="creating = !creating" data-testid="cat-new">
+<ui-page
+  title="Services"
+  sub="The menu and what each service costs. Prices are per location and dated — changing one never alters an order already taken."
+>
+  <div pageActions>
+    <ui-button icon="add" (click)="creating = !creating" data-testid="cat-new">
       {{ creating ? 'Cancel' : 'Add service' }}
-    </button>
-    <span class="hint">Prices are per location — you are editing {{ ctx.current()?.name }}.</span>
-  </header>
+    </ui-button>
+  </div>
 
-  @if (error(); as e) { <p class="alert" data-testid="cat-error">{{ e }}</p> }
-  @if (notice(); as n) { <p class="note" data-testid="cat-notice">{{ n }}</p> }
+  @if (error()) { <ui-banner tone="error" data-testid="cat-error">{{ error() }}</ui-banner> }
+  @if (notice()) { <ui-banner tone="success" data-testid="cat-notice">{{ notice() }}</ui-banner> }
+
+  <ui-banner tone="info">
+    Prices below are for {{ ctx.current()?.name }}. Switch location in the top bar to price
+    elsewhere.
+  </ui-banner>
 
   @if (creating) {
-    <div class="panel" data-testid="cat-create">
-      <h2>Add a service</h2>
-      <div class="row">
-        <label>Name<input [(ngModel)]="newService.name" data-testid="new-service-name" /></label>
-        <label>Kind
+    <ui-card heading="Add a service" data-testid="cat-create">
+      <div class="form-grid">
+        <ui-field label="Name">
+          <input [(ngModel)]="newService.name" data-testid="new-service-name" />
+        </ui-field>
+        <ui-field label="Kind" hint="Add-ons take 30 minutes; enhancements add price but no time.">
           <select [(ngModel)]="newService.kind">
-            <option value="standard">Standard</option>
-            <option value="add_on">Add-on (30 min)</option>
-            <option value="enhancement">Enhancement (no extra time)</option>
+            <option value="standard">Standard service</option>
+            <option value="add_on">Add-on</option>
+            <option value="enhancement">Enhancement</option>
           </select>
-        </label>
-        <label>Category
+        </ui-field>
+        <ui-field label="Category">
           <select [(ngModel)]="newService.service_category_id">
             @for (c of categories(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
           </select>
-        </label>
-        <button type="button" class="btn" (click)="createService()" data-testid="new-service-save">Add</button>
+        </ui-field>
       </div>
-    </div>
+      <ui-button icon="check" (click)="createService()" data-testid="new-service-save">Add</ui-button>
+    </ui-card>
   }
 
-  <div class="cols">
-    <div class="panel" data-testid="cat-list">
-      <h2>Menu</h2>
-      <ul class="plain">
-        @for (s of services(); track s.id) {
-          <li>
-            <button type="button" class="linkish" (click)="open(s)"
-                    [class.on]="detail()?.id === s.id" [attr.data-testid]="'service-' + s.id">
-              {{ s.name }} <small>{{ s.kind }}</small>
-            </button>
-          </li>
-        }
-        @if (!services().length) { <li class="muted">Nothing on the menu here.</li> }
-      </ul>
-    </div>
+  <div class="split">
+    <ui-card heading="Menu" data-testid="cat-list">
+      @if (services().length) {
+        <ul class="picker">
+          @for (s of services(); track s.id) {
+            <li>
+              <button type="button" class="picker__item" [class.on]="detail()?.id === s.id"
+                      (click)="open(s)" [attr.data-testid]="'service-' + s.id">
+                <span class="picker__main">
+                  <strong>{{ s.name }}</strong>
+                  <small>{{ humanStatus(s.kind) }}</small>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <ui-empty icon="spa" title="Nothing on the menu here"
+                  hint="Add a service, then give it a length and a price." />
+      }
+    </ui-card>
 
     @if (detail(); as service) {
-      <div class="panel wide" data-testid="cat-detail">
-        <h2>{{ service.name }}</h2>
-        <p class="hint">
-          {{ service.kind }} · {{ service.active ? 'on the menu' : 'off the menu' }}
-        </p>
-        <div>
-          <button type="button" class="btn" (click)="toggleActive(service)" data-testid="cat-toggle">
+      <div class="detail" data-testid="cat-detail">
+        <ui-card [heading]="service.name" [sub]="humanStatus(service.kind)">
+          <ui-chip cardAction [tone]="service.active ? 'success' : 'neutral'">
+            {{ service.active ? 'On the menu' : 'Off the menu' }}
+          </ui-chip>
+
+          <p class="sub-hint">
+            A service that has been booked is taken off the menu rather than deleted — removing it
+            would rewrite what past clients were actually sold.
+          </p>
+          <ui-button variant="tonal" [icon]="service.active ? 'visibility_off' : 'visibility'"
+                     (click)="toggleActive(service)" data-testid="cat-toggle">
             {{ service.active ? 'Take off the menu' : 'Put back on the menu' }}
-          </button>
-          <span class="hint">
-            A service that has been booked is deactivated, never deleted — removing it would
-            rewrite what a client was actually sold.
-          </span>
-        </div>
+          </ui-button>
+        </ui-card>
 
-        <h3>Durations</h3>
-        <table class="table">
-          <tr><th>Minutes</th><th>Therapists</th><th>Seats</th><th></th></tr>
-          @for (v of service.variants; track v.id) {
-            <tr>
-              <td>{{ v.duration_minutes }}</td>
-              <td>{{ v.therapist_count }}</td>
-              <td>{{ v.required_client_capacity }}</td>
-              <td class="right">
-                <button type="button" class="linkish" (click)="showPrices(v)"
-                        [attr.data-testid]="'prices-' + v.id">Prices</button>
-              </td>
-            </tr>
+        <ui-card heading="Lengths and prices">
+          @if (service.variants.length) {
+            <ui-table label="Service lengths">
+              <table>
+                <thead>
+                  <tr><th>Length</th><th>Therapists</th><th>Seats</th><th></th></tr>
+                </thead>
+                <tbody>
+                  @for (v of service.variants; track v.id) {
+                    <tr>
+                      <td>{{ v.duration_minutes }} min</td>
+                      <td>{{ v.therapist_count }}</td>
+                      <td>{{ v.required_client_capacity }}</td>
+                      <td class="num">
+                        <ui-button variant="text" icon="sell" (click)="showPrices(v)"
+                                   [attr.data-testid]="'prices-' + v.id">Prices</ui-button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </ui-table>
+          } @else {
+            <ui-empty icon="schedule" title="No lengths yet"
+                      hint="A service needs at least one length before it can be booked." />
           }
-        </table>
 
-        <h3>Add a duration</h3>
-        <div class="row">
-          <label>Minutes
-            <select [(ngModel)]="newVariant.duration_minutes" data-testid="new-variant-minutes">
-              @for (d of [30, 45, 60, 75, 90, 120]; track d) { <option [ngValue]="d">{{ d }}</option> }
-            </select>
-          </label>
-          <label>Therapists
-            <select [(ngModel)]="newVariant.therapist_count">
-              <option [ngValue]="1">1</option><option [ngValue]="2">2</option>
-            </select>
-          </label>
-          <label>Seats
-            <select [(ngModel)]="newVariant.required_client_capacity">
-              <option [ngValue]="1">1</option><option [ngValue]="2">2</option><option [ngValue]="3">3</option>
-            </select>
-          </label>
-          <button type="button" class="btn" (click)="addVariant()" data-testid="new-variant-save">Add</button>
-        </div>
-        <p class="hint">
-          Durations must sit on the pay ladder (30/45/60/75/90/120), or the therapist's pay for it
-          could not be calculated (BR-33).
-        </p>
+          <div>
+            <h3 class="sub-head">Add a length</h3>
+            <p class="sub-hint">
+              Lengths must be one of 30, 45, 60, 75, 90 or 120 minutes — these are the lengths
+              therapist pay is defined for.
+            </p>
+            <div class="form-grid">
+              <ui-field label="Length">
+                <select [(ngModel)]="newVariant.duration_minutes" data-testid="new-variant-minutes">
+                  @for (d of ladder; track d) { <option [ngValue]="d">{{ d }} min</option> }
+                </select>
+              </ui-field>
+              <ui-field label="Therapists">
+                <select [(ngModel)]="newVariant.therapist_count">
+                  <option [ngValue]="1">1</option><option [ngValue]="2">2</option>
+                </select>
+              </ui-field>
+              <ui-field label="Seats" hint="How many clients share the room.">
+                <select [(ngModel)]="newVariant.required_client_capacity">
+                  <option [ngValue]="1">1</option><option [ngValue]="2">2</option>
+                  <option [ngValue]="3">3</option>
+                </select>
+              </ui-field>
+            </div>
+            <ui-button icon="add" (click)="addVariant()" data-testid="new-variant-save">
+              Add length
+            </ui-button>
+          </div>
+        </ui-card>
 
         @if (pricedVariant(); as variant) {
-          <h3>{{ variant.duration_minutes }} min — price at {{ ctx.current()?.name }}</h3>
-          <div class="row">
-            <label>Price ($)<input type="number" min="0" step="0.01"
-                                   [(ngModel)]="priceForm.dollars" data-testid="price-amount" /></label>
-            <label>From<input type="date" [(ngModel)]="priceForm.effective_from"
-                              data-testid="price-from" /></label>
-            <button type="button" class="btn" (click)="savePrice()" data-testid="price-save">Set price</button>
-          </div>
+          <ui-card
+            [heading]="variant.duration_minutes + ' min — price at ' + (ctx.current()?.name ?? '')"
+            sub="A new price starts a new period. Appointments already booked keep the price they were sold at."
+          >
+            <div class="form-grid">
+              <ui-field label="Price">
+                <input type="number" min="0" step="0.01" [(ngModel)]="priceForm.dollars"
+                       data-testid="price-amount" />
+              </ui-field>
+              <ui-field label="Effective from">
+                <input type="date" [(ngModel)]="priceForm.effective_from" data-testid="price-from" />
+              </ui-field>
+            </div>
+            <ui-button icon="save" (click)="savePrice()" data-testid="price-save">Set price</ui-button>
 
-          @if (currentPrices().length) {
-            <ul class="plain">
-              @for (p of currentPrices(); track p.id) {
-                <li>{{ p.location }}
-                  <span>${{ p.price_cents / 100 | number: '1.2-2' }} from {{ p.effective_from }}</span></li>
-              }
-            </ul>
-          }
-          @if (pastPrices().length) {
-            <h3>Previous</h3>
-            <ul class="plain muted">
-              @for (p of pastPrices(); track p.id) {
-                <li>{{ p.location }}
-                  <span>${{ p.price_cents / 100 | number: '1.2-2' }}
-                    · {{ p.effective_from }} to {{ p.effective_to }}</span></li>
-              }
-            </ul>
-          }
+            @if (currentPrices().length) {
+              <ui-table label="Current prices">
+                <table>
+                  <thead><tr><th>Location</th><th class="num">Price</th><th>From</th></tr></thead>
+                  <tbody>
+                    @for (p of currentPrices(); track p.id) {
+                      <tr>
+                        <td>{{ p.location }}</td>
+                        <td class="num">${{ p.price_cents / 100 | number: '1.2-2' }}</td>
+                        <td>{{ p.effective_from }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </ui-table>
+            }
+
+            @if (pastPrices().length) {
+              <div>
+                <h3 class="sub-head">Earlier prices</h3>
+                <ui-table label="Previous prices">
+                  <table>
+                    <thead><tr><th>Location</th><th class="num">Price</th><th>Period</th></tr></thead>
+                    <tbody>
+                      @for (p of pastPrices(); track p.id) {
+                        <tr>
+                          <td>{{ p.location }}</td>
+                          <td class="num">${{ p.price_cents / 100 | number: '1.2-2' }}</td>
+                          <td>{{ p.effective_from }} → {{ p.effective_to }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </ui-table>
+              </div>
+            }
+          </ui-card>
         }
       </div>
     }
   </div>
-</section>
+</ui-page>

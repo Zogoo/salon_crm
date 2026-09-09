@@ -5,6 +5,19 @@ import { BusinessHour, Closure, Room, RoomBlock } from '../../../core/models';
 import { LocationContextService } from '../../../core/services/location-context.service';
 import { MassagelabService } from '../../../core/services/massagelab.service';
 import { todayIn } from '../../../core/salon-date';
+import {
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiField,
+  UiPage,
+  UiSheet,
+  UiTable,
+  humanise,
+  statusTone,
+} from '../../../ui';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -18,9 +31,20 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
  */
 @Component({
   selector: 'app-location-admin',
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiChip,
+    UiEmpty,
+    UiTable,
+    UiBanner,
+    UiSheet,
+  ],
   templateUrl: './location-admin.html',
-  styleUrl: './location-admin.scss',
+  styleUrl: '../admin-shared.scss',
 })
 export class LocationAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -35,6 +59,9 @@ export class LocationAdminPage implements OnInit {
   protected readonly notice = signal<string | null>(null);
 
   protected readonly days = DAYS;
+
+  protected tone(status: string | undefined) { return statusTone(status); }
+  protected humanStatus(value: string | undefined) { return humanise(value); }
 
   protected newHour = { day_of_week: 1, opens_at: '09:00', closes_at: '22:00' };
   protected newClosure = { date: '', reason: '' };

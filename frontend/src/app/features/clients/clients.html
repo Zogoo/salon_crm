@@ -1,83 +1,114 @@
-<section class="clients">
-  <div class="panel">
-    <h1>Clients</h1>
-    <input
-      type="search"
-      placeholder="Search name or phone"
-      [(ngModel)]="search"
-      (input)="reload()"
-      data-testid="clients-search"
-    />
-    <ul class="list" data-testid="clients-list">
-      @for (c of clients(); track c.id) {
-        <li>
-          <button
-            type="button"
-            [class.on]="selected()?.id === c.id"
-            (click)="open(c)"
-            [attr.data-testid]="'client-' + c.id"
-          >
-            <strong>{{ c.full_name }}</strong>
-            <div class="muted">{{ c.phone }}</div>
-            @if (c.no_show_count) {
-              <div class="warn">{{ c.no_show_count }} no-show(s)</div>
-            }
-          </button>
-        </li>
-      }
-    </ul>
-  </div>
+<ui-page
+  title="Clients"
+  sub="One record per client, shared across all four locations. Preferences and visit history follow them wherever they book."
+>
+  <div class="clients">
+    <ui-card class="clients__list">
+      <ui-field label="Find a client" hint="Search by name or phone number.">
+        <input
+          type="search"
+          placeholder="e.g. Sarah, or 312…"
+          [(ngModel)]="search"
+          (input)="reload()"
+          data-testid="clients-search"
+        />
+      </ui-field>
 
-  @if (selected(); as client) {
-    <div class="panel" data-testid="client-detail">
-      <h2>{{ client.full_name }}</h2>
-      <p class="muted">
-        {{ client.phone }} @if (client.email) { · {{ client.email }} }
-        · {{ client.no_show_count }} no-show(s) · {{ client.late_cancel_count }} late cancel(s)
-      </p>
-
-      <h3>Preferences</h3>
-      <label class="field">
-        Areas to pay more attention to
-        <textarea rows="2" [(ngModel)]="pref.attention_areas" data-testid="pref-attention"></textarea>
-      </label>
-      <label class="field">
-        Areas to avoid
-        <textarea rows="2" [(ngModel)]="pref.avoid_areas" data-testid="pref-avoid"></textarea>
-      </label>
-      <label class="field">
-        Pressure
-        <select [(ngModel)]="pref.pressure" data-testid="pref-pressure">
-          <option value="">—</option>
-          <option value="light">Light</option>
-          <option value="medium">Medium</option>
-          <option value="firm">Firm</option>
-        </select>
-      </label>
-      <label class="field">
-        Other requests
-        <textarea rows="2" [(ngModel)]="pref.other_requests" data-testid="pref-other"></textarea>
-      </label>
-      <button type="button" class="btn" (click)="savePreferences()" data-testid="pref-save">
-        Save preferences
-      </button>
-      @if (saved()) {
-        <span class="ok" data-testid="pref-saved">Saved.</span>
-      }
-
-      <h3>Visit history</h3>
-      @if (client.appointments?.length) {
-        <ul class="visits" data-testid="client-visits">
-          @for (a of client.appointments; track a.id) {
+      @if (clients().length) {
+        <ul class="picker" data-testid="clients-list">
+          @for (c of clients(); track c.id) {
             <li>
-              <span>{{ a.starts_at | wallClock: 'datetime' }}</span>
-              <span class="muted">{{ a.location }} · {{ a.therapists.join(', ') }} · {{ a.status }}</span>
+              <button
+                type="button"
+                class="picker__item"
+                [class.on]="selected()?.id === c.id"
+                (click)="open(c)"
+                [attr.data-testid]="'client-' + c.id"
+              >
+                <span class="picker__main">
+                  <strong>{{ c.full_name }}</strong>
+                  <small>{{ c.phone }}</small>
+                </span>
+                @if (c.no_show_count) {
+                  <ui-chip tone="warning">{{ c.no_show_count }} no-show</ui-chip>
+                }
+              </button>
             </li>
           }
         </ul>
       } @else {
-        <p class="muted">No visits yet.</p>
+        <ui-empty
+          icon="person_search"
+          title="No clients match"
+          [hint]="search ? 'Try part of a name, or the last four digits of a phone number.' : 'Clients appear here once they have been added at the desk.'"
+        />
       }
-    </div>
-  }
-</section>
+    </ui-card>
+
+    @if (selected(); as client) {
+      <div class="clients__detail" data-testid="client-detail">
+        <ui-card [heading]="client.full_name" [sub]="contact(client)">
+          <ui-facts [items]="reliability(client)" />
+        </ui-card>
+
+        <ui-card
+          heading="Preferences"
+          sub="Saved as a new version each time, so what was asked for previously is never lost."
+        >
+          <div class="form-grid">
+            <ui-field label="Areas to pay more attention to">
+              <textarea rows="2" [(ngModel)]="pref.attention_areas" data-testid="pref-attention"></textarea>
+            </ui-field>
+            <ui-field label="Areas to avoid" hint="Injuries, recent surgery, anywhere not to touch.">
+              <textarea rows="2" [(ngModel)]="pref.avoid_areas" data-testid="pref-avoid"></textarea>
+            </ui-field>
+            <ui-field label="Pressure">
+              <select [(ngModel)]="pref.pressure" data-testid="pref-pressure">
+                <option value="">No preference</option>
+                <option value="light">Light</option>
+                <option value="medium">Medium</option>
+                <option value="firm">Firm</option>
+              </select>
+            </ui-field>
+            <ui-field label="Other requests">
+              <textarea rows="2" [(ngModel)]="pref.other_requests" data-testid="pref-other"></textarea>
+            </ui-field>
+          </div>
+
+          <div class="row">
+            <ui-button icon="save" (click)="savePreferences()" data-testid="pref-save">
+              Save preferences
+            </ui-button>
+            @if (saved()) {
+              <ui-banner tone="success" data-testid="pref-saved">Saved.</ui-banner>
+            }
+          </div>
+        </ui-card>
+
+        <ui-card heading="Visit history" sub="Every location, most recent first.">
+          @if (client.appointments?.length) {
+            <ui-table label="Visit history">
+              <table data-testid="client-visits">
+                <thead>
+                  <tr><th>When</th><th>Location</th><th>Therapist</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  @for (a of client.appointments; track a.id) {
+                    <tr>
+                      <td>{{ a.starts_at | wallClock: 'datetime' }}</td>
+                      <td>{{ a.location }}</td>
+                      <td>{{ a.therapists.join(', ') }}</td>
+                      <td><ui-chip [tone]="tone(a.status)">{{ humanStatus(a.status) }}</ui-chip></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </ui-table>
+          } @else {
+            <ui-empty icon="history" title="No visits yet" hint="Completed appointments appear here." />
+          }
+        </ui-card>
+      </div>
+    }
+  </div>
+</ui-page>

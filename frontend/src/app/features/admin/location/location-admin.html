@@ -1,135 +1,181 @@
-<section class="admin">
-  <header class="admin__head">
-    <select [ngModel]="ctx.current()?.id" (ngModelChange)="onLocationChange($event)"
-            [disabled]="!ctx.canSwitch()" data-testid="loc-location">
-      @for (l of ctx.locations(); track l.id) {
-        <option [ngValue]="l.id">{{ l.name }}</option>
-      }
-    </select>
-  </header>
+<ui-page
+  title="Location"
+  sub="Opening hours, holidays, rooms and rooms out of service. Each of these decides what can be booked — a closed day offers no times at all."
+>
+  @if (error()) { <ui-banner tone="error" data-testid="loc-error">{{ error() }}</ui-banner> }
+  @if (notice()) { <ui-banner tone="success" data-testid="loc-notice">{{ notice() }}</ui-banner> }
 
-  @if (error(); as e) { <p class="alert" data-testid="loc-error">{{ e }}</p> }
-  @if (notice(); as n) { <p class="note" data-testid="loc-notice">{{ n }}</p> }
-
-  <div class="cols2">
-    <div class="panel" data-testid="loc-hours">
-      <h2>Business hours</h2>
-      <p class="hint">
-        Several rows for one day mean split hours — the gap between them offers no times.
-      </p>
-      <table class="table">
-        <tr><th>Day</th><th>Opens</th><th>Closes</th><th></th></tr>
-        @for (h of hours(); track $index) {
-          <tr>
-            <td>
-              <select [(ngModel)]="h.day_of_week">
-                @for (d of days; track $index) { <option [ngValue]="$index">{{ d }}</option> }
-              </select>
-            </td>
-            <td><input type="time" [(ngModel)]="h.opens_at" /></td>
-            <td><input type="time" [(ngModel)]="h.closes_at" /></td>
-            <td class="right">
-              <button type="button" class="linkish danger" (click)="removeHour($index)">Remove</button>
-            </td>
-          </tr>
-        }
-      </table>
-      @if (!hours().length) {
-        <p class="muted">No per-day hours set; the location's default opening times apply.</p>
+  <div class="split split--even">
+    <ui-card
+      heading="Opening hours"
+      sub="Two rows for one day means a midday close — the gap between them offers no times."
+      data-testid="loc-hours"
+    >
+      @if (hours().length) {
+        <ui-table label="Opening hours">
+          <table>
+            <thead><tr><th>Day</th><th>Opens</th><th>Closes</th><th></th></tr></thead>
+            <tbody>
+              @for (h of hours(); track $index) {
+                <tr>
+                  <td>
+                    <select [(ngModel)]="h.day_of_week" aria-label="Day of week">
+                      @for (d of days; track $index) { <option [ngValue]="$index">{{ d }}</option> }
+                    </select>
+                  </td>
+                  <td><input type="time" [(ngModel)]="h.opens_at" aria-label="Opens at" /></td>
+                  <td><input type="time" [(ngModel)]="h.closes_at" aria-label="Closes at" /></td>
+                  <td class="num">
+                    <ui-button variant="text" icon="delete" (click)="removeHour($index)"
+                               ariaLabel="Remove this row" />
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </ui-table>
+      } @else {
+        <ui-empty
+          icon="schedule"
+          title="No per-day hours set"
+          hint="The location's default opening times apply until you set them here."
+        />
       }
-      <div class="row">
-        <label>Day
+
+      <div class="form-grid">
+        <ui-field label="Day">
           <select [(ngModel)]="newHour.day_of_week">
             @for (d of days; track $index) { <option [ngValue]="$index">{{ d }}</option> }
           </select>
-        </label>
-        <label>Opens<input type="time" [(ngModel)]="newHour.opens_at" /></label>
-        <label>Closes<input type="time" [(ngModel)]="newHour.closes_at" /></label>
-        <button type="button" class="btn ghost" (click)="addHour()" data-testid="hours-add">Add row</button>
-        <button type="button" class="btn" (click)="saveHours()" data-testid="hours-save">Save week</button>
+        </ui-field>
+        <ui-field label="Opens"><input type="time" [(ngModel)]="newHour.opens_at" /></ui-field>
+        <ui-field label="Closes"><input type="time" [(ngModel)]="newHour.closes_at" /></ui-field>
       </div>
-    </div>
-
-    <div class="panel" data-testid="loc-closures">
-      <h2>Closures</h2>
-      <p class="hint">A closed day offers no times at all, and refuses new bookings outright.</p>
-      <ul class="plain">
-        @for (c of closures(); track c.id) {
-          <li>{{ c.date }} <small>{{ c.reason }}</small>
-            <span>
-              <button type="button" class="linkish danger" (click)="removeClosure(c)"
-                      [attr.data-testid]="'closure-remove-' + c.id">Reopen</button>
-            </span>
-          </li>
-        }
-        @if (!closures().length) { <li class="muted">No upcoming closures.</li> }
-      </ul>
       <div class="row">
-        <label>Date<input type="date" [(ngModel)]="newClosure.date" data-testid="closure-date" /></label>
-        <label>Reason<input [(ngModel)]="newClosure.reason" placeholder="Thanksgiving" /></label>
-        <button type="button" class="btn" (click)="addClosure()" data-testid="closure-save">Close day</button>
+        <ui-button variant="outlined" icon="add" (click)="addHour()" data-testid="hours-add">
+          Add row
+        </ui-button>
+        <ui-button icon="save" (click)="saveHours()" data-testid="hours-save">Save week</ui-button>
       </div>
-    </div>
+    </ui-card>
+
+    <ui-card
+      heading="Holidays and closures"
+      sub="A closed day offers no times and refuses bookings outright."
+      data-testid="loc-closures"
+    >
+      @if (closures().length) {
+        <ul class="rows">
+          @for (c of closures(); track c.id) {
+            <li>
+              <span class="rows__main">
+                <strong>{{ c.date }}</strong>
+                <small>{{ c.reason || 'No reason given' }}</small>
+              </span>
+              <ui-button variant="text" icon="undo" (click)="removeClosure(c)"
+                         [attr.data-testid]="'closure-remove-' + c.id">Reopen</ui-button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <ui-empty icon="event_available" title="No upcoming closures" />
+      }
+
+      <div class="form-grid">
+        <ui-field label="Date">
+          <input type="date" [(ngModel)]="newClosure.date" data-testid="closure-date" />
+        </ui-field>
+        <ui-field label="Reason" [optional]="true">
+          <input [(ngModel)]="newClosure.reason" placeholder="Thanksgiving" />
+        </ui-field>
+      </div>
+      <ui-button icon="event_busy" (click)="addClosure()" data-testid="closure-save">
+        Close this day
+      </ui-button>
+    </ui-card>
   </div>
 
-  <div class="panel wide" data-testid="loc-rooms">
-    <h2>Rooms</h2>
-    <table class="table">
-      <tr><th>Name</th><th>Type</th><th>Seats</th><th>Status</th><th></th></tr>
-      @for (r of rooms(); track r.id) {
-        <tr>
-          <td>{{ r.name }}</td>
-          <td>{{ r.room_type }}</td>
-          <td>{{ r.client_capacity }}</td>
-          <td>{{ r.status }}</td>
-          <td class="right">
-            <button type="button" class="linkish" (click)="showBlocks(r)"
-                    [attr.data-testid]="'blocks-' + r.id">Blocks</button>
-          </td>
-        </tr>
-      }
-    </table>
-    <div class="row">
-      <label>Name<input [(ngModel)]="newRoom.name" data-testid="room-name" /></label>
-      <label>Type
+  <ui-card heading="Rooms" sub="A room's type and how many it seats decide what can be booked into it."
+           data-testid="loc-rooms">
+    @if (rooms().length) {
+      <ui-table label="Rooms">
+        <table>
+          <thead><tr><th>Name</th><th>Type</th><th>Seats</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            @for (r of rooms(); track r.id) {
+              <tr>
+                <td>{{ r.name }}</td>
+                <td>{{ humanStatus(r.room_type) }}</td>
+                <td>{{ r.client_capacity }}</td>
+                <td><ui-chip [tone]="tone(r.status)">{{ humanStatus(r.status) }}</ui-chip></td>
+                <td class="num">
+                  <ui-button variant="text" icon="block" (click)="showBlocks(r)"
+                             [attr.data-testid]="'blocks-' + r.id">Out of service</ui-button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </ui-table>
+    } @else {
+      <ui-empty icon="meeting_room" title="No rooms yet"
+                hint="Nothing can be booked at a location with no rooms." />
+    }
+
+    <div class="form-grid">
+      <ui-field label="Name"><input [(ngModel)]="newRoom.name" data-testid="room-name" /></ui-field>
+      <ui-field label="Type">
         <select [(ngModel)]="newRoom.room_type">
-          <option value="single">single</option>
-          <option value="couple">couple</option>
-          <option value="three_table">three_table</option>
-          <option value="head_spa">head_spa</option>
+          <option value="single">Single</option>
+          <option value="couple">Couple</option>
+          <option value="three_table">Three tables</option>
+          <option value="head_spa">Head spa</option>
         </select>
-      </label>
-      <label>Seats
+      </ui-field>
+      <ui-field label="Seats">
         <select [(ngModel)]="newRoom.client_capacity">
           <option [ngValue]="1">1</option><option [ngValue]="2">2</option><option [ngValue]="3">3</option>
         </select>
-      </label>
-      <button type="button" class="btn" (click)="addRoom()" data-testid="room-save">Add room</button>
+      </ui-field>
     </div>
+    <ui-button icon="add" (click)="addRoom()" data-testid="room-save">Add room</ui-button>
+  </ui-card>
 
-    @if (blockedRoom(); as room) {
-      <h3>{{ room.name }} — blocks</h3>
-      <p class="hint">
-        A block takes the room out of the search exactly as a booking would (deep clean, repair,
-        private event).
-      </p>
-      <ul class="plain">
-        @for (b of blocks(); track b.id) {
-          <li>{{ wallClock(b.starts_at) }} → {{ wallClock(b.ends_at) }} <small>{{ b.reason }}</small>
-            <span>
-              <button type="button" class="linkish danger" (click)="removeBlock(b)">Remove</button>
-            </span>
-          </li>
-        }
-        @if (!blocks().length) { <li class="muted">No blocks on this room.</li> }
-      </ul>
-      <div class="row">
-        <label>Date<input type="date" [(ngModel)]="newBlock.date" data-testid="block-date" /></label>
-        <label>From<input type="time" [(ngModel)]="newBlock.starts_at" /></label>
-        <label>To<input type="time" [(ngModel)]="newBlock.ends_at" /></label>
-        <label>Reason<input [(ngModel)]="newBlock.reason" placeholder="Deep clean" /></label>
-        <button type="button" class="btn" (click)="addBlock()" data-testid="block-save">Block</button>
+  @if (blockedRoom(); as room) {
+    <ui-sheet
+      [heading]="room.name + ' — out of service'"
+      sub="A block takes the room out of the search exactly as a booking would: deep clean, repair, private event."
+      (closed)="blockedRoom.set(null)"
+    >
+      @if (blocks().length) {
+        <ul class="rows">
+          @for (b of blocks(); track b.id) {
+            <li>
+              <span class="rows__main">
+                <strong>{{ wallClock(b.starts_at) }} → {{ wallClock(b.ends_at) }}</strong>
+                <small>{{ b.reason || 'No reason given' }}</small>
+              </span>
+              <ui-button variant="text" icon="delete" (click)="removeBlock(b)" ariaLabel="Remove block" />
+            </li>
+          }
+        </ul>
+      } @else {
+        <ui-empty icon="check_circle" title="This room is available" />
+      }
+
+      <div class="form-grid">
+        <ui-field label="Date">
+          <input type="date" [(ngModel)]="newBlock.date" data-testid="block-date" />
+        </ui-field>
+        <ui-field label="From"><input type="time" [(ngModel)]="newBlock.starts_at" /></ui-field>
+        <ui-field label="To"><input type="time" [(ngModel)]="newBlock.ends_at" /></ui-field>
+        <ui-field label="Reason" [optional]="true">
+          <input [(ngModel)]="newBlock.reason" placeholder="Deep clean" />
+        </ui-field>
       </div>
-    }
-  </div>
-</section>
+      <ui-button icon="block" (click)="addBlock()" data-testid="block-save">
+        Take out of service
+      </ui-button>
+    </ui-sheet>
+  }
+</ui-page>

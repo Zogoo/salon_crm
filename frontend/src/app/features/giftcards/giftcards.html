@@ -1,93 +1,121 @@
-<section class="gc">
-  <div class="panel">
-    <h1>Sell a gift card</h1>
-    <p class="muted">Sold at {{ ctx.current()?.name }} — the sale stays attributed here for
-      reporting, but the card is redeemable at any location.</p>
+<ui-page
+  title="Gift cards"
+  sub="A card is sold at one location and spendable at all four. The sale is a liability until it is redeemed — it is not revenue on the day it is sold."
+>
+  @if (error()) { <ui-banner tone="error" data-testid="gc-error">{{ error() }}</ui-banner> }
 
-    @if (error()) {
-      <p class="alert" role="alert" data-testid="gc-error">{{ error() }}</p>
-    }
+  <div class="gc">
+    <ui-card
+      heading="Sell a card"
+      [sub]="'Attributed to ' + (ctx.current()?.name ?? 'this location') + ' for reporting.'"
+    >
+      <div class="form-grid">
+        <ui-field label="Amount" hint="What the client is paying, in dollars.">
+          <input type="number" step="1" min="1" [(ngModel)]="form.amountDollars"
+                 data-testid="gc-new-amount" />
+        </ui-field>
+        <ui-field label="Paid by">
+          <select [(ngModel)]="form.payment_method" data-testid="gc-new-method">
+            @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+          </select>
+        </ui-field>
+        <ui-field label="Buyer name">
+          <input [(ngModel)]="form.buyer_name" data-testid="gc-buyer" />
+        </ui-field>
+        <ui-field label="Buyer phone" [optional]="true">
+          <input [(ngModel)]="form.buyer_phone" data-testid="gc-buyer-phone" />
+        </ui-field>
+        <ui-field label="Recipient name" [optional]="true"
+                  hint="If the card is a present for someone else.">
+          <input [(ngModel)]="form.recipient_name" data-testid="gc-recipient" />
+        </ui-field>
+      </div>
 
-    <label class="field">Amount ($)
-      <input type="number" step="1" min="1" [(ngModel)]="form.amountDollars" data-testid="gc-new-amount" />
-    </label>
-    <label class="field">Paid by
-      <select [(ngModel)]="form.payment_method" data-testid="gc-new-method">
-        @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
-      </select>
-    </label>
-    <label class="field">Buyer name
-      <input [(ngModel)]="form.buyer_name" data-testid="gc-buyer" />
-    </label>
-    <label class="field">Buyer phone
-      <input [(ngModel)]="form.buyer_phone" data-testid="gc-buyer-phone" />
-    </label>
-    <label class="field">Recipient name
-      <input [(ngModel)]="form.recipient_name" data-testid="gc-recipient" />
-    </label>
-    <button type="button" class="btn" (click)="issue()" data-testid="gc-issue">Issue card</button>
+      <ui-button icon="card_giftcard" (click)="issue()" data-testid="gc-issue">Issue card</ui-button>
 
-    @if (issued(); as card) {
-      <p class="ok" data-testid="gc-issued">
-        Issued <strong>{{ card.code }}</strong> — ${{ card.current_balance_cents / 100 | number: '1.2-2' }}
-      </p>
-    }
-  </div>
-
-  <div class="panel">
-    <h1>Find a card</h1>
-    <input type="search" placeholder="Scan barcode, or search code / buyer"
-           [(ngModel)]="search" (input)="reload()" data-testid="gc-search" />
-
-    <ul class="list" data-testid="gc-list">
-      @for (c of cards(); track c.id) {
-        <li>
-          <button type="button" (click)="open(c)" [attr.data-testid]="'gc-' + c.id">
-            <strong>{{ c.code }}</strong>
-            <span class="bal">${{ c.current_balance_cents / 100 | number: '1.2-2' }}</span>
-            <div class="muted">
-              {{ c.sold_at_location.name }} · {{ c.status }}
-              @if (c.expired) { · <span class="warn">expired but still spendable</span> }
-            </div>
-          </button>
-        </li>
+      @if (issued(); as card) {
+        <ui-banner tone="success" data-testid="gc-issued">
+          Issued {{ card.code }} — ${{ card.current_balance_cents / 100 | number: '1.2-2' }}.
+          Write the code on the card before handing it over.
+        </ui-banner>
       }
-      @if (!cards().length) { <li class="muted">No cards found.</li> }
-    </ul>
+    </ui-card>
+
+    <ui-card heading="Find a card">
+      <ui-field label="Search" hint="Scan the barcode, or type a code or buyer name.">
+        <input type="search" placeholder="e.g. GC-2026-… or Sarah"
+               [(ngModel)]="search" (input)="reload()" data-testid="gc-search" />
+      </ui-field>
+
+      @if (cards().length) {
+        <ul class="picker" data-testid="gc-list">
+          @for (c of cards(); track c.id) {
+            <li>
+              <button type="button" class="picker__item" [class.on]="selected()?.id === c.id"
+                      (click)="open(c)" [attr.data-testid]="'gc-' + c.id">
+                <span class="picker__main">
+                  <strong>{{ c.code }}</strong>
+                  <small>{{ c.sold_at_location.name }}</small>
+                </span>
+                <span class="picker__amount">
+                  ${{ c.current_balance_cents / 100 | number: '1.2-2' }}
+                </span>
+                @if (c.expired) { <ui-chip tone="warning">expired</ui-chip> }
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <ui-empty
+          icon="search_off"
+          title="No cards found"
+          hint="Search by the code printed on the card, or the buyer's name."
+        />
+      }
+    </ui-card>
   </div>
 
   @if (selected(); as card) {
-    <div class="panel" data-testid="gc-detail">
-      <h1>{{ card.code }}</h1>
-      <dl class="facts">
-        <div><dt>Balance</dt><dd data-testid="gc-balance">${{ card.current_balance_cents / 100 | number: '1.2-2' }}</dd></div>
-        <div><dt>Face value</dt><dd>${{ card.initial_value_cents / 100 | number: '1.2-2' }}</dd></div>
-        <div><dt>Sold at</dt><dd>{{ card.sold_at_location.name }}</dd></div>
-        <div><dt>Sold</dt><dd>{{ card.sold_at | wallClock: 'date' }}</dd></div>
-        <div><dt>Expires</dt><dd>{{ card.expires_at | wallClock: 'date' }}</dd></div>
-      </dl>
+    <ui-card [heading]="card.code" data-testid="gc-detail">
+      <ui-chip cardAction [tone]="card.expired ? 'warning' : 'success'">
+        {{ humanStatus(card.status) }}
+      </ui-chip>
+
+      <ui-facts [items]="cardFacts(card)" />
 
       @if (card.expired) {
-        <p class="note" data-testid="gc-expired-note">
-          This card is past its expiry date, but the balance is still the client's. They can spend
-          it; if prices have risen since, they pay the difference.
-        </p>
+        <ui-banner tone="warning" data-testid="gc-expired-note">
+          Past its expiry date, but the balance is still the client's — expiry flags a card, it
+          never takes the money. They can spend it; if prices have risen since, they pay the
+          difference.
+        </ui-banner>
       }
 
       @if (card.ledger?.length) {
-        <h3>Ledger</h3>
-        <table class="ledger" data-testid="gc-ledger">
-          <tr><th>When</th><th>Kind</th><th class="num">Amount</th><th class="num">Balance</th></tr>
-          @for (t of card.ledger; track t.occurred_at) {
-            <tr>
-              <td>{{ t.occurred_at | wallClock: 'date' }}</td>
-              <td>{{ t.kind }}</td>
-              <td class="num">${{ t.amount_cents / 100 | number: '1.2-2' }}</td>
-              <td class="num">${{ t.balance_after_cents / 100 | number: '1.2-2' }}</td>
-            </tr>
-          }
-        </table>
+        <div>
+          <h3 class="sub-head">Ledger</h3>
+          <p class="sub-hint">
+            The balance is the sum of these rows, not a stored number — every movement is here.
+          </p>
+          <ui-table label="Gift card ledger">
+            <table data-testid="gc-ledger">
+              <thead>
+                <tr><th>When</th><th>Kind</th><th class="num">Amount</th><th class="num">Balance</th></tr>
+              </thead>
+              <tbody>
+                @for (t of card.ledger; track t.occurred_at) {
+                  <tr>
+                    <td>{{ t.occurred_at | wallClock: 'date' }}</td>
+                    <td>{{ humanStatus(t.kind) }}</td>
+                    <td class="num">${{ t.amount_cents / 100 | number: '1.2-2' }}</td>
+                    <td class="num">${{ t.balance_after_cents / 100 | number: '1.2-2' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </ui-table>
+        </div>
       }
-    </div>
+    </ui-card>
   }
-</section>
+</ui-page>
