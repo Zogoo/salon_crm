@@ -15,7 +15,21 @@ Rails.application.routes.draw do
 
       # --- Massagelab domain ---
       resources :locations, only: %i[index show]
-      resources :services, only: :index
+      resources :service_categories, only: :index
+      resources :services, only: %i[index show create update destroy] do
+        member do
+          get  :variants
+          post :activate
+          post :deactivate
+        end
+        resources :service_variants, only: :create, shallow: false
+      end
+      resources :service_variants, only: :update do
+        member do
+          get  "prices", action: :prices
+          post "prices", action: :set_price
+        end
+      end
       resources :staff, only: %i[index show create update] do
         member { post :offboard }
         # Each hangs off a staff profile but is its own resource: rates are

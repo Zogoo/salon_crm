@@ -23,7 +23,7 @@ module Workforce
       assert_complete_ladder!
 
       ImmediateTransaction.call do
-        EffectiveDating.close_open_periods!(@profile.staff_session_rates, @effective_from)
+        ::EffectiveDating.close_open_periods!(@profile.staff_session_rates, @effective_from)
         # create!, not insert_all: the no-overlap validation on the model is
         # what replaces the Postgres EXCLUDE constraint (doc 02 §4). Skipping
         # validations here would quietly remove the guarantee.

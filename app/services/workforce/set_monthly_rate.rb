@@ -16,7 +16,7 @@ module Workforce
       raise Invalid, "negative_amount" if @amount_cents.negative?
 
       ImmediateTransaction.call do
-        EffectiveDating.close_open_periods!(@profile.staff_monthly_rates, @effective_from)
+        ::EffectiveDating.close_open_periods!(@profile.staff_monthly_rates, @effective_from)
         @profile.staff_monthly_rates.create!(
           amount_cents: @amount_cents, effective_from: @effective_from,
           note: @note, created_by_user: @actor

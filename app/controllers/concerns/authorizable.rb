@@ -19,6 +19,13 @@ module Authorizable
   end
 
   def require_owner!   = require_role!(:owner)
+
+  # Doc 05 §5: the menu is the Owner's, except for a therapist explicitly
+  # granted the flag. Kept here so every catalogue endpoint asks the same way.
+  def require_menu_editor!
+    return if current_user.owner? || current_user.staff_profile&.can_edit_service_menu
+    raise Forbidden
+  end
   def require_booking! = (raise Forbidden unless current_user.can_create_appointments?)
 
   # Out-of-scope records return 404, not 403, so existence is not leaked
