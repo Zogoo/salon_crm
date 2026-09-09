@@ -117,6 +117,9 @@ Rails.application.routes.draw do
       # --- Money and operations ---
       resources :orders, only: %i[create show] do
         member do
+          post :discounts
+          post :line_items
+          post :refunds
           post :payments
           post :gift_card_redemptions
           post :membership_credit
@@ -125,17 +128,21 @@ Rails.application.routes.draw do
           post "payments/:payment_id/void", action: :void_payment, as: :void_payment
         end
       end
+      get "gift_cards/scan/:barcode", to: "gift_cards#scan"
       resources :gift_cards, only: %i[index show create] do
         member do
           post :adjust
           post :void
+          post :redeem
         end
       end
       resources :memberships, only: %i[index show create update] do
         member do
+          get  :credits
           post :record_payment
           post :request_cancellation
           post :adjust_credits
+          post :authorize_cross_location
         end
       end
 
@@ -155,6 +162,8 @@ Rails.application.routes.draw do
       get "reports/client_log",          to: "reports#client_log"
       get "reports/gift_card_liability", to: "reports#gift_card_liability"
       get "reports/ratings",             to: "reports#ratings"
+      get "reports/ratings/alerts",      to: "reports#rating_alerts"
+      get "reports/membership",          to: "reports#membership"
       get "reports/outstanding_fees",    to: "reports#outstanding_fees"
       get "reports/no_shows",            to: "reports#no_shows"
       get "reports/utilization",         to: "reports#utilization"

@@ -90,6 +90,62 @@ module Api
                status: :unprocessable_content
       end
 
+      # A manual discount. Kept as its own ledger row rather than editing the
+      # order total, so the reason and the person survive into reporting.
+      def discounts
+        require_owner!
+        order = find_order
+        OrderDiscount.create!(order:, kind: "manual",
+                              amount_cents: params.require(:amount_cents),
+                              reason: params[:reason], applied_by_user: current_user)
+        order.recalculate!
+        render json: order_json(order.reload), status: :created
+      rescue ActiveRecord::RecordInvalid => e
+        render_invalid(e.record.errors.full_messages.join(", "))
+      end
+
+      # A line added by hand at the desk. BR-48 makes revenue_category the
+      # backbone of every money report, so the caller has to say which of the
+      # three buckets this is — there is no generic "other" that reporting
+      # could quietly mis-file.
+      def line_items
+        order = find_order
+        quantity = params.fetch(:quantity, 1).to_i
+        unit = params.require(:unit_price_cents).to_i
+
+        OrderLineItem.create!(
+          order:, description: params.require(:description),
+          revenue_category: params.require(:revenue_category),
+          quantity:, unit_price_cents: unit, line_total_cents: quantity * unit,
+          staff_profile_id: params[:staff_profile_id]
+        )
+        order.recalculate!
+        render json: order_json(order.reload), status: :created
+      rescue ActiveRecord::RecordInvalid => e
+        render_invalid(e.record.errors.full_messages.join(", "))
+      end
+
+      # BR-23: a payment is immutable. Money already captured comes back as a
+      # refund row against it, never by rewriting the payment.
+      def refunds
+        require_owner!
+        order = find_order
+        payment = order.payments.captured.find(params.require(:payment_id))
+        amount = params.require(:amount_cents).to_i
+
+        already = Refund.where(payment:).sum(:amount_cents)
+        if amount + already > payment.amount_cents
+          return render_invalid("Refund exceeds the captured amount", code: "refund_exceeds_payment")
+        end
+
+        refund = Refund.create!(order:, payment:, amount_cents: amount,
+                                reason: params.fetch(:reason, "owner_discretion"),
+                                issued_by_user: current_user, issued_at: Time.current)
+        render json: order_json(order.reload).merge(refund_id: refund.id), status: :created
+      rescue ActiveRecord::RecordInvalid => e
+        render_invalid(e.record.errors.full_messages.join(", "))
+      end
+
       private
 
       def order_params = params.require(:order).permit(:appointment_id)

@@ -77,7 +77,33 @@ module Api
         render json: card_json(card)
       end
 
+      # A scanner types the code into the same lookup; there is no separate
+      # barcode column, so the code on the card *is* the barcode.
+      def scan
+        card = GiftCard.includes(:gift_card_transactions).find_by!(code: normalised(params[:barcode]))
+        render json: card_json(card, ledger: true)
+      end
+
+      # BR-27: a card is company-wide, so it redeems against any location's
+      # order. Same service as the checkout path — one redemption rule.
+      def redeem
+        order = Order.find(params.require(:order_id))
+        raise ActiveRecord::RecordNotFound unless current_user.can_access_location?(order.location_id)
+
+        GiftCards::RedeemCard.call(
+          code: normalised(params[:id]), order:,
+          amount_cents: params.require(:amount_cents), actor: current_user
+        )
+        render json: card_json(GiftCard.find_by!(code: normalised(params[:id])), ledger: true)
+      rescue GiftCards::RedeemCard::Invalid => e
+        code, available = e.message.split(":")
+        render json: { error: { code:, details: { available_cents: available&.to_i } } },
+               status: :unprocessable_content
+      end
+
       private
+
+      def normalised(value) = value.to_s.strip.upcase
 
       def card_params
         params.require(:gift_card).permit(:location_id, :amount_cents, :payment_method, :code,

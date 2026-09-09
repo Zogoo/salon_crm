@@ -69,7 +69,55 @@ module Api
         render json: membership_json(membership.reload, detail: true)
       end
 
+      # BR-41: the credit ledger is what makes the liability auditable.
+      def credits
+        membership = find_membership
+        txns = membership.membership_credit_transactions
+                         .includes(:performed_by_user, :cross_location_approved_by_user, :appointment)
+                         .order(occurred_at: :desc)
+
+        render json: {
+          membership_id: membership.id,
+          credits_balance: membership.credits_balance,
+          transactions: txns.map { |t| credit_json(t, membership) }
+        }
+      end
+
+      # BR-39a: a membership belongs to its joining location. Redeeming
+      # elsewhere is refused in the normal flow and needs an explicit Owner or
+      # Manager override, recorded against the approver — this is that override.
+      def authorize_cross_location
+        require_role!(:owner, :manager)
+        order = Order.find(params.require(:order_id))
+        # The approver is whoever runs the till the member is standing at, so
+        # authority is checked against the *redeeming* location. Scoping to the
+        # membership's home location instead would make the override
+        # unusable by the only Manager present.
+        raise ActiveRecord::RecordNotFound unless current_user.can_access_location?(order.location_id)
+
+        membership = ::Membership.includes(:client, :location).find(params[:id])
+
+        credited = Memberships::RedeemCredit.call(
+          membership:, order:, actor: current_user, cross_location_approver: current_user
+        )
+        render json: { membership_id: membership.id, order_id: order.id,
+                       credited_cents: credited,
+                       approved_by: current_user.name }
+      rescue Memberships::RedeemCredit::Invalid => e
+        render_invalid(e.message, code: e.message)
+      end
+
       private
+
+      def credit_json(txn, membership)
+        { id: txn.id, kind: txn.kind, amount: txn.amount, balance_after: txn.balance_after,
+          occurred_at: local_iso(txn.occurred_at, membership.location),
+          appointment_id: txn.appointment_id,
+          performed_by: txn.performed_by_user&.name,
+          cross_location_approved_by: txn.cross_location_approved_by_user&.name,
+          note: txn.note }
+      end
+
 
       def membership_params
         params.require(:membership).permit(:client_id, :location_id, :default_service_variant_id)

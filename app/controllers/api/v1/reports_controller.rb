@@ -3,7 +3,7 @@ module Api
     class ReportsController < ApplicationController
       before_action :require_owner!,
                     only: %i[daily_revenue gift_card_liability ratings
-                             no_shows utilization client_retention]
+                             no_shows utilization client_retention membership]
 
       # FRS §10
       def daily_revenue
@@ -28,6 +28,37 @@ module Api
         # instant like any other, and the client reads the wall clock straight
         # off the string.
         render json: data.merge(as_of: local_iso(data[:as_of], reporting_location))
+      end
+
+      # FRS §23 — Owner only, like every other money report.
+      def membership
+        from, to = range
+        render json: Reporting::Membership.call(location_ids:, from:, to:)
+      end
+
+      # BR-45a: the ratings a Manager is allowed to see, because they are the
+      # ones they are expected to act on at their own location.
+      def rating_alerts
+        from, to = range
+        scope = AppointmentRating.joins(appointment: :location)
+                                 .where(appointments: { location_id: location_ids })
+                                 .where(created_at: from.beginning_of_day..to.end_of_day)
+                                 .includes(:staff_profile, appointment: :location)
+                                 .order(created_at: :desc)
+
+        alerts = scope.select { |r| r.low?(r.appointment.location.low_rating_alert_below) }
+
+        render json: {
+          from:, to:, count: alerts.size,
+          alerts: alerts.map { |r|
+            { id: r.id, score: r.score, feedback: r.feedback, improvement: r.improvement,
+              threshold: r.appointment.location.low_rating_alert_below,
+              location: r.appointment.location.name,
+              therapist: r.staff_profile&.display_name,
+              appointment_id: r.appointment_id,
+              created_at: local_iso(r.created_at, r.appointment.location) }
+          }
+        }
       end
 
       def ratings
