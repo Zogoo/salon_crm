@@ -5,6 +5,17 @@ import { FormsModule } from '@angular/forms';
 import { EarningPeriod, EarningsReport, StaffMember } from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import {
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiField,
+  UiPage,
+  UiTable,
+  humanise,
+} from '../../ui';
 import { todayIn } from '../../core/salon-date';
 
 /**
@@ -16,9 +27,9 @@ import { todayIn } from '../../core/salon-date';
  */
 @Component({
   selector: 'app-earnings',
-  imports: [FormsModule, DecimalPipe],
+  imports: [FormsModule, DecimalPipe, UiPage, UiCard, UiField, UiButton, UiChip, UiEmpty, UiTable, UiBanner],
   templateUrl: './earnings.html',
-  styleUrl: './earnings.scss',
+  styleUrl: '../../ui/layouts.scss',
 })
 export class EarningsPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -29,6 +40,11 @@ export class EarningsPage implements OnInit {
   protected readonly staff = signal<StaffMember[]>([]);
   protected readonly report = signal<EarningsReport | null>(null);
   protected readonly error = signal<string | null>(null);
+
+  /** The lengths pay is defined for (FRS §4). */
+  protected readonly ladder = [30, 45, 60, 75, 90, 120];
+
+  protected humanStatus(value: string) { return humanise(value); }
 
   protected staffId: number | null = null;
   protected from = '';

@@ -6,6 +6,16 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Order, PaymentMethod } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import {
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiEmpty,
+  UiField,
+  UiPage,
+  UiTable,
+  humanise,
+} from '../../ui';
 
 /**
  * FRS §5, §7, §21 — the checkout.
@@ -15,9 +25,10 @@ import { MassagelabService } from '../../core/services/massagelab.service';
  */
 @Component({
   selector: 'app-checkout',
-  imports: [FormsModule, DecimalPipe],
+  imports: [FormsModule, DecimalPipe, UiPage, UiCard, UiField, UiButton, UiEmpty, UiTable, UiBanner],
   templateUrl: './checkout.html',
-  styleUrl: './checkout.scss',
+  // Shared list-and-detail layout first, then what is specific here.
+  styleUrls: ['../../ui/layouts.scss', './checkout.scss'],
 })
 export class CheckoutPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -28,6 +39,8 @@ export class CheckoutPage implements OnInit {
   protected readonly order = signal<Order | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
+
+  protected humanStatus(value: string) { return humanise(value); }
 
   protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
   protected method: PaymentMethod = 'card';

@@ -38,7 +38,8 @@ import {
     UiBanner,
   ],
   templateUrl: './giftcards.html',
-  styleUrl: './giftcards.scss',
+  // Shared list-and-detail layout first, then what is specific here.
+  styleUrls: ['../../ui/layouts.scss', './giftcards.scss'],
 })
 export class GiftCardsPage implements OnInit {
   private readonly api = inject(MassagelabService);

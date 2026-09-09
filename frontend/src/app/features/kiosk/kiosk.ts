@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import { UiBanner, UiButton, UiEmpty, UiField, UiIcon } from '../../ui';
 
 interface Waiting {
   id: number;
@@ -21,7 +22,7 @@ interface Waiting {
  */
 @Component({
   selector: 'app-kiosk',
-  imports: [FormsModule],
+  imports: [FormsModule, UiField, UiButton, UiBanner, UiEmpty, UiIcon],
   templateUrl: './kiosk.html',
   styleUrl: './kiosk.scss',
 })

@@ -36,7 +36,8 @@ import {
     UiBanner,
   ],
   templateUrl: './clients.html',
-  styleUrl: './clients.scss',
+  // Shared list-and-detail layout first, then what is specific here.
+  styleUrls: ['../../ui/layouts.scss', './clients.scss'],
 })
 export class ClientsPage implements OnInit {
   private readonly api = inject(MassagelabService);

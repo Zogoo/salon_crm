@@ -5,6 +5,17 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { ClientRecord, Service, ServiceVariant, Slot, StaffMember } from '../../core/models';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
+import {
+  Fact,
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiFacts,
+  UiField,
+  UiPage,
+} from '../../ui';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
@@ -12,9 +23,10 @@ import { todayIn } from '../../core/salon-date';
 /** FRS §5 — the New Appointment screen. */
 @Component({
   selector: 'app-booking',
-  imports: [FormsModule, DecimalPipe, WallClockPipe],
+  imports: [FormsModule, DecimalPipe, WallClockPipe, UiPage, UiCard, UiField, UiButton, UiChip, UiEmpty, UiFacts, UiBanner],
   templateUrl: './booking.html',
-  styleUrl: './booking.scss',
+  // Shared list-and-detail layout first, then what is specific here.
+  styleUrls: ['../../ui/layouts.scss', './booking.scss'],
 })
 export class BookingPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -26,6 +38,8 @@ export class BookingPage implements OnInit {
   protected readonly staff = signal<StaffMember[]>([]);
   protected readonly clients = signal<ClientRecord[]>([]);
   protected readonly slots = signal<Slot[]>([]);
+  /** Distinguishes "not searched yet" from "searched and found nothing". */
+  protected readonly searched = signal(false);
   protected readonly searching = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly suggestions = signal<string[]>([]);
@@ -66,6 +80,37 @@ export class BookingPage implements OnInit {
   protected readonly needsTwoClients = computed(
     () => (this.chosenVariant()?.required_client_capacity ?? 1) > 1,
   );
+
+  /**
+   * What is about to be booked. A summary beats a disabled button: the reader
+   * can see the whole decision in one place before committing to it.
+   */
+  protected summary(): Fact[] {
+    const client = this.clients().find((c) => c.id === this.selectedClientId);
+    const variant = this.chosenVariant();
+    return [
+      { label: 'Client', value: client?.full_name },
+      { label: 'Service', value: variant ? `${variant.duration_minutes} min` : null },
+      { label: 'When', value: this.selectedSlot ? this.selectedSlot.start_at.slice(11, 16) : null },
+      { label: 'Date', value: this.date },
+      { label: 'Total', value: `$${(this.totalCents() / 100).toFixed(2)}` },
+    ];
+  }
+
+  /** Names what is missing, so the disabled button is never a mystery. */
+  protected blockers(): string[] {
+    const missing: string[] = [];
+    if (!this.selectedClientId) missing.push('a client');
+    if (!this.selectedVariantId()) missing.push('a service');
+    if (!this.selectedSlot) missing.push('a time');
+    if (this.needsTwoClients() && !this.secondClientId) missing.push('a second client');
+    return missing;
+  }
+
+  protected useSuggestion(iso: string): void {
+    this.date = iso.slice(0, 10);
+    this.search();
+  }
 
   protected readonly totalCents = computed(() => {
     const ids = this.variantIds();
@@ -147,6 +192,7 @@ export class BookingPage implements OnInit {
       .availability(loc.id, this.variantIds(), this.date, this.requestedStaffId)
       .subscribe({
         next: (res) => {
+          this.searched.set(true);
           this.slots.set(res.days[0]?.slots ?? []);
           this.searching.set(false);
         },

@@ -43,7 +43,7 @@ import { todayIn } from '../../../core/salon-date';
     UiSheet,
   ],
   templateUrl: './roster-admin.html',
-  styleUrl: '../admin-shared.scss',
+  styleUrl: '../../../ui/layouts.scss',
 })
 export class RosterAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);

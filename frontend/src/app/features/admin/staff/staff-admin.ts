@@ -44,7 +44,7 @@ const LADDER = [30, 45, 60, 75, 90, 120] as const;
     UiBanner,
   ],
   templateUrl: './staff-admin.html',
-  styleUrl: '../admin-shared.scss',
+  styleUrl: '../../../ui/layouts.scss',
 })
 export class StaffAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);

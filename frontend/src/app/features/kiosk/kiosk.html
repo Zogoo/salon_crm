@@ -1,66 +1,88 @@
-<section class="kiosk">
+<!-- The kiosk stands unattended in a public room, so it carries no navigation
+     and nothing that could reach the rest of the console. Targets are large
+     because people use it standing up, on the way out. -->
+<main class="kiosk">
   @if (done()) {
-    <div class="thanks" data-testid="kiosk-thanks">
-      <h1>Thank you</h1>
-      <p>Your feedback goes straight to the owner and the manager here.</p>
+    <div class="kiosk__card" data-testid="kiosk-thanks">
+      <ui-icon name="check_circle" class="kiosk__tick" />
+      <h1 class="kiosk__title">Thank you</h1>
+      <p class="kiosk__lede">Your feedback goes straight to the owner and the manager here.</p>
     </div>
   } @else if (chosen(); as appt) {
-    <div class="rate">
-      <header>
-        <h1>How was your session?</h1>
-        <p class="muted">{{ appt.client_name }} · {{ appt.therapist }} · {{ appt.time }}</p>
-      </header>
+    <div class="kiosk__card">
+      <h1 class="kiosk__title">How was your session?</h1>
+      <p class="kiosk__lede">{{ appt.client_name }} · {{ appt.therapist }} · {{ appt.time }}</p>
 
-      @if (error()) { <p class="alert" role="alert" data-testid="kiosk-error">{{ error() }}</p> }
+      @if (error()) { <ui-banner tone="error" data-testid="kiosk-error">{{ error() }}</ui-banner> }
 
-      <div class="scores" data-testid="kiosk-scores">
+      <div class="scores" role="group" aria-label="Score out of ten" data-testid="kiosk-scores">
         @for (s of scores; track s) {
-          <button type="button" class="score" [class.on]="score === s"
-                  (click)="score = s" [attr.data-testid]="'score-' + s">{{ s }}</button>
+          <button
+            type="button"
+            class="score"
+            [class.on]="score === s"
+            (click)="score = s"
+            [attr.aria-pressed]="score === s"
+            [attr.data-testid]="'score-' + s"
+          >
+            {{ s }}
+          </button>
         }
       </div>
-      <p class="scale"><span>1 · very dissatisfied</span><span>10 · excellent</span></p>
+      <p class="scale"><span>1 — very dissatisfied</span><span>10 — excellent</span></p>
 
-      <label class="field">What could we improve?
+      <ui-field label="What could we do better?" [optional]="true">
         <textarea rows="2" [(ngModel)]="improvement" data-testid="kiosk-improve"></textarea>
-      </label>
-      <label class="field">Anything else?
+      </ui-field>
+      <ui-field label="Anything else?" [optional]="true">
         <textarea rows="2" [(ngModel)]="feedback" data-testid="kiosk-feedback"></textarea>
-      </label>
+      </ui-field>
 
       <div class="recommend">
-        <span>Would you recommend us?</span>
+        <span class="recommend__q">Would you recommend us?</span>
         <button type="button" class="pill" [class.on]="wouldRecommend === true"
+                [attr.aria-pressed]="wouldRecommend === true"
                 (click)="wouldRecommend = true" data-testid="rec-yes">Yes</button>
         <button type="button" class="pill" [class.on]="wouldRecommend === false"
+                [attr.aria-pressed]="wouldRecommend === false"
                 (click)="wouldRecommend = false" data-testid="rec-no">No</button>
       </div>
 
-      <div class="actions">
-        <button type="button" class="btn btn--ghost" (click)="back()">Back</button>
-        <button type="button" class="btn btn--big" [disabled]="score === null"
-                (click)="submit()" data-testid="kiosk-submit">Submit</button>
+      <div class="kiosk__actions">
+        <ui-button variant="outlined" (click)="back()">Back</ui-button>
+        <ui-button [disabled]="score === null" (click)="submit()" data-testid="kiosk-submit">
+          Submit
+        </ui-button>
       </div>
+      @if (score === null) {
+        <p class="kiosk__hint">Tap a score from 1 to 10 to finish.</p>
+      }
     </div>
   } @else {
-    <div class="pick">
-      <h1>Rate your visit</h1>
-      <p class="muted">{{ ctx.current()?.name }} — tap your name.</p>
+    <div class="kiosk__card">
+      <h1 class="kiosk__title">Rate your visit</h1>
+      <p class="kiosk__lede">{{ ctx.current()?.name }} — tap your name.</p>
 
       @if (queue().length) {
         <ul class="queue" data-testid="kiosk-queue">
           @for (w of queue(); track w.id) {
             <li>
-              <button type="button" (click)="choose(w)" [attr.data-testid]="'kiosk-appt-' + w.id">
+              <button type="button" class="queue__item" (click)="choose(w)"
+                      [attr.data-testid]="'kiosk-appt-' + w.id">
                 <strong>{{ w.client_name }}</strong>
-                <span class="muted">{{ w.time }} · {{ w.therapist }}</span>
+                <small>{{ w.time }} · {{ w.therapist }}</small>
               </button>
             </li>
           }
         </ul>
       } @else {
-        <p class="muted" data-testid="kiosk-empty">Nothing to rate just now.</p>
+        <ui-empty
+          icon="sentiment_satisfied"
+          title="Nothing to rate just now"
+          hint="Names appear here after a session is completed."
+          data-testid="kiosk-empty"
+        />
       }
     </div>
   }
-</section>
+</main>

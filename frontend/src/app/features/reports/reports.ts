@@ -13,6 +13,7 @@ import {
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
+import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable } from '../../ui';
 
 /**
  * FRS §9, §10, §12.
@@ -24,9 +25,10 @@ import { todayIn } from '../../core/salon-date';
  */
 @Component({
   selector: 'app-reports',
-  imports: [FormsModule, DecimalPipe],
+  imports: [FormsModule, DecimalPipe, UiPage, UiCard, UiField, UiButton, UiTable, UiBanner, UiEmpty],
   templateUrl: './reports.html',
-  styleUrl: './reports.scss',
+  // Shared list-and-detail layout first, then what is specific here.
+  styleUrls: ['../../ui/layouts.scss', './reports.scss'],
 })
 export class ReportsPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -40,6 +42,11 @@ export class ReportsPage implements OnInit {
   protected readonly utilization = signal<UtilizationReport | null>(null);
   protected readonly retention = signal<RetentionReport | null>(null);
   protected readonly error = signal<string | null>(null);
+
+  /** Names the location and range, so a figure is never read out of context. */
+  protected subtitle(): string {
+    return `Revenue, liabilities and fees at ${this.ctx.current()?.name ?? 'this location'} — kept apart on purpose, because adding them together is the most common mistake in salon accounting.`;
+  }
 
   // Set once the location is known — the salon's day, not the browser's.
   protected from = '';

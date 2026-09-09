@@ -44,7 +44,7 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
     UiSheet,
   ],
   templateUrl: './location-admin.html',
-  styleUrl: '../admin-shared.scss',
+  styleUrl: '../../../ui/layouts.scss',
 })
 export class LocationAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);

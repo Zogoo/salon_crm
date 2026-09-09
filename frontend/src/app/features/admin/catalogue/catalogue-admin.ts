@@ -41,7 +41,7 @@ import {
     UiBanner,
   ],
   templateUrl: './catalogue-admin.html',
-  styleUrl: '../admin-shared.scss',
+  styleUrl: '../../../ui/layouts.scss',
 })
 export class CatalogueAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);

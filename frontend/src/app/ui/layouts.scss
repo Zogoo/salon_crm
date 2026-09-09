@@ -1,8 +1,11 @@
-@use '../../../styles/tokens' as *;
+@use '../../styles/tokens' as *;
 
-// Layout shared by the four administration screens: a list on the left, the
-// selected record on the right, collapsing to one column on a phone. They were
-// four copies of the same file; this is the one copy.
+// The list-and-detail layout, shared by every screen shaped that way: a list
+// on one side, the selected record on the other, collapsing to a single column
+// on a phone.
+//
+// It began as four copies of the same file under features/admin. It lives here
+// because it is not about administration — it is about the shape.
 
 .split {
   display: grid;
@@ -103,3 +106,8 @@
   strong { @include type-body-md; }
   small { @include type-body-sm; color: var(--md-on-surface-variant); }
 }
+
+// Used by the booking and checkout screens as well as the admin ones.
+.picker__amount { @include type-title-sm; font-variant-numeric: tabular-nums; }
+
+.credit { color: var(--md-success); }

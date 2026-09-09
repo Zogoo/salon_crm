@@ -5,6 +5,20 @@ import { FormsModule } from '@angular/forms';
 import { ClientRecord, MembershipRecord, PaymentMethod, Service } from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import {
+  Fact,
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiFacts,
+  UiField,
+  UiPage,
+  UiTable,
+  humanise,
+  statusTone,
+} from '../../ui';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 
 /**
@@ -17,9 +31,9 @@ import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
  */
 @Component({
   selector: 'app-membership',
-  imports: [FormsModule, DecimalPipe, WallClockPipe],
+  imports: [FormsModule, DecimalPipe, WallClockPipe, UiPage, UiCard, UiField, UiButton, UiChip, UiEmpty, UiTable, UiFacts, UiBanner],
   templateUrl: './membership.html',
-  styleUrl: './membership.scss',
+  styleUrl: '../../ui/layouts.scss',
 })
 export class MembershipPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -34,6 +48,17 @@ export class MembershipPage implements OnInit {
   protected newClientId: number | null = null;
   protected newVariantId: number | null = null;
   protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
+  protected tone(status: string) { return statusTone(status); }
+  protected humanStatus(value: string) { return humanise(value); }
+
+  protected memberFacts(m: MembershipRecord): Fact[] {
+    return [
+      { label: 'Credits', value: `${m.credits_balance} / ${m.credits_cap}` },
+      { label: 'Renews', value: m.current_period_end?.slice(0, 10) },
+      { label: 'Status', value: humanise(m.status) },
+    ];
+  }
+
   protected payMethod: PaymentMethod = 'card';
 
   ngOnInit(): void {

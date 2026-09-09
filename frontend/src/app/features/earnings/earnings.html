@@ -1,97 +1,158 @@
-<section class="earn">
-  <div class="panel">
-    <h1>Staff earnings</h1>
-    @if (error()) { <p class="alert" role="alert" data-testid="earn-error">{{ error() }}</p> }
+<ui-page
+  title="Earnings"
+  sub="Therapists are paid per completed session, at the rate that applied on the day of the session. Tips are theirs in full and are shown separately."
+>
+  @if (error()) { <ui-banner tone="error" data-testid="earn-error">{{ error() }}</ui-banner> }
 
-    <div class="row">
-      <label class="field">Therapist
-        <select [(ngModel)]="staffId" data-testid="earn-staff">
-          <option [ngValue]="null">Choose…</option>
-          @for (s of staff(); track s.id) { <option [ngValue]="s.id">{{ s.display_name }}</option> }
-        </select>
-      </label>
-      <label class="field">From<input type="date" [(ngModel)]="from" data-testid="earn-from" /></label>
-      <label class="field">To<input type="date" [(ngModel)]="to" data-testid="earn-to" /></label>
-      <button type="button" class="btn" (click)="runReport()" data-testid="earn-run">Run</button>
+  <div class="split split--even">
+    <div class="detail">
+      <ui-card heading="One therapist" sub="What they earned over a date range.">
+        <div class="form-grid">
+          <ui-field label="Therapist">
+            <select [(ngModel)]="staffId" data-testid="earn-staff">
+              <option [ngValue]="null">Choose…</option>
+              @for (s of staff(); track s.id) { <option [ngValue]="s.id">{{ s.display_name }}</option> }
+            </select>
+          </ui-field>
+          <ui-field label="From"><input type="date" [(ngModel)]="from" data-testid="earn-from" /></ui-field>
+          <ui-field label="To"><input type="date" [(ngModel)]="to" data-testid="earn-to" /></ui-field>
+        </div>
+        <ui-button icon="search" (click)="runReport()" data-testid="earn-run">Run</ui-button>
+
+        @if (report(); as r) {
+          <div>
+            <h3 class="sub-head">{{ r.display_name }} · {{ r.period.from }} → {{ r.period.to }}</h3>
+            <p class="sub-hint">
+              A 60-minute massage booked with a 30-minute add-on is paid as one 90-minute session,
+              not as two lines.
+            </p>
+            <ui-table label="Earnings">
+              <table data-testid="earn-table">
+                <thead>
+                  <tr><th>Session</th><th class="num">Quantity</th><th class="num">Earnings</th></tr>
+                </thead>
+                <tbody>
+                  @for (row of r.sessions; track row.duration_minutes) {
+                    <tr [attr.data-testid]="'earn-row-' + row.duration_minutes">
+                      <td>{{ row.duration_minutes }} minutes</td>
+                      <td class="num">{{ row.quantity }}</td>
+                      <td class="num">${{ row.earnings_cents / 100 | number: '1.2-2' }}</td>
+                    </tr>
+                  }
+                  <tr>
+                    <td>Tips</td>
+                    <td class="num"></td>
+                    <td class="num" data-testid="earn-tips">
+                      ${{ r.tips_cents / 100 | number: '1.2-2' }}
+                    </td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="total">
+                    <td>Total</td>
+                    <td class="num"></td>
+                    <td class="num" data-testid="earn-total">
+                      ${{ r.total_cents / 100 | number: '1.2-2' }}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </ui-table>
+          </div>
+
+          <div>
+            <h3 class="sub-head">Add a session or tip by hand</h3>
+            <p class="sub-hint">For anything the system could not record itself. The reason is kept.</p>
+            <div class="form-grid">
+              <ui-field label="Date">
+                <input type="date" [(ngModel)]="manual.service_date" data-testid="manual-date" />
+              </ui-field>
+              <ui-field label="Length">
+                <select [(ngModel)]="manual.duration_minutes" data-testid="manual-duration">
+                  @for (d of ladder; track d) { <option [ngValue]="d">{{ d }} min</option> }
+                </select>
+              </ui-field>
+              <ui-field label="Quantity">
+                <input type="number" min="1" [(ngModel)]="manual.quantity" data-testid="manual-qty" />
+              </ui-field>
+              <ui-field label="Reason">
+                <input [(ngModel)]="manual.note" data-testid="manual-note" />
+              </ui-field>
+            </div>
+            <ui-button variant="tonal" icon="add" (click)="addManual()" data-testid="manual-add">
+              Add line
+            </ui-button>
+          </div>
+        }
+      </ui-card>
     </div>
 
-    @if (report(); as r) {
-      <h2>{{ r.display_name }} · {{ r.period.from }} → {{ r.period.to }}</h2>
-      <table class="table" data-testid="earn-table">
-        <tr><th>Session</th><th class="num">Quantity</th><th class="num">Earnings</th></tr>
-        @for (row of r.sessions; track row.duration_minutes) {
-          <tr [attr.data-testid]="'earn-row-' + row.duration_minutes">
-            <td>{{ row.duration_minutes }} minutes</td>
-            <td class="num">{{ row.quantity }}</td>
-            <td class="num">${{ row.earnings_cents / 100 | number: '1.2-2' }}</td>
-          </tr>
+    <div class="detail">
+      <ui-card heading="Pay periods" sub="Periods open on the 1st and the 16th.">
+        @if (periods().length) {
+          <ul class="picker" data-testid="period-list">
+            @for (p of periods(); track p.id) {
+              <li>
+                <button type="button" class="picker__item" [class.on]="selectedPeriod()?.id === p.id"
+                        (click)="openPeriod(p)" [attr.data-testid]="'period-' + p.id">
+                  <span class="picker__main">
+                    <strong>{{ p.starts_on }} → {{ p.ends_on }}</strong>
+                  </span>
+                  <ui-chip [tone]="p.locked ? 'neutral' : 'info'">{{ humanStatus(p.status) }}</ui-chip>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <ui-empty icon="event_repeat" title="No periods yet"
+                    hint="They open automatically on the 1st and the 16th." />
         }
-        <tr><td>Tips</td><td class="num"></td>
-          <td class="num" data-testid="earn-tips">${{ r.tips_cents / 100 | number: '1.2-2' }}</td></tr>
-        <tr class="total"><td>Total</td><td class="num"></td>
-          <td class="num" data-testid="earn-total">${{ r.total_cents / 100 | number: '1.2-2' }}</td></tr>
-      </table>
-      <small class="hint">A 60-minute massage booked with a 30-minute add-on is paid — and counted
-        here — as one 90-minute session.</small>
+      </ui-card>
 
-      <h3>Add a session or tip by hand</h3>
-      <div class="row">
-        <input type="date" [(ngModel)]="manual.service_date" data-testid="manual-date" aria-label="Date" />
-        <select [(ngModel)]="manual.duration_minutes" data-testid="manual-duration" aria-label="Length">
-          @for (d of [30, 45, 60, 75, 90, 120]; track d) { <option [ngValue]="d">{{ d }} min</option> }
-        </select>
-        <input type="number" min="1" [(ngModel)]="manual.quantity" data-testid="manual-qty" aria-label="Quantity" />
-        <input placeholder="Reason" [(ngModel)]="manual.note" data-testid="manual-note" />
-        <button type="button" class="btn btn--ghost" (click)="addManual()" data-testid="manual-add">Add</button>
-      </div>
-    }
-  </div>
+      @if (selectedPeriod(); as p) {
+        <ui-card [heading]="p.starts_on + ' → ' + p.ends_on">
+          <div class="row">
+            <ui-button variant="tonal" icon="refresh" (click)="build(p)" [disabled]="p.locked"
+                       data-testid="period-build">Rebuild statements</ui-button>
+            <ui-button variant="danger" icon="lock" (click)="lock(p)" [disabled]="p.locked"
+                       data-testid="period-lock">Lock period</ui-button>
+          </div>
 
-  <div class="panel">
-    <h1>Periods</h1>
-    <ul class="list" data-testid="period-list">
-      @for (p of periods(); track p.id) {
-        <li>
-          <button type="button" (click)="openPeriod(p)" [attr.data-testid]="'period-' + p.id">
-            {{ p.starts_on }} → {{ p.ends_on }}
-            <span class="status" [class.locked]="p.locked">{{ p.status }}</span>
-          </button>
-        </li>
-      }
-      @if (!periods().length) { <li class="muted">No periods yet — they open on the 1st and 16th.</li> }
-    </ul>
-
-    @if (selectedPeriod(); as p) {
-      <h2>{{ p.starts_on }} → {{ p.ends_on }}</h2>
-      <div class="row">
-        <button type="button" class="btn btn--ghost" (click)="build(p)"
-                [disabled]="p.locked" data-testid="period-build">Rebuild</button>
-        <button type="button" class="btn btn--danger" (click)="lock(p)"
-                [disabled]="p.locked" data-testid="period-lock">Lock</button>
-      </div>
-      @if (p.locked) {
-        <p class="note" data-testid="period-locked-note">
-          Locked — these lines are read-only. Corrections go into the next period as adjustments.
-        </p>
-      }
-
-      @if (p.statements?.length) {
-        <table class="table" data-testid="statements">
-          <tr><th>Therapist</th><th class="num">Sessions</th><th class="num">Service</th>
-            <th class="num">Tips</th><th class="num">Gross</th></tr>
-          @for (s of p.statements; track s.id) {
-            <tr>
-              <td>{{ s.display_name }}</td>
-              <td class="num">{{ s.total_sessions }}</td>
-              <td class="num">${{ s.service_earnings_cents / 100 | number: '1.2-2' }}</td>
-              <td class="num">${{ s.tips_cents / 100 | number: '1.2-2' }}</td>
-              <td class="num">${{ s.gross_amount_cents / 100 | number: '1.2-2' }}</td>
-            </tr>
+          @if (p.locked) {
+            <ui-banner tone="info" data-testid="period-locked-note">
+              Locked, so these lines cannot change. A correction goes into the next period as an
+              adjustment rather than rewriting pay that has already been reported.
+            </ui-banner>
           }
-        </table>
-      } @else {
-        <p class="muted">No statements yet — rebuild to generate them.</p>
+
+          @if (p.statements?.length) {
+            <ui-table label="Statements">
+              <table data-testid="statements">
+                <thead>
+                  <tr>
+                    <th>Therapist</th><th class="num">Sessions</th><th class="num">Service</th>
+                    <th class="num">Tips</th><th class="num">Gross</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (s of p.statements; track s.id) {
+                    <tr>
+                      <td>{{ s.display_name }}</td>
+                      <td class="num">{{ s.total_sessions }}</td>
+                      <td class="num">${{ s.service_earnings_cents / 100 | number: '1.2-2' }}</td>
+                      <td class="num">${{ s.tips_cents / 100 | number: '1.2-2' }}</td>
+                      <td class="num">${{ s.gross_amount_cents / 100 | number: '1.2-2' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </ui-table>
+          } @else {
+            <ui-empty icon="receipt_long" title="No statements yet"
+                      hint="Rebuild to generate them from the sessions in this period." />
+          }
+        </ui-card>
       }
-    }
+    </div>
   </div>
-</section>
+</ui-page>

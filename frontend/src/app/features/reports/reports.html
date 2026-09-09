@@ -1,25 +1,20 @@
-<section class="rep">
-  <header class="rep__head">
-    @if (ctx.canSwitch()) {
-      <select aria-label="Location" [ngModel]="ctx.current()?.id"
-              (ngModelChange)="onLocationChange($event)" data-testid="rep-location">
-        @for (l of ctx.locations(); track l.id) { <option [ngValue]="l.id">{{ l.name }}</option> }
-      </select>
-    } @else {
-      <strong>{{ ctx.current()?.name }}</strong>
-    }
-    <input type="date" [(ngModel)]="from" data-testid="rep-from" aria-label="From" />
-    <input type="date" [(ngModel)]="to" data-testid="rep-to" aria-label="To" />
-    <button type="button" class="btn" (click)="runAll()" data-testid="rep-run">Run</button>
-  </header>
+<ui-page
+  title="Reports"
+  [sub]="subtitle()"
+>
+  <div pageActions class="row">
+    <ui-field label="From"><input type="date" [(ngModel)]="from" data-testid="rep-from" /></ui-field>
+    <ui-field label="To"><input type="date" [(ngModel)]="to" data-testid="rep-to" /></ui-field>
+    <ui-button icon="search" (click)="runAll()" data-testid="rep-run">Run</ui-button>
+  </div>
 
-  @if (error()) { <p class="alert" role="alert">{{ error() }}</p> }
+  @if (error()) { <ui-banner tone="error">{{ error() }}</ui-banner> }
 
-  <div class="grid">
+  <div class="rep">
     @if (revenue(); as r) {
-      <div class="panel" data-testid="rep-revenue">
-        <h2>Revenue</h2>
-        <table class="table">
+      <ui-card heading="Revenue" data-testid="rep-revenue">
+        <ui-table label="Report table">
+        <table>
           @for (m of methodKeys(r); track m) {
             <tr><td>{{ m }}</td>
               <td class="num" [attr.data-testid]="'rev-' + m">${{ r.by_method[m] / 100 | number: '1.2-2' }}</td></tr>
@@ -27,9 +22,11 @@
           <tr class="total"><td>Collected</td>
             <td class="num" data-testid="rev-collected">${{ r.collected_cents / 100 | number: '1.2-2' }}</td></tr>
         </table>
+        </ui-table>
 
-        <h3>What that is made of</h3>
-        <table class="table">
+        <h3 class="sub-head">What that is made of</h3>
+        <ui-table label="Report table">
+        <table>
           <tr><td>Service revenue</td>
             <td class="num" data-testid="rev-service">${{ r.service_revenue_cents / 100 | number: '1.2-2' }}</td></tr>
           <tr class="liab"><td>Gift cards sold <small>(liability)</small></td>
@@ -40,52 +37,53 @@
           <tr><td>Tips <small>(the therapist's)</small></td>
             <td class="num">${{ r.tips_cents / 100 | number: '1.2-2' }}</td></tr>
         </table>
+        </ui-table>
         <small class="hint">Gift card and membership sales are liabilities, not revenue — they are
           recognised when redeemed. Never add these rows together.</small>
-      </div>
+      </ui-card>
     }
 
     @if (liability(); as l) {
-      <div class="panel" data-testid="rep-liability">
-        <h2>Gift card liability</h2>
+      <ui-card heading="Gift card liability" data-testid="rep-liability">
         <p class="big">${{ l.total_outstanding_cents / 100 | number: '1.2-2' }}
           <small>across {{ l.card_count }} cards</small></p>
-        <table class="table">
+        <ui-table label="Report table">
+        <table>
           @for (name of locationKeys(l); track name) {
             <tr><td>{{ name }}</td>
               <td class="num">${{ l.by_location[name].cents / 100 | number: '1.2-2' }}</td></tr>
           }
         </table>
+        </ui-table>
         @if (l.expired_but_spendable_cents) {
-          <p class="note" data-testid="rep-expired">
+          <ui-banner tone="warning" data-testid="rep-expired">
             ${{ l.expired_but_spendable_cents / 100 | number: '1.2-2' }} sits on cards past their
             expiry date. That money is still the client's and still spendable — it never falls off
             the books by itself.
-          </p>
+          </ui-banner>
         }
-      </div>
+      </ui-card>
     }
 
     @if (fees(); as f) {
-      <div class="panel" data-testid="rep-fees">
-        <h2>Unpaid no-show fees</h2>
+      <ui-card heading="Unpaid no-show fees" data-testid="rep-fees">
         <p class="big">${{ f.total_cents / 100 | number: '1.2-2' }}</p>
         <small class="hint">The front desk is not warned at booking time, so this list is the only
           thing standing between an unpaid fee and it being forgotten.</small>
-        <ul class="plain">
+        <ul class="rows">
           @for (o of f.orders; track $any(o).id) {
             <li>{{ $any(o).client?.full_name || 'walk-in' }}
               <span>${{ $any(o).amount_cents / 100 | number: '1.2-2' }}</span></li>
           }
           @if (!f.orders.length) { <li class="muted">Nothing outstanding.</li> }
         </ul>
-      </div>
+      </ui-card>
     }
 
     @if (noShows(); as n) {
-      <div class="panel" data-testid="rep-noshows">
-        <h2>No-shows &amp; late cancellations</h2>
-        <table class="table">
+      <ui-card heading="No-shows &amp; late cancellations" data-testid="rep-noshows">
+        <ui-table label="Report table">
+        <table>
           <tr><td>Appointments</td><td class="num">{{ n.appointments }}</td></tr>
           <tr><td>No-shows</td>
             <td class="num" data-testid="ns-count">{{ n.no_shows }}
@@ -98,49 +96,49 @@
           <tr><td>Fees collected</td>
             <td class="num">${{ n.fees_collected_cents / 100 | number: '1.2-2' }}</td></tr>
         </table>
+        </ui-table>
         <small class="hint">A fee owed is not revenue. It counts only once collected,
           and never as service revenue (BR-48).</small>
         @if (entries(n.by_therapist).length) {
-          <h3>By therapist</h3>
-          <ul class="plain">
+          <h3 class="sub-head">By therapist</h3>
+          <ul class="rows">
             @for (e of entries(n.by_therapist); track e.key) {
               <li>{{ e.key }}<span>{{ e.value }}</span></li>
             }
           </ul>
         }
-      </div>
+      </ui-card>
     }
 
     @if (utilization(); as u) {
-      <div class="panel" data-testid="rep-utilization">
-        <h2>Room utilization</h2>
+      <ui-card heading="Room utilization" data-testid="rep-utilization">
         <!-- BR-28: the denominator is the room's open hours, not the wall clock. -->
         <p class="hint">{{ u.open_minutes_per_room / 60 | number: '1.0-1' }} open hours per room
           over this range.</p>
-        <h3>Rooms</h3>
-        <ul class="plain">
+        <h3 class="sub-head">Rooms</h3>
+        <ul class="rows">
           @for (r of u.rooms; track r.room_id) {
             <li>{{ r.name }}<span>{{ r.utilization_percent | number: '1.0-1' }}%</span></li>
           }
           @if (!u.rooms.length) { <li class="muted">No rooms configured.</li> }
         </ul>
 
-        <h3>Therapists</h3>
+        <h3 class="sub-head">Therapists</h3>
         <!-- Against published shift hours, not the location's open hours. -->
-        <ul class="plain">
+        <ul class="rows">
           @for (t of u.therapists; track t.staff_profile_id) {
             <li>{{ t.display_name }}
               <span>{{ t.utilization_percent | number: '1.0-1' }}%</span></li>
           }
           @if (!u.therapists.length) { <li class="muted">Nobody on shift.</li> }
         </ul>
-      </div>
+      </ui-card>
     }
 
     @if (retention(); as c) {
-      <div class="panel" data-testid="rep-retention">
-        <h2>Client retention</h2>
-        <table class="table">
+      <ui-card heading="Client retention" data-testid="rep-retention">
+        <ui-table label="Report table">
+        <table>
           <tr><td>Clients seen</td>
             <td class="num" data-testid="ret-seen">{{ c.clients_seen }}</td></tr>
           <tr><td>New</td><td class="num">{{ c.new_clients }}</td></tr>
@@ -151,23 +149,24 @@
           <tr><td>Lapsed <small>({{ c.lapsed.after_days }}+ days)</small></td>
             <td class="num">{{ c.lapsed.count }}</td></tr>
         </table>
+        </ui-table>
         @if (c.top_clients.length) {
-          <h3>Most frequent</h3>
-          <ul class="plain">
+          <h3 class="sub-head">Most frequent</h3>
+          <ul class="rows">
             @for (t of c.top_clients; track t.client_id) {
               <li>{{ t.full_name }}
                 <span>{{ t.visits }} · ${{ t.spend_cents / 100 | number: '1.2-2' }}</span></li>
             }
           </ul>
         }
-      </div>
+      </ui-card>
     }
 
     @if (log(); as rows) {
-      <div class="panel wide" data-testid="rep-clientlog">
-        <h2>Client log · {{ from }}</h2>
+      <ui-card heading="Client log · {{ from }}" data-testid="rep-clientlog">
         @if (rows.length) {
-          <table class="table">
+          <ui-table label="Report table">
+          <table>
             <tr><th>Time</th><th>Client</th><th>Therapist</th><th>Service</th>
               <th class="num">Price</th><th class="num">Tip</th><th class="num">Paid</th><th>Method</th></tr>
             @for (r of rows; track r.appointment_id) {
@@ -183,10 +182,11 @@
               </tr>
             }
           </table>
+        </ui-table>
         } @else {
-          <p class="muted">No completed appointments on this date.</p>
+          <ui-empty icon="receipt_long" title="No completed appointments on this date" />
         }
-      </div>
+      </ui-card>
     }
   </div>
-</section>
+</ui-page>
