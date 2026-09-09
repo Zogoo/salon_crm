@@ -29,6 +29,11 @@ module Authorizable
     location
   end
 
+  # One shape for every 422 in the API, so clients can branch on `code`.
+  def render_invalid(message, code: "invalid")
+    render json: { error: { code:, message: } }, status: :unprocessable_content
+  end
+
   def render_forbidden
     render json: { error: I18n.t("auth.forbidden", default: "Not permitted") }, status: :forbidden
   end

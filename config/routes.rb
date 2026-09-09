@@ -16,9 +16,18 @@ Rails.application.routes.draw do
       # --- Massagelab domain ---
       resources :locations, only: %i[index show]
       resources :services, only: :index
-      resources :staff, only: %i[index show] do
+      resources :staff, only: %i[index show create update] do
         member { post :offboard }
+        # Each hangs off a staff profile but is its own resource: rates are
+        # effective-dated and qualifications are a set, neither of which
+        # belongs in a PATCH of the profile.
+        scope module: :staff do
+          resource  :qualifications, only: %i[show update]
+          resources :session_rates,  only: %i[index create]
+          resource  :monthly_rate,   only: %i[show create], controller: :monthly_rates
+        end
       end
+      get "manager_payouts", to: "manager_payouts#index"
       resources :shifts, only: %i[index create destroy] do
         member do
           post "breaks", action: :create_break
