@@ -26,13 +26,17 @@ describe('App', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('renders signed-out navigation when no token is stored', async () => {
+  it('offers no destinations until someone is signed in', async () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     await fixture.whenStable();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.brand')?.textContent).toContain('Mongolian Massagelab');
+    expect(compiled.querySelector('.appbar__brand')?.textContent).toContain('Massagelab');
+    // Navigation is built from the signed-in role, so an anonymous visitor is
+    // shown nothing to click rather than links that would 403.
+    expect(compiled.querySelectorAll('.drawer__link')).toHaveLength(0);
+    expect(compiled.querySelector('[data-testid="current-role"]')).toBeNull();
     TestBed.inject(HttpTestingController).verify();
   });
 });

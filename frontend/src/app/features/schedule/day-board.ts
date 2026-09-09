@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 
 import { Appointment, CareNote, DayBoard, Room } from '../../core/models';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
@@ -9,6 +9,21 @@ import { AuthService } from '../../core/services/auth.service';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
+import {
+  Fact,
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiChip,
+  UiEmpty,
+  UiFacts,
+  UiField,
+  UiPage,
+  UiSheet,
+  UiTable,
+  humanise,
+  statusTone,
+} from '../../ui';
 
 interface Placed {
   appointment: Appointment;
@@ -20,7 +35,21 @@ interface Placed {
 /** FRS §6 — rooms as rows, time across, 09:00–22:00. */
 @Component({
   selector: 'app-day-board',
-  imports: [FormsModule, RouterLink, DecimalPipe, WallClockPipe],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    WallClockPipe,
+    UiPage,
+    UiCard,
+    UiTable,
+    UiChip,
+    UiEmpty,
+    UiBanner,
+    UiButton,
+    UiField,
+    UiSheet,
+    UiFacts,
+  ],
   templateUrl: './day-board.html',
   styleUrl: './day-board.scss',
 })
@@ -37,6 +66,63 @@ export class DayBoardPage implements OnInit {
   protected readonly careNotes = signal<CareNote[]>([]);
   protected newCareNote = '';
   protected date = '';
+
+  /** Names the location, so a board is never read against the wrong salon. */
+  protected readonly subtitle = computed(
+    () => `Every room and therapist at ${this.ctx.current()?.name ?? 'this location'}, hour by hour.`,
+  );
+  protected readonly canBook = computed(() => this.auth.user()?.role !== 'staff');
+  protected readonly isTherapist = computed(() => this.auth.user()?.role === 'staff');
+
+  protected readonly emptyHint = computed(() =>
+    this.canBook()
+      ? 'Book one, or check the date above — the board shows a single day.'
+      : 'Check the date above; the board shows a single day.',
+  );
+
+  protected tone(status: string) { return statusTone(status); }
+  protected humanStatus(status: string) { return humanise(status); }
+  protected destructive(action: string) { return action === 'cancelled' || action === 'no_show'; }
+
+  protected summary(appt: Appointment): Fact[] {
+    const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+    const facts: Fact[] = [
+      { label: 'Time', value: `${this.clock(appt.starts_at)}–${this.clock(appt.service_ends_at)}` },
+      { label: 'Room', value: appt.room?.name },
+      {
+        label: appt.therapists.length > 1 ? 'Therapists' : 'Therapist',
+        value: appt.therapists.map((t) => t.display_name).join(', ') || 'Unassigned',
+      },
+      { label: 'Total', value: money(appt.total_price_cents) },
+    ];
+    if (appt.fee_charged_cents) {
+      // BR-19: recorded as owed, and saying so stops it being read as taken.
+      facts.push({
+        label: 'Fee owed',
+        value: money(appt.fee_charged_cents),
+        hint: 'Owed, not yet collected.',
+      });
+    }
+    return facts;
+  }
+
+  protected preferenceFacts(appt: Appointment): Fact[] {
+    const p = appt.preference;
+    if (!p) return [];
+    return (
+      [
+        { label: 'Pressure', value: p.pressure },
+        { label: 'Attention', value: p.attention_areas },
+        { label: 'Avoid', value: p.avoid_areas },
+        { label: 'Other', value: p.other_requests },
+      ] as Fact[]
+    ).filter((f) => !!f.value);
+  }
+
+  /** The salon's wall clock, read straight off the ISO string. */
+  private clock(iso: string): string {
+    return iso.slice(11, 16);
+  }
 
   protected readonly hours = computed(() => {
     const b = this.board();

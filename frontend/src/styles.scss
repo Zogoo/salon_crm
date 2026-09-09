@@ -1,90 +1,54 @@
-:root {
-  --bg: #f7f7f8;
-  --surface: #ffffff;
-  --border: #e2e2e6;
-  --text: #1b1b1f;
-  --muted: #6b6b76;
-  --accent: #2f5cff;
-  --danger: #c0392b;
-}
+@use 'styles/tokens' as *;
 
-* {
-  box-sizing: border-box;
-}
+// Global base only. Anything a screen needs more than once belongs in a shared
+// component under app/ui, not here — this file is deliberately short.
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
-  line-height: 1.5;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font-family: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  @include type-body-md;
+  // Long tables scroll inside their own container; the page never does.
+  overflow-x: hidden;
 }
+
+h1, h2, h3, h4 { margin: 0; font-weight: 500; }
+p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
 
 a {
-  color: var(--accent);
+  color: var(--md-primary);
+  text-decoration: none;
+  @include focus-ring;
+  &:hover { text-decoration: underline; }
 }
 
-button {
-  font: inherit;
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  cursor: pointer;
+// Native controls inherit the type scale so a screen never has to restate it.
+button, input, select, textarea { font: inherit; color: inherit; }
 
-  &.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-  }
-
-  &.danger {
-    color: var(--danger);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+// Respect the reader's motion preference.
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
-input,
-textarea {
-  font: inherit;
-  width: 100%;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-}
-
-label {
-  display: block;
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-
-  span {
-    display: block;
-    margin-bottom: 0.25rem;
-    color: var(--muted);
-  }
-}
-
-.card {
-  padding: 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-}
-
-.error {
-  margin: 0.75rem 0;
-  color: var(--danger);
-  font-size: 0.9rem;
+// Visible only to screen readers — used for labels that would otherwise be
+// implied by layout alone.
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

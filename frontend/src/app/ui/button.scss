@@ -1,0 +1,57 @@
+@use '../../styles/tokens' as *;
+
+:host { display: inline-flex; }
+:host([full]) { display: flex; }
+
+.btn {
+  @include type-label-lg;
+  @include touch-target;
+  @include state-layer;
+  @include focus-ring;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-5);
+  border: none;
+  border-radius: var(--md-shape-full);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: box-shadow 120ms ease;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.38;
+    &::after { opacity: 0; }
+  }
+}
+
+.btn--full { width: 100%; }
+
+.btn--filled {
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+}
+
+.btn--tonal {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.btn--outlined {
+  background: transparent;
+  color: var(--md-primary);
+  border: 1px solid var(--md-outline);
+}
+
+.btn--text {
+  background: transparent;
+  color: var(--md-primary);
+  padding: 0 var(--sp-3);
+}
+
+.btn--danger {
+  background: var(--md-error);
+  color: var(--md-on-error);
+}

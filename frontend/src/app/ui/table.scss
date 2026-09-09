@@ -1,0 +1,37 @@
+@use '../../styles/tokens' as *;
+
+:host { display: block; min-width: 0; }
+
+.scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  @include focus-ring;
+}
+
+:host ::ng-deep table {
+  width: 100%;
+  border-collapse: collapse;
+  @include type-body-md;
+
+  th {
+    @include type-label-md;
+    text-align: left;
+    color: var(--md-on-surface-variant);
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: var(--sp-3) var(--sp-3);
+    border-bottom: 1px solid var(--md-outline-variant);
+  }
+
+  td {
+    padding: var(--sp-3) var(--sp-3);
+    border-bottom: 1px solid var(--md-outline-variant);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  // Numbers line up on the decimal so columns of money can be scanned.
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .total td { font-weight: 700; border-top: 2px solid var(--md-outline-variant); }
+}

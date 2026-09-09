@@ -1,0 +1,57 @@
+@use '../../styles/tokens' as *;
+
+:host { display: block; min-width: 0; }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.field__label {
+  @include type-label-lg;
+  color: var(--md-on-surface-variant);
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.field__optional {
+  @include type-body-sm;
+  color: var(--md-outline);
+  font-weight: 400;
+}
+
+.field__hint { @include type-body-sm; color: var(--md-on-surface-variant); }
+.field__error { @include type-body-sm; color: var(--md-error); }
+
+// Controls are styled here so no screen restyles an input. Projected content
+// is matched by element, which keeps the markup in each screen plain.
+:host ::ng-deep {
+  input,
+  select,
+  textarea {
+    @include type-body-lg;
+    @include focus-ring;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--sp-4);
+    background: var(--md-surface-container-lowest);
+    border: 1px solid var(--md-outline);
+    border-radius: var(--md-shape-xs);
+    transition: border-color 120ms ease;
+
+    &:hover { border-color: var(--md-on-surface); }
+    &:focus { border-color: var(--md-primary); border-width: 2px; }
+    &:disabled { opacity: 0.38; cursor: not-allowed; }
+  }
+
+  textarea { padding: var(--sp-3) var(--sp-4); min-height: 96px; resize: vertical; }
+
+  // A native select keeps the platform picker, which on a phone is the
+  // accessible, familiar control — no custom dropdown to re-learn.
+  select { appearance: none; background-image: none; padding-right: var(--sp-6); }
+
+  input[type='checkbox'],
+  input[type='radio'] { width: auto; min-height: auto; }
+}

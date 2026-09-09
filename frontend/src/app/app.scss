@@ -1,46 +1,238 @@
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+@use '../styles/tokens' as *;
+
+// Shell layout: app bar across the top, drawer at the side, content beside it.
+//
+// The drawer is modal below 1024px (it slides over the page and the scrim
+// closes it) and permanent above, which is the M3 pattern for a destination
+// count this high — a bottom bar tops out at five.
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--app-bar-h) 1fr;
+  grid-template-areas: 'appbar' 'content';
 }
 
-.brand {
-  font-weight: 600;
-  font-size: 1.05rem;
-  color: var(--text);
+@include expanded-up {
+  .shell {
+    grid-template-columns: var(--nav-drawer-w) minmax(0, 1fr);
+    grid-template-areas: 'appbar appbar' 'drawer content';
+  }
+}
+
+// --- App bar ---------------------------------------------------------------
+
+.appbar {
+  grid-area: appbar;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-3);
+  background: var(--md-surface-container);
+  border-bottom: 1px solid var(--md-outline-variant);
+  // Flex children default to min-width:auto and refuse to shrink below their
+  // content, which pushed the whole bar — and so the page — wider than a phone.
+  min-width: 0;
+  > * { min-width: 0; }
+}
+
+.appbar__menu {
+  @include touch-target;
+  @include state-layer;
+  @include focus-ring;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--md-shape-full);
+  cursor: pointer;
+  color: var(--md-on-surface);
+
+  @include expanded-up { display: none; }
+}
+
+.appbar__brand {
+  @include type-title-lg;
+  color: var(--md-on-surface);
   text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  &:hover { text-decoration: none; }
+
+  // The brand is the first thing to give up room: the location and who you are
+  // signed in as are what the reader actually needs from this bar.
+  @include compact-only { flex: 0 1 auto; }
 }
 
-nav {
-  display: flex;
-  gap: 1rem;
-  margin-right: auto;
+.appbar__location {
+  margin-left: auto;
+  flex-shrink: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3);
+  background: var(--md-surface-container-lowest);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-shape-full);
+  min-height: 40px;
+  color: var(--md-on-surface-variant);
+
+  select {
+    @include type-label-lg;
+    @include focus-ring;
+    border: none;
+    background: transparent;
+    padding: 0 var(--sp-1);
+    max-width: 8rem;
+    cursor: pointer;
+    color: var(--md-on-surface);
+    text-overflow: ellipsis;
+
+    @include compact-only { max-width: 5.5rem; }
+  }
 }
 
-.account {
+.appbar__account {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  font-size: 0.9rem;
+  gap: var(--sp-2);
+  flex-shrink: 0;
 }
 
-main {
-  max-width: 60rem;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
+// The name is the first thing to go when the bar gets tight; the role stays,
+// because "why can I not see earnings?" is answered by the role.
+.appbar__name {
+  @include type-body-md;
+  @include compact-only { display: none; }
 }
+
+.appbar__role {
+  @include type-label-md;
+  text-transform: uppercase;
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--md-shape-sm);
+}
+
+.appbar__signout-label {
+  @include compact-only { display: none; }
+}
+
+// --- Drawer ----------------------------------------------------------------
+
+.drawer {
+  grid-area: drawer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  background: var(--md-surface-container-low);
+  overflow-y: auto;
+
+  // Modal below the expanded breakpoint.
+  position: fixed;
+  inset: var(--app-bar-h) auto 0 0;
+  width: var(--nav-drawer-w);
+  max-width: 85vw;
+  z-index: 30;
+  transform: translateX(-100%);
+  transition: transform 200ms ease;
+  border-right: 1px solid var(--md-outline-variant);
+
+  @include expanded-up {
+    position: sticky;
+    top: var(--app-bar-h);
+    height: calc(100vh - var(--app-bar-h));
+    transform: none;
+    max-width: none;
+    z-index: 1;
+  }
+}
+
+.shell--drawer-open .drawer { transform: translateX(0); }
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+  z-index: 25;
+
+  .shell--drawer-open & { opacity: 1; pointer-events: auto; }
+  @include expanded-up { display: none; }
+}
+
+.drawer__cta {
+  @include type-label-lg;
+  @include touch-target;
+  @include state-layer(var(--md-on-primary-container));
+  @include focus-ring;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+  margin-bottom: var(--sp-2);
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  border-radius: var(--md-shape-lg);
+  text-decoration: none;
+  &:hover { text-decoration: none; }
+}
+
+.drawer__group {
+  @include type-label-md;
+  text-transform: uppercase;
+  color: var(--md-on-surface-variant);
+  padding: var(--sp-4) var(--sp-4) var(--sp-1);
+}
+
+.drawer__link {
+  @include type-label-lg;
+  @include touch-target;
+  @include state-layer;
+  @include focus-ring;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+  border-radius: var(--md-shape-full);
+  color: var(--md-on-surface-variant);
+  text-decoration: none;
+  &:hover { text-decoration: none; }
+
+  // The active destination is filled, not merely bolded — position in the app
+  // should be readable at a glance from across the desk.
+  &.on {
+    background: var(--md-secondary-container);
+    color: var(--md-on-secondary-container);
+    font-weight: 700;
+  }
+}
+
+// --- Content ---------------------------------------------------------------
+
+.content {
+  grid-area: content;
+  padding: var(--sp-4);
+  min-width: 0;
+
+  @include medium-up { padding: var(--sp-5); }
+  @include expanded-up { padding: var(--sp-6); }
+}
+
+.bare { min-height: 100vh; }
 
 .loading {
-  padding: 2rem;
+  padding: var(--sp-7);
   text-align: center;
-  color: var(--muted);
-}
-
-.topbar nav a.on { font-weight: 700; text-decoration: underline; }
-.account .role {
-  font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
-  background: #eef2f7; color: #445; border-radius: 1rem; padding: .1rem .5rem;
+  color: var(--md-on-surface-variant);
 }

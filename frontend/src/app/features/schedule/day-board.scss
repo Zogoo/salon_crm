@@ -1,86 +1,186 @@
-.board { display: flex; flex-direction: column; gap: 1rem; }
+@use '../../../styles/tokens' as *;
 
-.board__head {
-  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
-  padding-bottom: .75rem; border-bottom: 1px solid var(--border, #e2e4e9);
+.board__nav {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
 }
-.board__location select,
-.board__location-fixed {
-  font-size: 1.05rem; font-weight: 650; padding: .35rem .5rem;
-  border: 1px solid var(--border, #e2e4e9); border-radius: .5rem; background: #fff;
-}
-.board__date { display: flex; align-items: center; gap: .35rem; }
-.board__date button {
-  width: 2rem; height: 2rem; border: 1px solid var(--border, #e2e4e9);
-  background: #fff; border-radius: .4rem; cursor: pointer; font-size: 1.1rem; line-height: 1;
-}
-.board__date input { padding: .35rem .5rem; border: 1px solid var(--border, #e2e4e9); border-radius: .4rem; }
-.board__actions { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
 
-.grid { display: flex; flex-direction: column; border: 1px solid var(--border, #e2e4e9); border-radius: .6rem; overflow: hidden; }
-.grid__ruler, .grid__row { display: flex; align-items: stretch; }
-.grid__ruler { background: #f7f8fa; border-bottom: 1px solid var(--border, #e2e4e9); }
+// A timeline needs room to be read. Below the medium breakpoint the same
+// appointments are shown as an agenda list instead — a grid squeezed onto a
+// phone is a grid nobody can use.
+.board__timeline { display: none; }
+.board__list { display: block; }
+
+@include medium-up {
+  .board__timeline { display: block; }
+  .board__list { display: none; }
+}
+
+// --- Timeline --------------------------------------------------------------
+
+.grid {
+  min-width: 46rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.grid__row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr;
+  align-items: stretch;
+  gap: var(--sp-2);
+}
+
 .grid__room-label {
-  flex: 0 0 11rem; padding: .5rem .75rem; display: flex; flex-direction: column;
-  border-right: 1px solid var(--border, #e2e4e9); font-size: .85rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  @include type-body-sm;
+
+  strong { @include type-title-sm; }
+  small { color: var(--md-on-surface-variant); }
 }
-.grid__room-label small { color: #6b7280; }
-.grid__hours { flex: 1; display: flex; }
-.grid__hour { flex: 1; font-size: .72rem; color: #6b7280; padding: .35rem 0 .35rem .25rem; }
-.grid__row { border-bottom: 1px solid var(--border, #e2e4e9); min-height: 3rem; }
-.grid__row:last-child { border-bottom: 0; }
-.grid__lane { position: relative; flex: 1; display: flex; }
-.grid__tick { flex: 1; border-right: 1px dashed #eef0f3; }
+
+.grid__hours {
+  display: flex;
+  justify-content: space-between;
+  @include type-label-md;
+  color: var(--md-on-surface-variant);
+}
+
+.grid__lane {
+  position: relative;
+  height: 3rem;
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-shape-sm);
+  overflow: hidden;
+}
+
+.grid__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--md-outline-variant);
+
+  @for $i from 1 through 14 {
+    &:nth-child(#{$i}) { left: calc(100% / 14 * #{$i - 1}); }
+  }
+}
 
 .appt {
-  position: absolute; top: .3rem; bottom: .3rem; border: 0; border-radius: .35rem;
-  padding: .25rem .4rem; text-align: left; overflow: hidden; cursor: pointer;
-  background: #d9e8ff; color: #10243e; font-size: .74rem; line-height: 1.25;
-  display: flex; flex-direction: column; min-width: 2px;
+  position: absolute;
+  top: var(--sp-1);
+  bottom: var(--sp-1);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 var(--sp-2);
+  border: none;
+  border-radius: var(--md-shape-xs);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  @include focus-ring;
+  @include state-layer($position: absolute);
+
+  &__client { @include type-label-md; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  &__meta { @include type-body-sm; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
-.appt--pending_approval { background: #ffe8c2; color: #5a3c00; }
-.appt--checked_in { background: #cdebd6; color: #12401f; }
-.appt--in_progress { background: #b7e0c6; color: #0d3b1d; }
-.appt--completed { background: #dfe3e8; color: #3a4250; }
-.appt--cancelled, .appt--late_cancelled, .appt--no_show { background: #f6d3d3; color: #5a1616; }
-.appt__client { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.appt__meta { opacity: .8; white-space: nowrap; overflow: hidden; }
+
+// Status colours match the chips used everywhere else, so a colour means the
+// same thing on the board as it does in a list.
+.appt--completed { background: var(--md-success-container); color: var(--md-on-success-container); }
+.appt--pending_approval { background: var(--md-warning-container); color: var(--md-on-warning-container); }
+.appt--cancelled,
+.appt--late_cancelled,
+.appt--no_show { background: var(--md-error-container); color: var(--md-on-error-container); }
+
 .appt__buffer {
-  position: absolute; top: .3rem; bottom: .3rem;
-  background: repeating-linear-gradient(45deg, #eceef1, #eceef1 3px, transparent 3px, transparent 6px);
-  border-radius: .2rem;
+  position: absolute;
+  top: var(--sp-1);
+  bottom: var(--sp-1);
+  background: repeating-linear-gradient(
+    45deg,
+    var(--md-outline-variant) 0 4px,
+    transparent 4px 8px
+  );
+  border-radius: var(--md-shape-xs);
+  pointer-events: none;
 }
 
-.panel {
-  border: 1px solid var(--border, #e2e4e9); border-radius: .6rem; padding: 1rem;
-  background: #fff; display: flex; flex-direction: column; gap: .75rem;
+// --- Agenda (compact) ------------------------------------------------------
+
+.agenda { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+.agenda__item {
+  @include touch-target;
+  @include state-layer;
+  @include focus-ring;
+  display: grid;
+  grid-template-columns: 4rem 1fr auto;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--md-surface-container-low);
+  border: none;
+  border-radius: var(--md-shape-sm);
+  cursor: pointer;
+  text-align: left;
 }
-.panel__head { display: flex; justify-content: space-between; align-items: flex-start; }
-.panel__head h2 { margin: 0; font-size: 1.1rem; }
-.panel__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .5rem; margin: 0; }
-.panel__facts dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
-.panel__facts dd { margin: .1rem 0 0; font-weight: 600; }
-.panel__items, .panel__prefs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; font-size: .88rem; }
-.panel__items li { display: flex; gap: .5rem; align-items: baseline; }
-.panel__items li span { margin-left: auto; font-variant-numeric: tabular-nums; }
-.panel__items small { color: #6b7280; }
-.panel h3 { margin: .35rem 0 0; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
-.panel__actions { display: flex; gap: .5rem; flex-wrap: wrap; }
-
-.muted { color: #6b7280; }
-.alert { background: #fdecec; border: 1px solid #f5c2c2; color: #7a1c1c; padding: .6rem .75rem; border-radius: .4rem; }
-
-.btn {
-  border: 1px solid transparent; background: #1f6feb; color: #fff;
-  padding: .45rem .8rem; border-radius: .4rem; cursor: pointer; font-size: .88rem; text-decoration: none;
+.agenda__time { @include type-title-sm; font-variant-numeric: tabular-nums; }
+.agenda__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  strong { @include type-body-lg; }
+  small { @include type-body-sm; color: var(--md-on-surface-variant); }
 }
-.btn--ghost { background: #fff; color: #1f2937; border-color: var(--border, #e2e4e9); }
-.btn--danger { background: #b4232a; }
 
-.panel__notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; font-size: .87rem; }
-.panel__notes li { background: #f7f8fa; border-radius: .35rem; padding: .4rem .5rem; display: flex; flex-direction: column; gap: .15rem; }
-.panel__notes small { color: #6b7280; font-size: .72rem; }
-.panel__addnote { display: flex; gap: .4rem; align-items: flex-start; }
-.panel__addnote textarea { flex: 1; font: inherit; padding: .4rem .5rem; border: 1px solid var(--border, #e2e4e9); border-radius: .4rem; }
-.hint { color: #6b7280; font-size: .75rem; margin: 0; }
-.btn--primary { background: #157a3f; }
+// --- Detail sheet content --------------------------------------------------
+// The sheet shell and the facts list are shared components; only what is
+// specific to an appointment stays here.
+
+.sheet__h3 { @include type-title-sm; margin-bottom: var(--sp-2); }
+.sheet__hint { @include type-body-sm; color: var(--md-on-surface-variant); }
+
+.sheet__addnote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  align-items: flex-start;
+}
+
+.sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--md-outline-variant);
+}
+
+.lines, .notes { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+.lines li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  @include type-body-md;
+  small { color: var(--md-on-surface-variant); }
+  .num { margin-left: auto; font-variant-numeric: tabular-nums; }
+}
+
+.notes li {
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-shape-sm);
+  small { @include type-body-sm; color: var(--md-on-surface-variant); }
+}

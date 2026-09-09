@@ -1,0 +1,146 @@
+// Material 3 design tokens.
+//
+// Everything visual in this app resolves to a token here. Screens never pick a
+// hex value, a radius or a spacing step of their own — that is what let fifteen
+// stylesheets drift apart, each redeclaring .btn and .table slightly
+// differently.
+
+:root {
+  // --- Colour roles -------------------------------------------------------
+  // A calm teal primary: this is a massage salon, and the console is on screen
+  // all day at the front desk.
+  --md-primary: #00696b;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #9df0f1;
+  --md-on-primary-container: #002020;
+
+  --md-secondary: #4a6363;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #cce8e7;
+  --md-on-secondary-container: #051f1f;
+
+  --md-tertiary: #4b607c;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #d3e4ff;
+  --md-on-tertiary-container: #041c35;
+
+  --md-error: #ba1a1a;
+  --md-on-error: #ffffff;
+  --md-error-container: #ffdad6;
+  --md-on-error-container: #410002;
+
+  --md-success: #216c2a;
+  --md-success-container: #a8f5aa;
+  --md-on-success-container: #002204;
+
+  --md-warning: #7a5900;
+  --md-warning-container: #ffdf9a;
+  --md-on-warning-container: #261a00;
+
+  --md-surface: #f5fafa;
+  --md-on-surface: #191c1c;
+  --md-on-surface-variant: #3f4948;
+  --md-outline: #6f7979;
+  --md-outline-variant: #bec9c8;
+
+  // Surface containers give depth without shadows — M3 prefers tonal elevation.
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #eff5f5;
+  --md-surface-container: #e9efef;
+  --md-surface-container-high: #e3e9e9;
+  --md-surface-container-highest: #dee3e3;
+
+  --md-inverse-surface: #2d3131;
+  --md-inverse-on-surface: #eff1f1;
+
+  // --- Shape (M3 corner scale) -------------------------------------------
+  --md-shape-xs: 4px;
+  --md-shape-sm: 8px;
+  --md-shape-md: 12px;
+  --md-shape-lg: 16px;
+  --md-shape-xl: 28px;
+  --md-shape-full: 999px;
+
+  // --- Spacing (4dp grid) -------------------------------------------------
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  // --- Elevation ----------------------------------------------------------
+  --md-elev-1: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --md-elev-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
+  --md-elev-3: 0 4px 8px 3px rgb(0 0 0 / 0.15), 0 1px 3px rgb(0 0 0 / 0.3);
+
+  // --- Layout -------------------------------------------------------------
+  --nav-rail-w: 88px;
+  --nav-drawer-w: 280px;
+  --app-bar-h: 64px;
+}
+
+// M3 breakpoints: compact (phone) / medium (tablet) / expanded (desktop).
+$bp-medium: 600px;
+$bp-expanded: 1024px;
+
+@mixin compact-only {
+  @media (max-width: #{$bp-medium - 1px}) { @content; }
+}
+@mixin medium-up {
+  @media (min-width: #{$bp-medium}) { @content; }
+}
+@mixin expanded-up {
+  @media (min-width: #{$bp-expanded}) { @content; }
+}
+
+// M3 type scale, trimmed to the roles this console actually uses.
+@mixin type-display-sm { font-size: 2.25rem; line-height: 2.75rem; font-weight: 400; letter-spacing: 0; }
+@mixin type-headline-sm { font-size: 1.5rem; line-height: 2rem; font-weight: 400; letter-spacing: 0; }
+@mixin type-title-lg { font-size: 1.375rem; line-height: 1.75rem; font-weight: 400; letter-spacing: 0; }
+@mixin type-title-md { font-size: 1rem; line-height: 1.5rem; font-weight: 500; letter-spacing: 0.009rem; }
+@mixin type-title-sm { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; letter-spacing: 0.006rem; }
+@mixin type-body-lg { font-size: 1rem; line-height: 1.5rem; font-weight: 400; letter-spacing: 0.031rem; }
+@mixin type-body-md { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0.016rem; }
+@mixin type-body-sm { font-size: 0.75rem; line-height: 1rem; font-weight: 400; letter-spacing: 0.025rem; }
+@mixin type-label-lg { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; letter-spacing: 0.006rem; }
+@mixin type-label-md { font-size: 0.75rem; line-height: 1rem; font-weight: 500; letter-spacing: 0.031rem; }
+
+// Every interactive target is at least 48dp, per M3 accessibility guidance.
+@mixin touch-target { min-height: 48px; min-width: 48px; }
+
+// M3 state layers: hover and focus tint the element with its own foreground
+// colour rather than swapping to a different colour.
+//
+// The layer is an absolutely positioned ::after, so the element has to be a
+// containing block. `$position` is a parameter rather than a hard-coded
+// `relative` because an absolutely positioned caller would otherwise have its
+// own positioning silently overwritten by the include — which is exactly what
+// dropped the schedule's appointment blocks out of their lanes.
+@mixin state-layer($color: currentColor, $position: relative) {
+  position: $position;
+  isolation: isolate;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: $color;
+    opacity: 0;
+    transition: opacity 120ms ease;
+    pointer-events: none;
+    border-radius: inherit;
+    z-index: -1;
+  }
+  &:hover::after { opacity: 0.08; }
+  &:focus-visible::after { opacity: 0.12; }
+  &:active::after { opacity: 0.12; }
+}
+
+@mixin focus-ring {
+  &:focus-visible {
+    outline: 3px solid var(--md-primary);
+    outline-offset: 2px;
+  }
+}

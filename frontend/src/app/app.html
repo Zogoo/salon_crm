@@ -1,48 +1,84 @@
 @if (ready()) {
-  @if (!bare()) {
-  <header class="topbar">
-    <a class="brand" routerLink="/dashboard">Mongolian Massagelab</a>
-
-    @if (user(); as currentUser) {
-      <nav>
-        <a routerLink="/dashboard" routerLinkActive="on" data-testid="nav-dashboard">Dashboard</a>
-        <a routerLink="/schedule" routerLinkActive="on" data-testid="nav-schedule">Schedule</a>
-        @if (currentUser.role !== 'staff') {
-          <a routerLink="/book" routerLinkActive="on" data-testid="nav-book">Book</a>
-          <a routerLink="/clients" routerLinkActive="on" data-testid="nav-clients">Clients</a>
-          <a routerLink="/approvals" routerLinkActive="on" data-testid="nav-approvals">Approvals</a>
-          <a routerLink="/gift-cards" routerLinkActive="on" data-testid="nav-giftcards">Gift cards</a>
-          <a routerLink="/membership" routerLinkActive="on" data-testid="nav-membership">Membership</a>
-        }
-        @if (currentUser.role !== 'staff') {
-          <a routerLink="/admin/roster" routerLinkActive="on" data-testid="nav-roster">Roster</a>
-        }
-        @if (currentUser.role === 'owner') {
-          <a routerLink="/earnings" routerLinkActive="on" data-testid="nav-earnings">Earnings</a>
-          <a routerLink="/reports" routerLinkActive="on" data-testid="nav-reports">Reports</a>
-          <a routerLink="/admin/staff" routerLinkActive="on" data-testid="nav-staff">Staff</a>
-          <a routerLink="/admin/services" routerLinkActive="on" data-testid="nav-services">Services</a>
-          <a routerLink="/admin/location" routerLinkActive="on" data-testid="nav-location">Location</a>
-        }
-      </nav>
-      <div class="account">
-        <span class="role" data-testid="current-role">{{ currentUser.role }}</span>
-        <span data-testid="current-user">{{ currentUser.name }}</span>
-        <button type="button" (click)="signOut()" data-testid="sign-out">
-          {{ 'nav.sign_out' | translate }}
+  @if (bare()) {
+    <main class="bare"><router-outlet /></main>
+  } @else {
+    <div class="shell" [class.shell--drawer-open]="drawerOpen()">
+      <header class="appbar">
+        <button
+          type="button"
+          class="appbar__menu"
+          (click)="toggleDrawer()"
+          [attr.aria-expanded]="drawerOpen()"
+          aria-label="Main menu"
+          data-testid="nav-toggle"
+        >
+          <ui-icon name="menu" />
         </button>
-      </div>
-    } @else {
-      <nav>
-        <a routerLink="/sign-in">{{ 'nav.sign_in' | translate }}</a>
-      </nav>
-    }
-  </header>
-  }
 
-  <main>
-    <router-outlet />
-  </main>
+        <a class="appbar__brand" routerLink="/dashboard">Massagelab</a>
+
+        @if (locations.locations().length) {
+          <label class="appbar__location">
+            <span class="sr-only">Location</span>
+            <ui-icon name="store" />
+            <select
+              [ngModel]="locations.current()?.id"
+              (ngModelChange)="onLocationChange($event)"
+              [disabled]="!locations.canSwitch()"
+              data-testid="location-switcher"
+            >
+              @for (l of locations.locations(); track l.id) {
+                <option [ngValue]="l.id">{{ l.name }}</option>
+              }
+            </select>
+          </label>
+        }
+
+        @if (user(); as currentUser) {
+          <div class="appbar__account">
+            <span class="appbar__name" data-testid="current-user">{{ currentUser.name }}</span>
+            <span class="appbar__role" data-testid="current-role">{{ currentUser.role }}</span>
+            <ui-button variant="text" icon="logout" (click)="signOut()" ariaLabel="Sign out">
+              <span class="appbar__signout-label">Sign out</span>
+            </ui-button>
+          </div>
+        }
+      </header>
+
+      <!-- Closes the drawer when the page behind it is tapped on a phone. -->
+      <div class="scrim" (click)="drawerOpen.set(false)" aria-hidden="true"></div>
+
+      <nav class="drawer" aria-label="Sections">
+        @if (canBook()) {
+          <a class="drawer__cta" routerLink="/book" data-testid="nav-book">
+            <ui-icon name="add" />
+            New appointment
+          </a>
+        }
+
+        @for (group of groups(); track group.label) {
+          <p class="drawer__group">{{ group.label }}</p>
+          <ul>
+            @for (item of group.items; track item.path) {
+              <li>
+                <a
+                  [routerLink]="item.path"
+                  routerLinkActive="on"
+                  class="drawer__link"
+                  [attr.data-testid]="'nav-' + item.label.toLowerCase().replace(' ', '-')"
+                >
+                  <ui-icon [name]="item.icon" />
+                  {{ item.label }}
+                </a>
+              </li>
+            }
+          </ul>
+        }
+      </nav>
+
+      <main class="content"><router-outlet /></main>
+    </div>
+  }
 } @else {
-  <p class="loading">{{ 'common.loading' | translate }}</p>
+  <p class="loading">Loading…</p>
 }

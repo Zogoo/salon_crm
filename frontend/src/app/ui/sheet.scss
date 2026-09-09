@@ -1,0 +1,37 @@
+@use '../../styles/tokens' as *;
+
+:host { position: fixed; inset: 0; z-index: 40; display: block; }
+
+.scrim { position: absolute; inset: 0; background: rgb(0 0 0 / 0.4); }
+
+.panel {
+  position: absolute;
+  inset: auto 0 0 0;
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  background: var(--md-surface-container-lowest);
+  border-radius: var(--md-shape-xl) var(--md-shape-xl) 0 0;
+  box-shadow: var(--md-elev-3);
+
+  @include medium-up {
+    inset: 0 0 0 auto;
+    width: min(30rem, 100%);
+    max-height: none;
+    border-radius: var(--md-shape-lg) 0 0 var(--md-shape-lg);
+    padding: var(--sp-5);
+  }
+}
+
+.panel__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.panel__titles { margin-right: auto; min-width: 0; }
+.panel__title { @include type-title-lg; }
+.panel__sub { @include type-body-sm; color: var(--md-on-surface-variant); }
+.panel__body { display: flex; flex-direction: column; gap: var(--sp-4); }

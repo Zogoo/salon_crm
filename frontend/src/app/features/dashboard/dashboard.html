@@ -1,66 +1,67 @@
-<section class="dash">
-  <header class="dash__head">
-    @if (ctx.canSwitch()) {
-      <select
-        aria-label="Location"
-        [ngModel]="ctx.current()?.id"
-        (ngModelChange)="onLocationChange($event)"
-        data-testid="dash-location"
-      >
-        @for (loc of ctx.locations(); track loc.id) {
-          <option [ngValue]="loc.id">{{ loc.name }}</option>
-        }
-      </select>
-    } @else {
-      <strong data-testid="dash-location-fixed">{{ ctx.current()?.name }}</strong>
-    }
-    <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="dash-date" />
-    <a routerLink="/schedule" class="btn">Open schedule</a>
-  </header>
+<ui-page title="Dashboard" [sub]="subtitle()">
+  <div pageActions class="dash__actions">
+    <ui-field label="Date">
+      <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="dash-date" />
+    </ui-field>
+    <ui-button variant="tonal" icon="calendar_month" (click)="openSchedule()">Open schedule</ui-button>
+  </div>
 
-  @if (error()) {
-    <p class="alert" role="alert">{{ error() }}</p>
-  }
+  @if (error()) { <ui-banner tone="error">{{ error() }}</ui-banner> }
 
   @if (data(); as d) {
-    <div class="tiles" data-testid="dash-tiles">
-      <div class="tile"><span>Appointments</span><strong data-testid="tile-appointments">{{ d.appointments_today }}</strong></div>
-      <div class="tile"><span>Completed</span><strong>{{ d.completed_today }}</strong></div>
-      <div class="tile"><span>Cancelled</span><strong>{{ d.cancelled_today }}</strong></div>
-      <div class="tile"><span>No-shows</span><strong>{{ d.no_shows_today }}</strong></div>
-      <div class="tile"><span>Staff working</span><strong>{{ d.staff_working }}</strong></div>
-      <div class="tile"><span>Staff off</span><strong>{{ d.staff_not_working }}</strong></div>
-      <div class="tile"><span>Rooms free now</span><strong>{{ d.rooms_free_now }} / {{ d.rooms_total }}</strong></div>
-      <div class="tile"><span>Awaiting approval</span><strong data-testid="tile-approvals">{{ d.pending_approvals }}</strong></div>
+    <section class="tiles" data-testid="dash-tiles" aria-label="Today at a glance">
+      <ui-stat label="Appointments" [value]="d.appointments_today"
+               hint="Booked and completed; cancellations are counted separately."
+               data-testid="tile-appointments" />
+      <ui-stat label="Completed" [value]="d.completed_today" />
+      <ui-stat label="Cancelled" [value]="d.cancelled_today" />
+      <ui-stat label="No-shows" [value]="d.no_shows_today" />
+      <ui-stat label="Staff working" [value]="d.staff_working" />
+      <ui-stat label="Rooms free now" [value]="d.rooms_free_now + ' / ' + d.rooms_total" />
+      <ui-stat label="Awaiting approval" [value]="d.pending_approvals"
+               hint="Auto-approves after 45 minutes if the therapist is still free."
+               data-testid="tile-approvals" />
       @if (d.revenue_booked_cents !== undefined) {
-        <div class="tile tile--money" data-testid="tile-revenue">
-          <span>Completed revenue</span>
-          <strong>${{ d.revenue_booked_cents / 100 | number: '1.2-2' }}</strong>
-        </div>
+        <ui-stat
+          tone="primary"
+          label="Completed revenue"
+          [value]="'$' + (d.revenue_booked_cents / 100 | number: '1.2-2')"
+          hint="Service revenue only — gift cards and fees are not counted here."
+          data-testid="tile-revenue"
+        />
       }
-    </div>
+    </section>
 
     @if (shifts(); as s) {
-      <div class="cols">
-        <div class="panel">
-          <h2>Working today ({{ s.working.length }})</h2>
-          <ul class="plain" data-testid="working-list">
-            @for (w of s.working; track w.id) {
-              <li>{{ w.display_name }}</li>
-            }
-            @if (!s.working.length) { <li class="muted">Nobody scheduled.</li> }
-          </ul>
-        </div>
-        <div class="panel">
-          <h2>Not working ({{ s.not_working.length }})</h2>
-          <ul class="plain">
-            @for (n of s.not_working; track n.staff_profile_id) {
-              <li class="muted">{{ n.display_name }}</li>
-            }
-            @if (!s.not_working.length) { <li class="muted">Everyone is in.</li> }
-          </ul>
-        </div>
+      <div class="dash__cols">
+        <ui-card heading="Working today" [sub]="s.working.length + ' on shift'">
+          @if (s.working.length) {
+            <ul class="people" data-testid="working-list">
+              @for (w of s.working; track w.id) {
+                <li><ui-icon name="person" />{{ w.display_name }}</li>
+              }
+            </ul>
+          } @else {
+            <ui-empty
+              icon="person_off"
+              title="Nobody is scheduled"
+              hint="Draft and publish shifts on the Roster before anyone can be booked."
+            />
+          }
+        </ui-card>
+
+        <ui-card heading="Not working" [sub]="s.not_working.length + ' off today'">
+          @if (s.not_working.length) {
+            <ul class="people people--muted">
+              @for (n of s.not_working; track n.staff_profile_id) {
+                <li><ui-icon name="person" />{{ n.display_name }}</li>
+              }
+            </ul>
+          } @else {
+            <ui-empty icon="groups" title="Everyone is in" />
+          }
+        </ui-card>
       </div>
     }
   }
-</section>
+</ui-page>

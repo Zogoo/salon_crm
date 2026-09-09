@@ -1,196 +1,189 @@
-<section class="board">
-  <header class="board__head">
-    <div class="board__location">
-      @if (ctx.canSwitch()) {
-        <select
-          aria-label="Location"
-          data-testid="location-switcher"
-          [ngModel]="ctx.current()?.id"
-          (ngModelChange)="onLocationChange($event)"
-        >
-          @for (loc of ctx.locations(); track loc.id) {
-            <option [ngValue]="loc.id">{{ loc.name }}</option>
-          }
-        </select>
-      } @else {
-        <span class="board__location-fixed" data-testid="location-fixed">{{
-          ctx.current()?.name
-        }}</span>
-      }
-    </div>
-
-    <div class="board__date">
-      <button type="button" (click)="shiftDay(-1)" aria-label="Previous day">‹</button>
+<ui-page title="Schedule" [sub]="subtitle()">
+  <div pageActions class="board__nav">
+    <ui-button variant="text" icon="chevron_left" (click)="shiftDay(-1)" ariaLabel="Previous day" />
+    <ui-field label="Date">
       <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="date-input" />
-      <button type="button" (click)="shiftDay(1)" aria-label="Next day">›</button>
-    </div>
+    </ui-field>
+    <ui-button variant="text" icon="chevron_right" (click)="shiftDay(1)" ariaLabel="Next day" />
+    @if (canBook()) {
+      <ui-button icon="add" (click)="newBooking()" data-testid="new-booking">New appointment</ui-button>
+    }
+  </div>
 
-    <div class="board__actions">
-      @if (auth.user()?.role !== 'staff') {
-        <a routerLink="/clients" class="btn btn--ghost">Clients</a>
-        <a routerLink="/approvals" class="btn btn--ghost" data-testid="approvals-link">Approvals</a>
-        <button type="button" class="btn" (click)="newBooking()" data-testid="new-booking">
-          New appointment
-        </button>
-      }
-    </div>
-  </header>
-
-  @if (error()) {
-    <p class="alert" role="alert" data-testid="board-error">{{ error() }}</p>
-  }
-  @if (loading()) {
-    <p class="muted">Loading…</p>
-  }
+  @if (error()) { <ui-banner tone="error" data-testid="board-error">{{ error() }}</ui-banner> }
 
   @if (board(); as b) {
-    <div class="grid" data-testid="day-board">
-      <div class="grid__ruler">
-        <div class="grid__room-label"></div>
-        <div class="grid__hours">
-          @for (h of hours(); track h) {
-            <span class="grid__hour">{{ h }}:00</span>
-          }
-        </div>
-      </div>
+    @if (b.appointments.length) {
+      <!-- A timeline needs width to be readable, so the phone gets a list of
+           the same appointments instead of a grid squeezed past legibility. -->
+      <ui-card class="board__timeline">
+        <ui-table label="Room timeline">
+          <div class="grid" data-testid="day-board">
+            <div class="grid__row grid__row--ruler">
+              <div class="grid__room-label"></div>
+              <div class="grid__hours">
+                @for (h of hours(); track h) { <span class="grid__hour">{{ h }}:00</span> }
+              </div>
+            </div>
 
-      @for (room of b.rooms; track room.id) {
-        <div class="grid__row" [attr.data-room]="room.name">
-          <div class="grid__room-label">
-            <strong>{{ room.name }}</strong>
-            <small>{{ room.room_type }} · seats {{ room.client_capacity }}</small>
-          </div>
-          <div class="grid__lane">
-            @for (h of hours(); track h) {
-              <span class="grid__tick"></span>
+            @for (room of b.rooms; track room.id) {
+              <div class="grid__row" [attr.data-room]="room.name">
+                <div class="grid__room-label">
+                  <strong>{{ room.name }}</strong>
+                  <small>{{ room.room_type }} · seats {{ room.client_capacity }}</small>
+                </div>
+                <div class="grid__lane">
+                  @for (h of hours(); track h) { <span class="grid__tick"></span> }
+                  @for (p of placed(room); track p.appointment.id) {
+                    <button
+                      type="button"
+                      [class]="'appt appt--' + p.appointment.status"
+                      [style.left.%]="p.leftPct"
+                      [style.width.%]="p.widthPct"
+                      (click)="select(p.appointment)"
+                      [attr.data-testid]="'appt-' + p.appointment.id"
+                    >
+                      <span class="appt__client">{{ p.appointment.client.full_name }}</span>
+                      <span class="appt__meta">
+                        {{ p.appointment.starts_at | wallClock }} ·
+                        {{ p.appointment.therapists[0]?.display_name }}
+                      </span>
+                    </button>
+                    <span
+                      class="appt__buffer"
+                      [style.left.%]="p.leftPct + p.widthPct"
+                      [style.width.%]="p.bufferPct"
+                      title="15-minute buffer between appointments"
+                    ></span>
+                  }
+                </div>
+              </div>
             }
-            @for (p of placed(room); track p.appointment.id) {
-              <button
-                type="button"
-                class="appt"
-                [class]="'appt appt--' + p.appointment.status"
-                [style.left.%]="p.leftPct"
-                [style.width.%]="p.widthPct"
-                (click)="select(p.appointment)"
-                [attr.data-testid]="'appt-' + p.appointment.id"
-              >
-                <span class="appt__client">{{ p.appointment.client.full_name }}</span>
-                <span class="appt__meta">
-                  {{ p.appointment.starts_at | wallClock }} ·
-                  {{ p.appointment.therapists[0]?.display_name }}
+          </div>
+        </ui-table>
+      </ui-card>
+
+      <ui-card class="board__list" heading="Appointments" [sub]="b.appointments.length + ' on this day'">
+        <ul class="agenda">
+          @for (a of b.appointments; track a.id) {
+            <li>
+              <button type="button" class="agenda__item" (click)="select(a)"
+                      [attr.data-testid]="'agenda-' + a.id">
+                <span class="agenda__time">{{ a.starts_at | wallClock }}</span>
+                <span class="agenda__who">
+                  <strong>{{ a.client.full_name }}</strong>
+                  <small>{{ a.room.name }} · {{ a.therapists[0]?.display_name ?? 'Unassigned' }}</small>
                 </span>
+                <ui-chip [tone]="tone(a.status)">{{ humanStatus(a.status) }}</ui-chip>
               </button>
-              <span
-                class="appt__buffer"
-                [style.left.%]="p.leftPct + p.widthPct"
-                [style.width.%]="p.bufferPct"
-                title="15-minute buffer"
-              ></span>
-            }
-          </div>
-        </div>
-      }
-    </div>
-
-    @if (!b.appointments.length) {
-      <p class="muted" data-testid="board-empty">Nothing booked on this day.</p>
+            </li>
+          }
+        </ul>
+      </ui-card>
+    } @else {
+      <ui-card>
+        <ui-empty
+          icon="event_busy"
+          title="Nothing booked on this day"
+          [hint]="emptyHint()"
+          data-testid="board-empty"
+        >
+          @if (canBook()) {
+            <ui-button icon="add" (click)="newBooking()">New appointment</ui-button>
+          }
+        </ui-empty>
+      </ui-card>
     }
   }
 
+  <!-- Details open over the page on a phone and beside it on a desktop; either
+       way it is a dialog, so Escape and the close button both dismiss it. -->
   @if (selected(); as appt) {
-    <aside class="panel" data-testid="appointment-panel">
-      <header class="panel__head">
-        <div>
-          <h2>{{ appt.client.full_name }}</h2>
-          <p class="muted">{{ appt.reference }} · {{ appt.status }}</p>
-        </div>
-        <button type="button" class="btn btn--ghost" (click)="selected.set(null)">Close</button>
-      </header>
+    <ui-sheet
+      [heading]="appt.client.full_name"
+      [sub]="appt.reference"
+      (closed)="selected.set(null)"
+      data-testid="appointment-panel"
+    >
+      <ui-chip sheetBadge [tone]="tone(appt.status)">{{ humanStatus(appt.status) }}</ui-chip>
 
-      <dl class="panel__facts">
-        <div><dt>Time</dt><dd>{{ appt.starts_at | wallClock }}–{{ appt.service_ends_at | wallClock }}</dd></div>
-        <div><dt>Room</dt><dd>{{ appt.room.name }}</dd></div>
-        <div>
-          <dt>Therapist{{ appt.therapists.length > 1 ? 's' : '' }}</dt>
-          <dd>{{ appt.therapists.length ? '' : '—' }}
-            @for (t of appt.therapists; track t.id) {<span>{{ t.display_name }} </span>}
-          </dd>
-        </div>
-        <div><dt>Total</dt><dd>${{ appt.total_price_cents / 100 | number: '1.2-2' }}</dd></div>
-        @if (appt.fee_charged_cents) {
-          <div><dt>Fee owed</dt><dd data-testid="fee">${{ appt.fee_charged_cents / 100 | number: '1.2-2' }}</dd></div>
-        }
-      </dl>
+      <ui-facts [items]="summary(appt)" />
 
       @if (appt.items?.length) {
-        <h3>Services</h3>
-        <ul class="panel__items">
-          @for (item of appt.items; track item.id) {
-            <li>
-              {{ item.name }}
-              <small>{{ item.duration_minutes ? item.duration_minutes + ' min' : 'no time' }}</small>
-              <span>${{ item.price_cents / 100 | number: '1.2-2' }}</span>
-            </li>
-          }
-        </ul>
+        <section>
+          <h3 class="sheet__h3">Services</h3>
+          <ul class="lines">
+            @for (item of appt.items; track item.id) {
+              <li>
+                <span>{{ item.name }}</span>
+                <small>{{ item.duration_minutes ? item.duration_minutes + ' min' : 'no extra time' }}</small>
+                <span class="num">${{ item.price_cents / 100 | number: '1.2-2' }}</span>
+              </li>
+            }
+          </ul>
+        </section>
       }
 
-      @if (appt.preference) {
-        <h3>Client preferences</h3>
-        <ul class="panel__prefs" data-testid="preferences">
-          @if (appt.preference.pressure) { <li><strong>Pressure:</strong> {{ appt.preference.pressure }}</li> }
-          @if (appt.preference.attention_areas) { <li><strong>Attention:</strong> {{ appt.preference.attention_areas }}</li> }
-          @if (appt.preference.avoid_areas) { <li><strong>Avoid:</strong> {{ appt.preference.avoid_areas }}</li> }
-          @if (appt.preference.other_requests) { <li><strong>Other:</strong> {{ appt.preference.other_requests }}</li> }
-        </ul>
+      @if (preferenceFacts(appt).length) {
+        <section data-testid="preferences">
+          <h3 class="sheet__h3">Client preferences</h3>
+          <ui-facts [items]="preferenceFacts(appt)" />
+        </section>
       }
 
       @if (appt.client_note) {
-        <h3>Note from the client</h3>
-        <p>{{ appt.client_note }}</p>
+        <section>
+          <h3 class="sheet__h3">Note from the client</h3>
+          <p>{{ appt.client_note }}</p>
+        </section>
       }
 
-      <h3>Care notes</h3>
-      <p class="hint">What to avoid, what needed attention, what to consider next time.
-        Append-only — a correction is a new note.</p>
-      @if (careNotes().length) {
-        <ul class="panel__notes" data-testid="care-notes">
-          @for (n of careNotes(); track n.id) {
-            <li>
-              <span>{{ n.body }}</span>
-              <small>{{ n.author }} · {{ n.created_at | wallClock: 'date' }}</small>
-            </li>
-          }
-        </ul>
-      } @else {
-        <p class="muted">No notes yet.</p>
-      }
-      @if (auth.user()?.role === 'staff') {
-        <div class="panel__addnote">
-          <textarea rows="2" [(ngModel)]="newCareNote" placeholder="Add a care note"
-                    data-testid="care-note-input"></textarea>
-          <button type="button" class="btn btn--ghost" (click)="addCareNote(appt)"
-                  data-testid="care-note-save">Add note</button>
-        </div>
-      }
+      <section>
+        <h3 class="sheet__h3">Care notes</h3>
+        <p class="sheet__hint">
+          What to avoid, what needed attention, what to consider next time. Append-only — a
+          correction is a new note, so nothing is ever quietly rewritten.
+        </p>
+        @if (careNotes().length) {
+          <ul class="notes" data-testid="care-notes">
+            @for (n of careNotes(); track n.id) {
+              <li>
+                <p>{{ n.body }}</p>
+                <small>{{ n.author }} · {{ n.created_at | wallClock: 'date' }}</small>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="sheet__hint">No notes yet.</p>
+        }
 
-      <div class="panel__actions">
-        @if (appt.status === 'completed' && auth.user()?.role !== 'staff') {
-          <button type="button" class="btn btn--primary" (click)="checkout(appt)"
-                  data-testid="go-checkout">Checkout</button>
+        @if (isTherapist()) {
+          <div class="sheet__addnote">
+            <ui-field label="Add a care note">
+              <textarea rows="2" [(ngModel)]="newCareNote" data-testid="care-note-input"></textarea>
+            </ui-field>
+            <ui-button variant="tonal" icon="add_notes" (click)="addCareNote(appt)"
+                       data-testid="care-note-save">Add note</ui-button>
+          </div>
+        }
+      </section>
+
+      <footer class="sheet__actions">
+        @if (appt.status === 'completed' && canBook()) {
+          <ui-button icon="point_of_sale" (click)="checkout(appt)" data-testid="go-checkout">
+            Checkout
+          </ui-button>
         }
         @for (action of nextActions(appt.status); track action) {
-          <button
-            type="button"
-            class="btn"
-            [class.btn--danger]="action === 'cancelled' || action === 'no_show'"
+          <ui-button
+            [variant]="destructive(action) ? 'danger' : 'tonal'"
             (click)="transition(appt, action)"
             [attr.data-testid]="'action-' + action"
           >
             {{ label(action) }}
-          </button>
+          </ui-button>
         }
-      </div>
-    </aside>
+      </footer>
+    </ui-sheet>
   }
-</section>
+</ui-page>
