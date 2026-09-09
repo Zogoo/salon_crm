@@ -24,6 +24,22 @@ module Api
         render json: { error: { code: "not_assigned_to_this_appointment" } }, status: :forbidden
       end
 
+      # BR-44: a correction never edits the original. It is a new note that
+      # points at the one it replaces, so both remain readable.
+      def supersede
+        original = CareNote.includes(appointment: :location).find(params[:id])
+        author = current_user.staff_profile
+        # Only the author corrects their own note — a second opinion is a note
+        # of its own, not a correction of someone else's.
+        raise ActiveRecord::RecordNotFound unless author && original.staff_profile_id == author.id
+
+        note = CareNote.create!(appointment: original.appointment, staff_profile: author,
+                                body: params.require(:body), supersedes_note: original)
+        render json: note_json(note, original.appointment.location), status: :created
+      rescue ActiveRecord::RecordInvalid => e
+        render_invalid(e.record.errors.full_messages.join(", "))
+      end
+
       private
 
       def find_appointment!

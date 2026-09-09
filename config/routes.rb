@@ -71,19 +71,34 @@ Rails.application.routes.draw do
       end
       resources :clients, only: %i[index show create update] do
         member do
-          put :preferences, action: :update_preferences
+          get  :preferences
+          put  :preferences, action: :update_preferences
+          get  "preferences/versions", action: :preference_versions
           post :merge
+        end
+        # The company-wide client record (BR-42), read-only views of it.
+        scope module: :clients do
+          get "appointments",     to: "history#appointments"
+          get "orders",           to: "history#orders"
+          get "gift_cards",       to: "history#gift_cards"
+          get "ratings",          to: "history#ratings"
+          get "history_summary",  to: "history#summary"
         end
       end
       get "availability", to: "availability#index"
       get "availability/next_for_therapist", to: "availability#next_for_therapist"
-      resources :appointments, only: %i[index show create] do
+      resources :appointments, only: %i[index show create update] do
         collection { get :calendar }
         member do
-          post :transition
-          post :reschedule
+          post   :transition
+          post   :reschedule
+          post   :cancel
+          post   "items", action: :add_items
+          delete "items/:item_id", action: :remove_item
+          get    "care_notes", to: "care_notes#index"
         end
       end
+      post "care_notes/:id/supersede", to: "care_notes#supersede"
       resources :staff_requests, only: %i[index create] do
         member do
           post :approve

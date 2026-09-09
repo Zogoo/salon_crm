@@ -88,7 +88,58 @@ module Api
         render json: { error: e.message }, status: :unprocessable_content
       end
 
+      # Doc 05: notes and internal fields only. Times move through reschedule,
+      # which releases the old slot properly; status moves through transition.
+      def update
+        require_booking!
+        appt = find_appointment
+        appt.update!(appointment_update_params)
+        render json: appointment_json(appt.reload, detail: true)
+      rescue ActiveRecord::RecordInvalid => e
+        render_invalid(e.record.errors.full_messages.join(", "))
+      end
+
+      # BR-18/BR-19: the 4-hour window decides cancelled vs late_cancelled and
+      # the fee, so cancelling is a transition rather than a separate path.
+      def cancel
+        require_booking!
+        appt = find_appointment
+        Scheduling::TransitionStatus.call(appointment: appt, to: "cancelled",
+                                          actor: current_user, reason: params[:reason])
+        render json: appointment_json(appt.reload, detail: true)
+      rescue Scheduling::TransitionStatus::Invalid => e
+        render_invalid(e.message)
+      end
+
+      def add_items
+        require_booking!
+        appt = find_appointment
+        Scheduling::AddAppointmentItem.call(
+          appointment: appt, variant_ids: params[:service_variant_ids], actor: current_user
+        )
+        render json: appointment_json(appt.reload, detail: true), status: :created
+      rescue Scheduling::AddAppointmentItem::Invalid => e
+        render_invalid(e.message)
+      rescue Scheduling::AddAppointmentItem::Conflict => e
+        render json: { error: { code: e.message } }, status: :conflict
+      end
+
+      def remove_item
+        require_booking!
+        appt = find_appointment
+        Scheduling::RemoveAppointmentItem.call(
+          appointment: appt, item_id: params[:item_id], actor: current_user
+        )
+        render json: appointment_json(appt.reload, detail: true)
+      rescue Scheduling::RemoveAppointmentItem::Invalid => e
+        render_invalid(e.message)
+      end
+
       private
+
+      def appointment_update_params
+        params.require(:appointment).permit(:appointment_note, :client_note)
+      end
 
       def create_params
         params.require(:appointment).permit(

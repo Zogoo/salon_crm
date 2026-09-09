@@ -66,7 +66,42 @@ module Api
         end
       end
 
+      def preferences
+        client = Client.kept.find(params[:id])
+        raise ActiveRecord::RecordNotFound unless may_read_preferences?(client)
+
+        render json: { client_id: client.id, preference: preference_json(client.client_preference) }
+      end
+
+      # BR-43: the form is versioned, so the history is readable rather than
+      # overwritten. Owner and Manager only — a therapist sees the current form.
+      def preference_versions
+        require_role!(:owner, :manager)
+        client = Client.kept.find(params[:id])
+        versions = client.client_preference_versions.order(superseded_at: :desc)
+
+        render json: { client_id: client.id,
+                       versions: versions.map { |v| preference_json(v).merge(superseded_at: v.superseded_at) } }
+      end
+
       private
+
+      # Doc 05: a therapist may read the form only for a client they are
+      # actually seeing.
+      def may_read_preferences?(client)
+        return true unless current_user.staff?
+
+        client.appointments.joins(:appointment_staff)
+              .where(appointment_staff: { staff_profile_id: current_user.staff_profile&.id })
+              .exists?
+      end
+
+      def preference_json(pref)
+        return nil if pref.nil?
+
+        { attention_areas: pref.attention_areas, avoid_areas: pref.avoid_areas,
+          pressure: pref.pressure, other_requests: pref.other_requests }
+      end
 
       def client_params
         params.require(:client).permit(:first_name, :last_name, :phone, :email,
