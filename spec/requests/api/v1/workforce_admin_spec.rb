@@ -41,6 +41,32 @@ RSpec.describe "Workforce administration API", type: :request do
       expect(response).to have_http_status(:forbidden)
       expect(User.find_by(email: "x@example.com")).to be_nil
     end
+
+    # An unattended Owner session is the threat here, not a lesser role: the
+    # guard on this endpoint is "is an Owner", so a walk-up attacker already
+    # passes it. Minting a second Owner would outlive the hijacked session,
+    # so onboarding refuses the role outright.
+    it "refuses to mint an Owner, even for the Owner" do
+      post "/api/v1/staff",
+           params: { staff: { email: "backdoor@example.com", display_name: "Backdoor",
+                              role: "owner", location_id: world[:location].id } },
+           headers: auth(owner), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(User.find_by(email: "backdoor@example.com")).to be_nil
+    end
+
+    it "still onboards a Manager, who is pinned to their location" do
+      post "/api/v1/staff",
+           params: { staff: { email: "new.manager@example.com", display_name: "Saraa",
+                              role: "manager", location_id: world[:location].id } },
+           headers: auth(owner), as: :json
+
+      expect(response).to have_http_status(:created)
+      user = User.find_by(email: "new.manager@example.com")
+      expect(user.role).to eq("manager")
+      expect(user.location_id).to eq(world[:location].id)
+    end
   end
 
   describe "session rates" do

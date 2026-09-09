@@ -6,6 +6,13 @@ module Workforce
   class CreateStaff < ApplicationService
     Invalid = Class.new(StandardError)
 
+    # Onboarding mints workforce logins only. Owner is deliberately absent:
+    # it is the one role allowed to reach this endpoint, so accepting it here
+    # would let a hijacked Owner session leave a second Owner behind, and that
+    # account outlives the session that made it. Promoting someone to Owner is
+    # a deliberate act with its own path, not a field on the hiring form.
+    ASSIGNABLE_ROLES = %w[staff manager].freeze
+
     def initialize(attrs:, actor: nil)
       @attrs = attrs.to_h.symbolize_keys
       @actor = actor
@@ -13,13 +20,14 @@ module Workforce
 
     def call
       location = Location.find(@attrs.fetch(:location_id))
+      role = requested_role
 
       ImmediateTransaction.call do
         user = User.create!(
           email: @attrs.fetch(:email), name: @attrs.fetch(:display_name),
           password: @attrs[:password].presence || SecureRandom.base58(16),
-          role: @attrs.fetch(:role, "staff"), status: "active",
-          location: (location if @attrs.fetch(:role, "staff") == "manager")
+          role: role, status: "active",
+          location: (location if role == "manager")
         )
 
         profile = StaffProfile.create!(
@@ -43,6 +51,12 @@ module Workforce
     end
 
     private
+
+    def requested_role
+      role = @attrs.fetch(:role, "staff").to_s
+      return role if ASSIGNABLE_ROLES.include?(role)
+      raise Invalid, "role must be one of: #{ASSIGNABLE_ROLES.join(', ')}"
+    end
 
     def next_employee_code(location)
       prefix = location.name.parameterize.upcase.first(3)

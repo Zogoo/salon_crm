@@ -6,7 +6,7 @@
       "message": "Potentially dangerous key allowed for mass assignment",
       "file": "app/controllers/api/v1/staff_controller.rb",
       "line": 63,
-      "note": "Flags :role and :status as mass-assignable. Both are the point of the endpoint: doc 05 §6 puts staff onboarding behind the Owner, who chooses whether a new hire is a therapist or a manager. StaffController#create and #update each call require_owner! as their first statement, and require_role! raises Forbidden unless current_user.role is exactly 'owner' — Brakeman cannot see that guard, so it assumes the params reach an unauthenticated caller. An Owner promoting someone to owner is intended, not escalation: owner is already the top role. If this endpoint ever loses require_owner!, delete this entry rather than re-fingerprint it."
+      "note": "Flags :role and :status as mass-assignable on the Owner-only staff endpoint. The Owner guard alone is NOT the reason this is safe: the threat is an unattended Owner session, which already satisfies require_owner!. What closes it is that no request can mint an Owner. Workforce::CreateStaff::ASSIGNABLE_ROLES is %w[staff manager], and anything else raises Invalid before a User is built; Workforce::UpdateStaff writes neither role nor any User field except :email, so there is no path that promotes an existing account. Covered by spec/requests/api/v1/workforce_admin_spec.rb, 'refuses to mint an Owner, even for the Owner'. Delete this entry rather than re-fingerprinting it if ASSIGNABLE_ROLES ever gains 'owner', or if UpdateStaff starts writing role."
     }
   ],
   "brakeman_version": "8.0.6"
