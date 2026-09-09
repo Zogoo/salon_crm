@@ -12,6 +12,7 @@ in this repository, for AI agents and humans alike.
 | [docs/engineering/04-security-owasp.md](docs/engineering/04-security-owasp.md) | Touching auth, params, uploads, or SQL. |
 | [docs/engineering/05-testing.md](docs/engineering/05-testing.md) | Writing tests — which is every behaviour change. |
 | [docs/engineering/06-workflows.md](docs/engineering/06-workflows.md) | Running commands, migrations, i18n, deploys. |
+| [docs/engineering/07-deployment.md](docs/engineering/07-deployment.md) | Changing how the app ships to Fly.io. |
 
 ## Domain documentation
 

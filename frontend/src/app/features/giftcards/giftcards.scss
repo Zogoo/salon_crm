@@ -2,11 +2,11 @@
 
 .gc {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   align-items: start;
 
-  @include expanded-up { grid-template-columns: 1fr 1fr; }
+  @include expanded-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
 .picker__amount { @include type-title-sm; font-variant-numeric: tabular-nums; }

@@ -7,9 +7,12 @@
 // It began as four copies of the same file under features/admin. It lives here
 // because it is not about administration — it is about the shape.
 
+// `minmax(0, 1fr)` rather than `1fr` throughout: a bare `1fr` track sizes to
+// its content's minimum, so one wide table pushes the page sideways instead of
+// scrolling inside its own container.
 .split {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   align-items: start;
 
@@ -21,8 +24,8 @@
 .form-grid {
   display: grid;
   gap: var(--sp-4);
-  grid-template-columns: 1fr;
-  @include medium-up { grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+  grid-template-columns: minmax(0, 1fr);
+  @include medium-up { grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); }
 }
 
 .row { display: flex; gap: var(--sp-3); align-items: flex-end; flex-wrap: wrap; }
@@ -82,7 +85,7 @@
 .num input { max-width: 8rem; }
 
 .split--even {
-  @include expanded-up { grid-template-columns: 1fr 1fr; }
+  @include expanded-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
 .checks--stack { flex-direction: column; gap: 0; }

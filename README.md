@@ -58,14 +58,9 @@ directly in `docker-compose.yml`; production values are Fly secrets.
 
 ## Deploying
 
-`fly.toml` is committed and ready. Run `rake fly:setup` from the generator project to
-create the app, volume, storage bucket and secrets, then:
-
-```bash
-fly deploy
-```
-
-Pushes to `main` deploy automatically once the `FLY_API_TOKEN` repository secret is set.
+Every green CI run on `main` deploys itself, once the app is provisioned and the
+`FLY_API_TOKEN` repository secret is set. `fly.toml` is committed and ready; the one-time
+setup is in [docs/engineering/07-deployment.md](docs/engineering/07-deployment.md).
 
 ## Conventions
 

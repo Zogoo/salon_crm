@@ -6,14 +6,14 @@
   display: grid;
   gap: var(--sp-3);
   // Tiles reflow rather than shrink, so a number is never clipped on a phone.
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr));
 }
 
 .dash__cols {
   display: grid;
   gap: var(--sp-4);
-  grid-template-columns: 1fr;
-  @include medium-up { grid-template-columns: 1fr 1fr; }
+  grid-template-columns: minmax(0, 1fr);
+  @include medium-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
 .people {

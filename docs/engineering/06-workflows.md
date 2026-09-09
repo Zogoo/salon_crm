@@ -78,10 +78,9 @@ the Rails-native-first rule in [01-tech-stack.md](01-tech-stack.md).
 push to main ──> GitHub Actions CI ──> fly-deploy.yml ──> fly deploy
 ```
 
-CI must be green: Brakeman, bundler-audit, RuboCop, RSpec, Vitest.
+CI must be green — Brakeman, bundler-audit, RuboCop, RSpec, Vitest — before the
+deploy workflow will run. Migrations run on boot via `bin/docker-entrypoint`
+(`db:prepare`), not as a deploy step.
 
-First-time setup (creates the app, volume, storage and secrets) is
-`rake fly:setup` from the generator project. It is idempotent. Requires the
-`FLY_API_TOKEN` repository secret for the deploy workflow.
-
-Migrations run automatically on boot via `bin/docker-entrypoint` (`db:prepare`).
+First-time setup (app, volume, secrets, deploy token) is in
+[07-deployment.md](07-deployment.md).

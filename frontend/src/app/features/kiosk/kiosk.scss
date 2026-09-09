@@ -36,10 +36,10 @@
 // Ten targets that stay comfortably tappable on a wall-mounted tablet.
 .scores {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--sp-2);
 
-  @include medium-up { grid-template-columns: repeat(10, 1fr); }
+  @include medium-up { grid-template-columns: repeat(10, minmax(0, 1fr)); }
 }
 
 .score {

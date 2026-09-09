@@ -4,9 +4,9 @@
   display: grid;
   gap: var(--sp-4);
   align-items: start;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 
-  @include medium-up { grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+  @include medium-up { grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
 }
 
 .rows { display: flex; flex-direction: column; gap: var(--sp-2); }
