@@ -70,7 +70,7 @@ export class StaffAdminPage implements OnInit {
   protected reload(): void {
     const loc = this.ctx.current();
     if (!loc) return;
-    this.api.staffList(loc.id, this.showOffboarded() ? 'all' : 'active').subscribe({
+    this.api.staff(loc.id, this.showOffboarded() ? 'all' : 'active').subscribe({
       next: ({ staff }) => this.staff.set(staff),
       error: (err) => this.error.set(this.message(err, 'Could not load staff')),
     });

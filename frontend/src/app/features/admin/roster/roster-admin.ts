@@ -173,7 +173,7 @@ export class RosterAdminPage implements OnInit {
   private loadStaff(): void {
     const loc = this.ctx.current();
     if (!loc) return;
-    this.api.staffList(loc.id).subscribe({
+    this.api.staff(loc.id).subscribe({
       next: ({ staff }) => {
         this.staff.set(staff);
         this.newShift.staff_profile_id = staff[0]?.id ?? 0;

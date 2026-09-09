@@ -37,7 +37,7 @@ describe('StaffAdminPage', () => {
     p.rateEffectiveFrom = '2026-07-01';
     p.saveRates();
 
-    const req = http.expectOne((r) => r.url.endsWith('/staff/3/session_rates'));
+    const req = http.expectOne((r) => r.url.endsWith("/staff/3/session_rates"));
     expect(req.request.body.rates).toHaveLength(6);
     expect(req.request.body.rates.map((x: { duration_minutes: number }) => x.duration_minutes)).toEqual([
       30, 45, 60, 75, 90, 120,

@@ -112,8 +112,10 @@ export class MassagelabService {
     return this.http.put<ClientRecord>(`${this.base}/clients/${id}/preferences`, { preference });
   }
 
-  staff(locationId: number): Observable<{ staff: StaffMember[] }> {
-    const params = new HttpParams().set('location_id', locationId);
+  // `status` defaults to the working roster; 'all' reaches offboarded people.
+  staff(locationId?: number, status = 'active'): Observable<{ staff: StaffMember[] }> {
+    let params = new HttpParams().set('status', status);
+    if (locationId) params = params.set('location_id', locationId);
     return this.http.get<{ staff: StaffMember[] }>(`${this.base}/staff`, { params });
   }
 
@@ -257,16 +259,6 @@ export class MassagelabService {
   }
 
   // --- Administration (doc 05 §§4-6) ---
-
-  staffList(locationId?: number, status = 'active'): Observable<{ staff: StaffMember[] }> {
-    let params = new HttpParams().set('status', status);
-    if (locationId) params = params.set('location_id', locationId);
-    return this.http.get<{ staff: StaffMember[] }>(`${this.base}/staff`, { params });
-  }
-
-  staffMember(id: number): Observable<StaffMember> {
-    return this.http.get<StaffMember>(`${this.base}/staff/${id}`);
-  }
 
   createStaff(staff: Record<string, unknown>): Observable<StaffMember> {
     return this.http.post<StaffMember>(`${this.base}/staff`, { staff });

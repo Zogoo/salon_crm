@@ -66,7 +66,7 @@ export class CatalogueAdminPage implements OnInit {
     });
   }
 
-  protected open(service: Service): void {
+  protected open(service: { id: number }): void {
     this.clear();
     this.prices.set([]);
     this.pricedVariant.set(null);
