@@ -58,6 +58,10 @@
 
 .appbar__brand {
   @include type-title-lg;
+  // It is a link, so it gets a real target rather than just the text box.
+  @include touch-target;
+  display: inline-flex;
+  align-items: center;
   color: var(--md-on-surface);
   text-decoration: none;
   white-space: nowrap;
@@ -80,7 +84,7 @@
   background: var(--md-surface-container-lowest);
   border: 1px solid var(--md-outline);
   border-radius: var(--md-shape-full);
-  min-height: 40px;
+  min-height: 48px;
   color: var(--md-on-surface-variant);
 
   select {
