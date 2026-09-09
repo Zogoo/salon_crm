@@ -1,0 +1,13 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "1bb128ba490fa3c87370bb0edd2b60434435c008dda482f4cacb15d9d01cf1b7",
+      "check_name": "PermitAttributes",
+      "message": "Potentially dangerous key allowed for mass assignment",
+      "file": "app/controllers/api/v1/staff_controller.rb",
+      "line": 63,
+      "note": "Flags :role and :status as mass-assignable. Both are the point of the endpoint: doc 05 §6 puts staff onboarding behind the Owner, who chooses whether a new hire is a therapist or a manager. StaffController#create and #update each call require_owner! as their first statement, and require_role! raises Forbidden unless current_user.role is exactly 'owner' — Brakeman cannot see that guard, so it assumes the params reach an unauthenticated caller. An Owner promoting someone to owner is intended, not escalation: owner is already the top role. If this endpoint ever loses require_owner!, delete this entry rather than re-fingerprint it."
+    }
+  ],
+  "brakeman_version": "8.0.6"
+}

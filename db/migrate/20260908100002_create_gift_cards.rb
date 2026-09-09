@@ -18,7 +18,7 @@ class CreateGiftCards < ActiveRecord::Migration[8.1]
       # BR-27: liability stays with the selling location forever.
       t.references :sold_at_location, null: false, foreign_key: { to_table: :locations }
       t.datetime :expires_at, null: false
-      t.string  :status, null: false, default: "active"
+      t.string :status, null: false, default: "active"
       t.timestamps
     end
     add_index :gift_cards, :code, unique: true
@@ -37,7 +37,7 @@ class CreateGiftCards < ActiveRecord::Migration[8.1]
       t.references :performed_by_user, foreign_key: { to_table: :users }
       t.references :location, foreign_key: true             # the REDEEMING location
       t.datetime :occurred_at, null: false
-      t.text    :note
+      t.text :note
       t.timestamps
     end
     add_index :gift_card_transactions, %i[gift_card_id occurred_at]

@@ -7,7 +7,7 @@ class CreateCrmAndNotifications < ActiveRecord::Migration[8.1]
     create_table :care_notes do |t|
       t.references :appointment, null: false, foreign_key: true
       t.references :staff_profile, null: false, foreign_key: true
-      t.text    :body, null: false
+      t.text :body, null: false
       t.references :supersedes_note, foreign_key: { to_table: :care_notes }
       t.datetime :created_at, null: false           # no updated_at — never modified
     end

@@ -27,7 +27,7 @@ class CreateEarnings < ActiveRecord::Migration[8.1]
       t.integer :rate_cents                               # snapshot — BR-35
       t.integer :amount_cents, null: false
       t.references :created_by_user, foreign_key: { to_table: :users }
-      t.text    :note
+      t.text :note
       t.timestamps
     end
     add_index :earning_lines, %i[staff_profile_id service_date]
@@ -73,7 +73,7 @@ class CreateEarnings < ActiveRecord::Migration[8.1]
       t.date    :effective_from, null: false
       t.date    :effective_to
       t.references :created_by_user, foreign_key: { to_table: :users }
-      t.text    :note
+      t.text :note
       t.timestamps
     end
     add_index :staff_monthly_rates, %i[staff_profile_id effective_from], unique: true

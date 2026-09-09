@@ -46,7 +46,7 @@ class CreateMembership < ActiveRecord::Migration[8.1]
       # BR-39a: who authorised use away from the home location, kept on the row.
       t.references :cross_location_approved_by_user, foreign_key: { to_table: :users }
       t.datetime :occurred_at, null: false
-      t.text    :note
+      t.text :note
       t.timestamps
     end
   end

@@ -14,11 +14,11 @@ class CreateClients < ActiveRecord::Migration[8.1]
       t.integer :cancel_count,      null: false, default: 0
       t.datetime :first_visit_at
       t.datetime :last_visit_at
-      t.string  :status, null: false, default: "active"
+      t.string :status, null: false, default: "active"
       t.references :merged_into_client, foreign_key: { to_table: :clients }
       t.datetime :discarded_at
       # No pg_trgm on SQLite (doc 08 §2): name search is LIKE over this lowercased column.
-      t.string  :search_name, null: false, default: ""
+      t.string :search_name, null: false, default: ""
       t.timestamps
     end
     add_index :clients, :phone

@@ -1,7 +1,7 @@
 class CreateSales < ActiveRecord::Migration[8.1]
   def change
     create_table :orders do |t|
-      t.string  :number, null: false
+      t.string :number, null: false
       t.references :client, foreign_key: true            # nil for an anonymous gift card sale
       t.references :location, null: false, foreign_key: true
       t.references :appointment, foreign_key: true       # nil for standalone sales
@@ -45,10 +45,10 @@ class CreateSales < ActiveRecord::Migration[8.1]
       t.string  :reference
       t.datetime :received_at, null: false
       t.references :received_by_user, foreign_key: { to_table: :users }
-      t.string  :status, null: false, default: "captured"
+      t.string :status, null: false, default: "captured"
       t.references :voided_by_user, foreign_key: { to_table: :users }
       t.datetime :voided_at
-      t.string  :void_reason
+      t.string :void_reason
       t.timestamps
     end
     add_index :payments, %i[received_at method status]
@@ -68,7 +68,7 @@ class CreateSales < ActiveRecord::Migration[8.1]
       t.string  :kind, null: false                        # manual | membership_upgrade_credit
       t.integer :amount_cents, null: false
       t.references :applied_by_user, foreign_key: { to_table: :users }
-      t.string  :reason
+      t.string :reason
       t.timestamps
     end
 

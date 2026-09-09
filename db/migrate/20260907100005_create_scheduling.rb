@@ -3,7 +3,7 @@ class CreateScheduling < ActiveRecord::Migration[8.1]
 
   def change
     create_table :appointments do |t|
-      t.string  :reference, null: false
+      t.string :reference, null: false
       t.references :client, null: false, foreign_key: true
       t.references :location, null: false, foreign_key: true
       t.references :room, null: false, foreign_key: true
@@ -19,7 +19,7 @@ class CreateScheduling < ActiveRecord::Migration[8.1]
       t.text    :appointment_note
       t.integer :fee_charged_cents, null: false, default: 0
       t.datetime :cancelled_at
-      t.string  :cancellation_reason
+      t.string :cancellation_reason
       t.references :rescheduled_from, foreign_key: { to_table: :appointments }
       t.timestamps
     end
@@ -76,7 +76,7 @@ class CreateScheduling < ActiveRecord::Migration[8.1]
     create_table :approval_requests do |t|
       t.references :appointment, null: false, foreign_key: true, index: { unique: true }
       t.references :requested_staff_profile, null: false, foreign_key: { to_table: :staff_profiles }
-      t.string   :status, null: false, default: "pending"
+      t.string :status, null: false, default: "pending"
       t.references :requested_by_user, foreign_key: { to_table: :users }
       t.references :reviewed_by_user, foreign_key: { to_table: :users }
       t.datetime :reviewed_at
