@@ -57,6 +57,9 @@ export interface Room {
   room_type: 'single' | 'couple' | 'three_table' | 'head_spa';
   client_capacity: number;
   exclusive?: boolean;
+  position?: number;
+  status?: string;
+  location_id?: number;
 }
 
 export interface ServiceVariant {
@@ -206,7 +209,91 @@ export interface StaffMember {
   email?: string;
   hire_date?: string;
   services?: { id: number; name: string }[];
-  session_rates?: { duration_minutes: number; rate_cents: number; effective_from: string }[];
+  can_edit_service_menu?: boolean;
+  termination_date?: string | null;
+  session_rates?: SessionRate[];
+}
+
+/** BR-35: effective-dated, so a row may be closed rather than current. */
+export interface SessionRate {
+  duration_minutes: number;
+  rate_cents: number;
+  effective_from: string;
+  effective_to?: string | null;
+  note?: string | null;
+}
+
+export interface MonthlyRate {
+  amount_cents: number;
+  effective_from: string;
+  effective_to?: string | null;
+  note?: string | null;
+}
+
+export interface Qualification {
+  service_id: number;
+  name: string;
+  active: boolean;
+}
+
+export interface CatalogueService {
+  id: number;
+  name: string;
+  kind: string;
+  active: boolean;
+  service_category_id: number;
+  variants: CatalogueVariant[];
+}
+
+export interface CatalogueVariant {
+  id: number;
+  service_id?: number;
+  duration_minutes: number;
+  therapist_count: number;
+  required_client_capacity: number;
+  requires_room_type: string | null;
+  active: boolean;
+}
+
+export interface VariantPrice {
+  id: number;
+  location_id: number;
+  location: string;
+  price_cents: number;
+  effective_from: string;
+  effective_to?: string | null;
+}
+
+export interface BusinessHour {
+  id?: number;
+  day_of_week: number;
+  opens_at: string;
+  closes_at: string;
+}
+
+export interface Closure {
+  id: number;
+  date: string;
+  reason?: string | null;
+}
+
+export interface RoomBlock {
+  id: number;
+  starts_at: string;
+  ends_at: string;
+  reason?: string | null;
+}
+
+export interface RosterShift {
+  id: number;
+  staff_profile_id: number;
+  display_name?: string;
+  location_id: number;
+  work_date: string;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  notes?: string | null;
 }
 
 export interface ShiftBoard {

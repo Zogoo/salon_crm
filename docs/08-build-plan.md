@@ -187,6 +187,45 @@ transition was individually correct — the window rule, the fee percentage, the
 counter — and the composition was wrong, because a reschedule had been modelled
 as a cancellation followed by a booking rather than as a move.
 
+### 7.4 The administration gap
+
+The largest defect in this build was not a bug. It was scope: Release 1 was
+reported complete when the entire **administration surface** was missing. The
+system could run a day — book, check in, take money, pay therapists — but the
+Owner could not set up or change the things that day runs on.
+
+Missing, all of it specified in doc 05 and doc 01 §3:
+
+| Area | What could not be done |
+|---|---|
+| Staff | Onboard anyone, edit a profile, set who is qualified for what |
+| Pay | Set or change a session ladder or a manager's monthly rate — earnings read rates nothing could write |
+| Roster | Edit a shift, publish a drafted week, list breaks |
+| Menu | Add, rename, retire a service; add a duration; set a price anywhere |
+| Location | Record a holiday, set per-day hours, add a room, block one for a deep clean |
+| Client | Read the visit history, orders, ratings or preference versions the record is built on |
+| Money | Refund, discount, add a line, redeem a card by code |
+| Auth | Sign out, reset a password, enrol the second factor doc 05 requires of the Owner |
+
+**How it was missed.** The earlier endpoint audit compared the routes against
+the *examples* in doc 05 rather than its tables, so it found nine missing
+endpoints and reported the rest complete. The tables list 124 internal
+endpoints; 88 existed. A count was available the whole time and was never
+taken — `bin/rails routes` against the doc tables is now the check, and it is
+the first thing to run when asking "is this done?"
+
+**What it cost.** Two of the gaps were not merely missing screens:
+
+* Three near-copies of the BR-07 guard had grown (shift delete, break
+  creation, shift-change approval). Adding a fourth for PATCH would have been
+  the natural move; extracting `Scheduling::ShiftCoverage` instead is why the
+  new endpoint was safe rather than a fourth variant to keep in step.
+* `location_business_hours`, `location_closures` and `room_blocks` did not
+  exist at all, so a holiday could not be recorded. Adding the tables was the
+  easy half; wiring them into **both** the availability search and
+  `BookAppointment` was the half that matters, because the search only hides
+  times and a direct POST does not go through it.
+
 ### 7.1 Notes for whoever picks this up
 
 - **`Scheduling::BookAppointment` is load-bearing.** It is the only place an

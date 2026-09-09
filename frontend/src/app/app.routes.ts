@@ -61,6 +61,33 @@ export const routes: Routes = [
     loadComponent: () => import('./features/reports/reports').then((m) => m.ReportsPage),
   },
   {
+    // Doc 01 §3.1 / doc 05 §6 — onboarding, qualifications and pay rates.
+    path: 'admin/staff',
+    canActivate: [authGuard, ownerGuard],
+    loadComponent: () =>
+      import('./features/admin/staff/staff-admin').then((m) => m.StaffAdminPage),
+  },
+  {
+    // BR-05: staff never self-edit shifts, so the roster is Manager-and-above.
+    path: 'admin/roster',
+    canActivate: [authGuard, bookingRoleGuard],
+    loadComponent: () =>
+      import('./features/admin/roster/roster-admin').then((m) => m.RosterAdminPage),
+  },
+  {
+    // FRS §19: the menu and the price list.
+    path: 'admin/services',
+    canActivate: [authGuard, ownerGuard],
+    loadComponent: () =>
+      import('./features/admin/catalogue/catalogue-admin').then((m) => m.CatalogueAdminPage),
+  },
+  {
+    path: 'admin/location',
+    canActivate: [authGuard, ownerGuard],
+    loadComponent: () =>
+      import('./features/admin/location/location-admin').then((m) => m.LocationAdminPage),
+  },
+  {
     // The in-location touchscreen. Staff-authenticated but deliberately bare.
     path: 'kiosk',
     canActivate: [authGuard],

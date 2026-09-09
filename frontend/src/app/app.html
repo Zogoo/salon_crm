@@ -14,9 +14,15 @@
           <a routerLink="/gift-cards" routerLinkActive="on" data-testid="nav-giftcards">Gift cards</a>
           <a routerLink="/membership" routerLinkActive="on" data-testid="nav-membership">Membership</a>
         }
+        @if (currentUser.role !== 'staff') {
+          <a routerLink="/admin/roster" routerLinkActive="on" data-testid="nav-roster">Roster</a>
+        }
         @if (currentUser.role === 'owner') {
           <a routerLink="/earnings" routerLinkActive="on" data-testid="nav-earnings">Earnings</a>
           <a routerLink="/reports" routerLinkActive="on" data-testid="nav-reports">Reports</a>
+          <a routerLink="/admin/staff" routerLinkActive="on" data-testid="nav-staff">Staff</a>
+          <a routerLink="/admin/services" routerLinkActive="on" data-testid="nav-services">Services</a>
+          <a routerLink="/admin/location" routerLinkActive="on" data-testid="nav-location">Location</a>
         }
       </nav>
       <div class="account">

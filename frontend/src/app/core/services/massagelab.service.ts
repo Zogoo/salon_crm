@@ -7,26 +7,37 @@ import {
   Appointment,
   ApprovalRequest,
   Availability,
+  BusinessHour,
   CareNote,
+  CatalogueService,
+  CatalogueVariant,
   ClientLogRow,
   ClientRecord,
+  Closure,
   DailyRevenue,
-  DayBoard,
   Dashboard,
+  DayBoard,
   EarningPeriod,
   EarningsReport,
   GiftCard,
   GiftCardLiability,
   Location,
   MembershipRecord,
+  MonthlyRate,
   NoShowReport,
   Order,
   PaymentMethod,
+  Qualification,
   RetentionReport,
+  Room,
+  RoomBlock,
+  RosterShift,
   Service,
+  SessionRate,
   ShiftBoard,
   StaffMember,
   UtilizationReport,
+  VariantPrice,
 } from '../models';
 
 /** One place for every domain call, so a view-layer change touches components only. */
@@ -243,6 +254,198 @@ export class MassagelabService {
 
   addEarningLine(payload: Record<string, unknown>) {
     return this.http.post(`${this.base}/earning_lines`, payload);
+  }
+
+  // --- Administration (doc 05 §§4-6) ---
+
+  staffList(locationId?: number, status = 'active'): Observable<{ staff: StaffMember[] }> {
+    let params = new HttpParams().set('status', status);
+    if (locationId) params = params.set('location_id', locationId);
+    return this.http.get<{ staff: StaffMember[] }>(`${this.base}/staff`, { params });
+  }
+
+  staffMember(id: number): Observable<StaffMember> {
+    return this.http.get<StaffMember>(`${this.base}/staff/${id}`);
+  }
+
+  createStaff(staff: Record<string, unknown>): Observable<StaffMember> {
+    return this.http.post<StaffMember>(`${this.base}/staff`, { staff });
+  }
+
+  updateStaff(id: number, staff: Record<string, unknown>): Observable<StaffMember> {
+    return this.http.patch<StaffMember>(`${this.base}/staff/${id}`, { staff });
+  }
+
+  offboardStaff(id: number, terminationDate?: string): Observable<StaffMember> {
+    return this.http.post<StaffMember>(`${this.base}/staff/${id}/offboard`, {
+      termination_date: terminationDate,
+    });
+  }
+
+  qualifications(id: number): Observable<{ qualifications: Qualification[] }> {
+    return this.http.get<{ qualifications: Qualification[] }>(`${this.base}/staff/${id}/qualifications`);
+  }
+
+  setQualifications(id: number, serviceIds: number[]): Observable<{ qualifications: Qualification[] }> {
+    return this.http.put<{ qualifications: Qualification[] }>(
+      `${this.base}/staff/${id}/qualifications`,
+      { service_ids: serviceIds },
+    );
+  }
+
+  sessionRates(id: number): Observable<{ session_rates: SessionRate[] }> {
+    return this.http.get<{ session_rates: SessionRate[] }>(`${this.base}/staff/${id}/session_rates`);
+  }
+
+  // BR-35: all six rungs together, effective-dated.
+  setSessionRates(
+    id: number,
+    rates: { duration_minutes: number; rate_cents: number }[],
+    effectiveFrom: string,
+    note?: string,
+  ): Observable<{ session_rates: SessionRate[] }> {
+    return this.http.post<{ session_rates: SessionRate[] }>(
+      `${this.base}/staff/${id}/session_rates`,
+      { rates, effective_from: effectiveFrom, note },
+    );
+  }
+
+  monthlyRate(id: number): Observable<{ monthly_rates: MonthlyRate[] }> {
+    return this.http.get<{ monthly_rates: MonthlyRate[] }>(`${this.base}/staff/${id}/monthly_rate`);
+  }
+
+  setMonthlyRate(id: number, amountCents: number, effectiveFrom: string, note?: string) {
+    return this.http.post<{ monthly_rates: MonthlyRate[] }>(`${this.base}/staff/${id}/monthly_rate`, {
+      amount_cents: amountCents,
+      effective_from: effectiveFrom,
+      note,
+    });
+  }
+
+  // --- Roster ---
+
+  roster(locationId: number, from: string, to: string): Observable<{ shifts: RosterShift[] }> {
+    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+    return this.http.get<{ shifts: RosterShift[] }>(`${this.base}/shifts`, { params });
+  }
+
+  createShift(shift: Record<string, unknown>): Observable<RosterShift> {
+    return this.http.post<RosterShift>(`${this.base}/shifts`, { shift });
+  }
+
+  updateShift(id: number, shift: Record<string, unknown>): Observable<RosterShift> {
+    return this.http.patch<RosterShift>(`${this.base}/shifts/${id}`, { shift });
+  }
+
+  deleteShift(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/shifts/${id}`);
+  }
+
+  publishShifts(shiftIds: number[]): Observable<{ published: RosterShift[] }> {
+    return this.http.post<{ published: RosterShift[] }>(`${this.base}/shifts/publish`, {
+      shift_ids: shiftIds,
+    });
+  }
+
+  // --- Catalogue ---
+
+  catalogue(): Observable<{ service_categories: { id: number; name: string }[] }> {
+    return this.http.get<{ service_categories: { id: number; name: string }[] }>(
+      `${this.base}/service_categories`,
+    );
+  }
+
+  catalogueService(id: number): Observable<CatalogueService> {
+    return this.http.get<CatalogueService>(`${this.base}/services/${id}`);
+  }
+
+  createService(service: Record<string, unknown>): Observable<CatalogueService> {
+    return this.http.post<CatalogueService>(`${this.base}/services`, { service });
+  }
+
+  updateService(id: number, service: Record<string, unknown>): Observable<CatalogueService> {
+    return this.http.patch<CatalogueService>(`${this.base}/services/${id}`, { service });
+  }
+
+  setServiceActive(id: number, active: boolean): Observable<CatalogueService> {
+    const action = active ? 'activate' : 'deactivate';
+    return this.http.post<CatalogueService>(`${this.base}/services/${id}/${action}`, {});
+  }
+
+  createVariant(serviceId: number, variant: Record<string, unknown>): Observable<CatalogueVariant> {
+    return this.http.post<CatalogueVariant>(`${this.base}/services/${serviceId}/service_variants`, {
+      service_variant: variant,
+    });
+  }
+
+  variantPrices(variantId: number): Observable<{ prices: VariantPrice[] }> {
+    return this.http.get<{ prices: VariantPrice[] }>(`${this.base}/service_variants/${variantId}/prices`);
+  }
+
+  // BR-11: a new price is a new period, never an edit of the old one.
+  setVariantPrice(variantId: number, locationId: number, priceCents: number, effectiveFrom: string) {
+    return this.http.post<VariantPrice>(`${this.base}/service_variants/${variantId}/prices`, {
+      location_id: locationId,
+      price_cents: priceCents,
+      effective_from: effectiveFrom,
+    });
+  }
+
+  // --- Location, rooms, hours, closures ---
+
+  updateLocation(id: number, location: Record<string, unknown>): Observable<Location> {
+    return this.http.patch<Location>(`${this.base}/locations/${id}`, { location });
+  }
+
+  businessHours(id: number): Observable<{ business_hours: BusinessHour[] }> {
+    return this.http.get<{ business_hours: BusinessHour[] }>(`${this.base}/locations/${id}/business_hours`);
+  }
+
+  setBusinessHours(id: number, hours: BusinessHour[]): Observable<{ business_hours: BusinessHour[] }> {
+    return this.http.put<{ business_hours: BusinessHour[] }>(
+      `${this.base}/locations/${id}/business_hours`,
+      { business_hours: hours },
+    );
+  }
+
+  closures(id: number): Observable<{ closures: Closure[] }> {
+    return this.http.get<{ closures: Closure[] }>(`${this.base}/locations/${id}/closures`);
+  }
+
+  createClosure(id: number, date: string, reason?: string): Observable<Closure> {
+    return this.http.post<Closure>(`${this.base}/locations/${id}/closures`, { date, reason });
+  }
+
+  deleteClosure(id: number, closureId: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/locations/${id}/closures/${closureId}`);
+  }
+
+  locationRooms(id: number): Observable<{ rooms: Room[] }> {
+    return this.http.get<{ rooms: Room[] }>(`${this.base}/locations/${id}/rooms`);
+  }
+
+  createRoom(locationId: number, room: Record<string, unknown>): Observable<Room> {
+    return this.http.post<Room>(`${this.base}/rooms`, { location_id: locationId, room });
+  }
+
+  updateRoom(id: number, room: Record<string, unknown>): Observable<Room> {
+    return this.http.patch<Room>(`${this.base}/rooms/${id}`, { room });
+  }
+
+  roomBlocks(id: number): Observable<{ blocks: RoomBlock[] }> {
+    return this.http.get<{ blocks: RoomBlock[] }>(`${this.base}/rooms/${id}/blocks`);
+  }
+
+  createRoomBlock(id: number, startsAt: string, endsAt: string, reason?: string) {
+    return this.http.post<RoomBlock>(`${this.base}/rooms/${id}/blocks`, {
+      starts_at: startsAt,
+      ends_at: endsAt,
+      reason,
+    });
+  }
+
+  deleteRoomBlock(id: number, blockId: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/rooms/${id}/blocks/${blockId}`);
   }
 
   // --- Reports ---
