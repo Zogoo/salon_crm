@@ -14,7 +14,23 @@ Rails.application.routes.draw do
       resources :notes
 
       # --- Massagelab domain ---
-      resources :locations, only: %i[index show]
+      resources :locations, only: %i[index show update] do
+        member do
+          get    :business_hours
+          put    :business_hours, action: :set_business_hours
+          get    :closures
+          post   :closures, action: :create_closure
+          delete "closures/:closure_id", action: :destroy_closure
+          get    :rooms, to: "rooms#index"
+        end
+      end
+      resources :rooms, only: %i[create update] do
+        member do
+          get    "blocks", action: :blocks
+          post   "blocks", action: :create_block
+          delete "blocks/:block_id", action: :destroy_block
+        end
+      end
       resources :service_categories, only: :index
       resources :services, only: %i[index show create update destroy] do
         member do

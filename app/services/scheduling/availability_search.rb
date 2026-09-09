@@ -52,31 +52,42 @@ module Scheduling
                       .group_by(&:first)
     end
 
-    # C8 — room conflicts are location-scoped, because a room belongs to one.
-    def room_busy(room_ids, from, to)
-      Appointment.active.overlapping(from, to)
-                 .where(room_id: room_ids)
-                 .pluck(:room_id, :starts_at, :ends_at)
-                 .group_by(&:first)
-    end
-
     # --- the scan ---------------------------------------------------------
 
     def slots_for(date)
       shifts = shifts_for(date)
       return [] if shifts.empty? || rooms.empty?
 
-      window = @location.open_window(date)
-      day_from = window.first
-      day_to = window.last
-      return [] if day_to <= day_from
+      # C1 — closed, or no hours for this weekday. Split hours give several
+      # windows, so the scan runs once per window.
+      windows = @location.business_windows(date)
+      return [] if windows.empty?
 
+      day_from = windows.first.first
+      day_to = windows.last.last
       staff_ids = shifts.map(&:staff_profile_id).uniq
       busy_staff = staff_busy(staff_ids, day_from, day_to)
       busy_rooms = room_busy(rooms.map(&:id), day_from, day_to)
       breaks = shifts.flat_map { |s| s.shift_breaks.map { |b| [ s.staff_profile_id, b.starts_at, b.ends_at ] } }
                      .group_by(&:first)
 
+      windows.flat_map { |w| scan(w, shifts, busy_staff, busy_rooms, breaks) }
+    end
+
+    # Doc 03 §2.4: blocks participate exactly like appointments, so they are
+    # merged into the room's busy list rather than checked separately.
+    def room_busy(room_ids, from, to)
+      appointments = Appointment.active.overlapping(from, to)
+                                .where(room_id: room_ids)
+                                .pluck(:room_id, :starts_at, :ends_at)
+      blocks = RoomBlock.overlapping(from, to).where(room_id: room_ids)
+                        .pluck(:room_id, :starts_at, :ends_at)
+      (appointments + blocks).group_by(&:first)
+    end
+
+    def scan(window, shifts, busy_staff, busy_rooms, breaks)
+      day_from = window.first
+      day_to = window.last
       step = @location.slot_granularity_minutes.minutes
       slots = []
       t = day_from

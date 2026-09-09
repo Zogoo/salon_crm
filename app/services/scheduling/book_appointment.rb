@@ -41,6 +41,8 @@ module Scheduling
       finish = @start_at + (shape.duration_minutes + @location.buffer_minutes).minutes
       service_end = @start_at + shape.duration_minutes.minutes
 
+      assert_location_open!(finish)
+
       ImmediateTransaction.call do
         staff = resolve_staff(shape, finish)
         room  = resolve_room(shape, finish)
@@ -162,8 +164,22 @@ module Scheduling
       staff.each { |sp| raise Conflict, "slot_taken" if staff_clash?(sp.id, finish) }
     end
 
+    # A blocked room is as unavailable as a booked one (doc 02 §3.2), so the
+    # single writer treats them the same.
     def room_clash?(room, finish)
-      Appointment.active.overlapping(@start_at, finish).exists?(room_id: room.id)
+      Appointment.active.overlapping(@start_at, finish).exists?(room_id: room.id) ||
+        RoomBlock.overlapping(@start_at, finish).exists?(room_id: room.id)
+    end
+
+    # C1 — the availability search hides closed days, but nothing stops a
+    # direct POST, and BookAppointment is the only writer that can refuse it.
+    def assert_location_open!(finish)
+      date = @start_at.in_time_zone(@location.tz).to_date
+      windows = @location.business_windows(date)
+      raise Conflict, "location_closed" if windows.empty?
+
+      covered = windows.any? { |w| @start_at >= w.first && finish <= w.last }
+      raise Conflict, "outside_business_hours" unless covered
     end
 
     def staff_clash?(staff_id, finish)

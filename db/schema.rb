@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_105716) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_09_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -370,6 +370,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_105716) do
     t.index ["status"], name: "index_gift_cards_on_status"
   end
 
+  create_table "location_business_hours", force: :cascade do |t|
+    t.time "closes_at", null: false
+    t.datetime "created_at", null: false
+    t.integer "day_of_week", null: false
+    t.integer "location_id", null: false
+    t.time "opens_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["location_id", "day_of_week"], name: "index_location_business_hours_on_location_id_and_day_of_week"
+    t.index ["location_id"], name: "index_location_business_hours_on_location_id"
+  end
+
+  create_table "location_closures", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "created_by_user_id"
+    t.date "date", null: false
+    t.integer "location_id", null: false
+    t.string "reason"
+    t.datetime "updated_at", null: false
+    t.index ["created_by_user_id"], name: "index_location_closures_on_created_by_user_id"
+    t.index ["location_id", "date"], name: "index_location_closures_on_location_id_and_date", unique: true
+    t.index ["location_id"], name: "index_location_closures_on_location_id"
+  end
+
   create_table "location_prices", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.date "effective_from", null: false
@@ -596,6 +619,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_105716) do
     t.index ["issued_by_user_id"], name: "index_refunds_on_issued_by_user_id"
     t.index ["order_id"], name: "index_refunds_on_order_id"
     t.index ["payment_id"], name: "index_refunds_on_payment_id"
+  end
+
+  create_table "room_blocks", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "created_by_user_id"
+    t.datetime "ends_at", null: false
+    t.string "reason"
+    t.integer "room_id", null: false
+    t.datetime "starts_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_user_id"], name: "index_room_blocks_on_created_by_user_id"
+    t.index ["room_id", "starts_at"], name: "index_room_blocks_on_room_id_and_starts_at"
+    t.index ["room_id"], name: "index_room_blocks_on_room_id"
   end
 
   create_table "rooms", force: :cascade do |t|
@@ -836,6 +872,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_105716) do
   add_foreign_key "gift_cards", "clients", column: "recipient_client_id"
   add_foreign_key "gift_cards", "locations", column: "sold_at_location_id"
   add_foreign_key "gift_cards", "users", column: "sold_by_user_id"
+  add_foreign_key "location_business_hours", "locations"
+  add_foreign_key "location_closures", "locations"
+  add_foreign_key "location_closures", "users", column: "created_by_user_id"
   add_foreign_key "location_prices", "locations"
   add_foreign_key "location_prices", "service_variants"
   add_foreign_key "manager_payouts", "staff_profiles"
@@ -866,6 +905,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_105716) do
   add_foreign_key "refunds", "orders"
   add_foreign_key "refunds", "payments"
   add_foreign_key "refunds", "users", column: "issued_by_user_id"
+  add_foreign_key "room_blocks", "rooms"
+  add_foreign_key "room_blocks", "users", column: "created_by_user_id"
   add_foreign_key "rooms", "locations"
   add_foreign_key "service_variants", "services"
   add_foreign_key "services", "service_categories"

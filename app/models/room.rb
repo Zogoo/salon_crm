@@ -1,4 +1,5 @@
 class Room < ApplicationRecord
+  has_many :room_blocks, dependent: :destroy
   TYPES = %w[single couple three_table head_spa].freeze
 
   belongs_to :location

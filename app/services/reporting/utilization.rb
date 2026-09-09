@@ -36,11 +36,10 @@ module Reporting
         tz.local(@to.year, @to.month, @to.day).end_of_day
     end
 
-    def days = (@to - @from).to_i + 1
-
+    # BR-28: the denominator is the minutes the location was actually open, so
+    # a holiday closure or a short day does not count as idle capacity.
     def open_minutes
-      minutes = (@location.closes_at - @location.opens_at) / 60
-      (minutes * days).round
+      @from.upto(@to).sum { |date| @location.open_minutes_on(date) }
     end
 
     def service_minutes(appt) = ((appt.service_ends_at - appt.starts_at) / 60).round
