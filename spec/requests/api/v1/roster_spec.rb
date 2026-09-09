@@ -96,6 +96,19 @@ RSpec.describe "Roster management API", type: :request do
       expect(json).to have_key("working").and have_key("not_working")
     end
 
+    # The roster cannot tell a draft from a live shift without this, and would
+    # offer to publish what is already published.
+    it "says whether each shift is published" do
+      get "/api/v1/shifts",
+          params: { location_id: world[:location].id,
+                    from: world[:date].to_s, to: world[:date].to_s },
+          headers: auth(owner)
+
+      statuses = json["shifts"].map { |s| s["status"] }
+      expect(statuses).to all(be_present)
+      expect(statuses).to include("published")
+    end
+
     it "lists the breaks on a shift" do
       post "/api/v1/shifts/#{shift.id}/breaks",
            params: { starts_at: "21:00", ends_at: "21:30", reason: "dinner" },

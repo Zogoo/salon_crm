@@ -201,6 +201,10 @@ module Api
           id: shift.id, work_date: shift.work_date,
           staff_profile_id: shift.staff_profile_id,
           display_name: shift.staff_profile.display_name,
+          location_id: shift.location_id,
+          # Without this the roster cannot tell a draft from a published
+          # shift, and offers to publish what is already live.
+          status: shift.status,
           starts_at: local_iso(shift.starts_at, shift.location),
           ends_at: local_iso(shift.ends_at, shift.location),
           notes: shift.notes
