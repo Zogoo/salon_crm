@@ -6,14 +6,26 @@
   gap: var(--sp-4);
   align-items: start;
 
-  @include expanded-up { grid-template-columns: minmax(0, 1fr) minmax(0, 24rem); }
+  @include expanded-up {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);
+  }
 }
 
-.checkout__take { display: flex; flex-direction: column; gap: var(--sp-4); }
+.checkout__take {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
 
-.credit { color: var(--md-success); }
+.credit {
+  color: var(--md-success);
+}
 
-.rows { display: flex; flex-direction: column; gap: var(--sp-1); }
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
 
 .rows li {
   display: flex;
@@ -25,15 +37,25 @@
 }
 
 // A voided payment stays visible — struck through, not deleted.
-.rows--void { opacity: 0.6; text-decoration: line-through; }
+.rows--void {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
 
 .rows__main {
   display: flex;
   flex-direction: column;
   min-width: 0;
   margin-right: auto;
-  strong { @include type-body-md; }
-  small { @include type-body-sm; color: var(--md-on-surface-variant); }
+  strong {
+    @include type-body-md;
+  }
+  small {
+    @include type-body-sm;
+    color: var(--md-on-surface-variant);
+  }
 }
 
-.num { font-variant-numeric: tabular-nums; }
+.num {
+  font-variant-numeric: tabular-nums;
+}

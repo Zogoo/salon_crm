@@ -50,7 +50,12 @@ describe('RosterAdminPage', () => {
     http
       .expectOne((r) => r.url.endsWith('/shifts/publish'))
       .flush(
-        { error: { code: 'shift_conflict', details: { conflicts: [{ shift_id: 2, errors: ['overlaps'] }] } } },
+        {
+          error: {
+            code: 'shift_conflict',
+            details: { conflicts: [{ shift_id: 2, errors: ['overlaps'] }] },
+          },
+        },
         { status: 409, statusText: 'Conflict' },
       );
 

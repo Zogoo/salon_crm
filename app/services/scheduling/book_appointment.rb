@@ -28,7 +28,7 @@ module Scheduling
       @actor = actor
       @staff_ids = Array(staff_profile_ids).compact.map(&:to_i).uniq
       @room_id = room_id
-      @requested_staff_id = requested_staff_profile_id
+      @requested_staff_id = requested_staff_profile_id.presence&.to_i
       @channel = booking_channel
       @client_note = client_note
       @appointment_note = appointment_note
@@ -70,7 +70,9 @@ module Scheduling
 
     def resolve_staff(shape, finish)
       ids = @staff_ids
-      ids = [ @requested_staff_id.to_i ] if ids.empty? && @requested_staff_id.present?
+      if ids.any? && @requested_staff_id && !ids.include?(@requested_staff_id)
+        raise Invalid, "requested_therapist_missing"
+      end
 
       staff =
         if ids.any?
@@ -122,11 +124,17 @@ module Scheduling
 
     def assign_staff(shape, finish)
       day = @start_at.in_time_zone(@location.tz).to_date
-      Shift.published
+      candidates = Shift.published
            .where(location_id: @location.id, work_date: day)
            .includes(:shift_breaks, staff_profile: :staff_qualifications)
            .select { |s| eligible?(s, shape, finish) }
-           .map(&:staff_profile).uniq.first(shape.therapist_count)
+           .map(&:staff_profile).uniq
+      if @requested_staff_id
+        requested = candidates.find { |sp| sp.id == @requested_staff_id }
+        raise Conflict, "requested_therapist_unavailable" unless requested
+        candidates = [ requested ] + (candidates - [ requested ])
+      end
+      candidates.first(shape.therapist_count)
     end
 
     def eligible?(shift, shape, finish)

@@ -8,9 +8,15 @@ import { Component, input } from '@angular/core';
   selector: 'ui-icon',
   template: `<span class="material-symbols-outlined" aria-hidden="true">{{ name() }}</span>`,
   styles: `
-    :host { display: inline-flex; }
+    :host {
+      display: inline-flex;
+    }
     .material-symbols-outlined {
-      font-variation-settings: 'FILL' var(--fill, 0), 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      font-variation-settings:
+        'FILL' var(--fill, 0),
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 24;
       // The icon *is* a ligature, so it must not be disabled by a reset.
       font-feature-settings: 'liga';
       // Reserve the glyph's box so layout does not shift when the font lands.

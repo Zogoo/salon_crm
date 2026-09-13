@@ -1,6 +1,9 @@
 @use '../../styles/tokens' as *;
 
-:host { display: block; min-width: 0; }
+:host {
+  display: block;
+  min-width: 0;
+}
 
 .scroll {
   overflow-x: auto;
@@ -29,9 +32,18 @@
     vertical-align: middle;
   }
 
-  tr:last-child td { border-bottom: none; }
+  tr:last-child td {
+    border-bottom: none;
+  }
 
   // Numbers line up on the decimal so columns of money can be scanned.
-  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .total td { font-weight: 700; border-top: 2px solid var(--md-outline-variant); }
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .total td {
+    font-weight: 700;
+    border-top: 2px solid var(--md-outline-variant);
+  }
 }

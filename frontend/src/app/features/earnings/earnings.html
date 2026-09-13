@@ -2,7 +2,9 @@
   title="Earnings"
   sub="Therapists are paid per completed session, at the rate that applied on the day of the session. Tips are theirs in full and are shown separately."
 >
-  @if (error()) { <ui-banner tone="error" data-testid="earn-error">{{ error() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error" data-testid="earn-error">{{ error() }}</ui-banner>
+  }
 
   <div class="split split--even">
     <div class="detail">
@@ -11,11 +13,17 @@
           <ui-field label="Therapist">
             <select [(ngModel)]="staffId" data-testid="earn-staff">
               <option [ngValue]="null">Choose…</option>
-              @for (s of staff(); track s.id) { <option [ngValue]="s.id">{{ s.display_name }}</option> }
+              @for (s of staff(); track s.id) {
+                <option [ngValue]="s.id">{{ s.display_name }}</option>
+              }
             </select>
           </ui-field>
-          <ui-field label="From"><input type="date" [(ngModel)]="from" data-testid="earn-from" /></ui-field>
-          <ui-field label="To"><input type="date" [(ngModel)]="to" data-testid="earn-to" /></ui-field>
+          <ui-field label="From"
+            ><input type="date" [(ngModel)]="from" data-testid="earn-from"
+          /></ui-field>
+          <ui-field label="To"
+            ><input type="date" [(ngModel)]="to" data-testid="earn-to"
+          /></ui-field>
         </div>
         <ui-button icon="search" (click)="runReport()" data-testid="earn-run">Run</ui-button>
 
@@ -29,7 +37,11 @@
             <ui-table label="Earnings">
               <table data-testid="earn-table">
                 <thead>
-                  <tr><th>Session</th><th class="num">Quantity</th><th class="num">Earnings</th></tr>
+                  <tr>
+                    <th>Session</th>
+                    <th class="num">Quantity</th>
+                    <th class="num">Earnings</th>
+                  </tr>
                 </thead>
                 <tbody>
                   @for (row of r.sessions; track row.duration_minutes) {
@@ -62,18 +74,27 @@
 
           <div>
             <h3 class="sub-head">Add a session or tip by hand</h3>
-            <p class="sub-hint">For anything the system could not record itself. The reason is kept.</p>
+            <p class="sub-hint">
+              For anything the system could not record itself. The reason is kept.
+            </p>
             <div class="form-grid">
               <ui-field label="Date">
                 <input type="date" [(ngModel)]="manual.service_date" data-testid="manual-date" />
               </ui-field>
               <ui-field label="Length">
                 <select [(ngModel)]="manual.duration_minutes" data-testid="manual-duration">
-                  @for (d of ladder; track d) { <option [ngValue]="d">{{ d }} min</option> }
+                  @for (d of ladder; track d) {
+                    <option [ngValue]="d">{{ d }} min</option>
+                  }
                 </select>
               </ui-field>
               <ui-field label="Quantity">
-                <input type="number" min="1" [(ngModel)]="manual.quantity" data-testid="manual-qty" />
+                <input
+                  type="number"
+                  min="1"
+                  [(ngModel)]="manual.quantity"
+                  data-testid="manual-qty"
+                />
               </ui-field>
               <ui-field label="Reason">
                 <input [(ngModel)]="manual.note" data-testid="manual-note" />
@@ -93,29 +114,51 @@
           <ul class="picker" data-testid="period-list">
             @for (p of periods(); track p.id) {
               <li>
-                <button type="button" class="picker__item" [class.on]="selectedPeriod()?.id === p.id"
-                        (click)="openPeriod(p)" [attr.data-testid]="'period-' + p.id">
+                <button
+                  type="button"
+                  class="picker__item"
+                  [class.on]="selectedPeriod()?.id === p.id"
+                  (click)="openPeriod(p)"
+                  [attr.data-testid]="'period-' + p.id"
+                >
                   <span class="picker__main">
                     <strong>{{ p.starts_on }} → {{ p.ends_on }}</strong>
                   </span>
-                  <ui-chip [tone]="p.locked ? 'neutral' : 'info'">{{ humanStatus(p.status) }}</ui-chip>
+                  <ui-chip [tone]="p.locked ? 'neutral' : 'info'">{{
+                    humanStatus(p.status)
+                  }}</ui-chip>
                 </button>
               </li>
             }
           </ul>
         } @else {
-          <ui-empty icon="event_repeat" title="No periods yet"
-                    hint="They open automatically on the 1st and the 16th." />
+          <ui-empty
+            icon="event_repeat"
+            title="No periods yet"
+            hint="They open automatically on the 1st and the 16th."
+          />
         }
       </ui-card>
 
       @if (selectedPeriod(); as p) {
         <ui-card [heading]="p.starts_on + ' → ' + p.ends_on">
           <div class="row">
-            <ui-button variant="tonal" icon="refresh" (click)="build(p)" [disabled]="p.locked"
-                       data-testid="period-build">Rebuild statements</ui-button>
-            <ui-button variant="danger" icon="lock" (click)="lock(p)" [disabled]="p.locked"
-                       data-testid="period-lock">Lock period</ui-button>
+            <ui-button
+              variant="tonal"
+              icon="refresh"
+              (click)="build(p)"
+              [disabled]="p.locked"
+              data-testid="period-build"
+              >Rebuild statements</ui-button
+            >
+            <ui-button
+              variant="danger"
+              icon="lock"
+              (click)="lock(p)"
+              [disabled]="p.locked"
+              data-testid="period-lock"
+              >Lock period</ui-button
+            >
           </div>
 
           @if (p.locked) {
@@ -130,8 +173,11 @@
               <table data-testid="statements">
                 <thead>
                   <tr>
-                    <th>Therapist</th><th class="num">Sessions</th><th class="num">Service</th>
-                    <th class="num">Tips</th><th class="num">Gross</th>
+                    <th>Therapist</th>
+                    <th class="num">Sessions</th>
+                    <th class="num">Service</th>
+                    <th class="num">Tips</th>
+                    <th class="num">Gross</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -148,8 +194,11 @@
               </table>
             </ui-table>
           } @else {
-            <ui-empty icon="receipt_long" title="No statements yet"
-                      hint="Rebuild to generate them from the sessions in this period." />
+            <ui-empty
+              icon="receipt_long"
+              title="No statements yet"
+              hint="Rebuild to generate them from the sessions in this period."
+            />
           }
         </ui-card>
       }

@@ -2,7 +2,9 @@
   title="Memberships"
   sub="A membership is tied to the location it was bought at. Using it elsewhere needs an Owner or Manager override, and that override is recorded."
 >
-  @if (error()) { <ui-banner tone="error" data-testid="mem-error">{{ error() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error" data-testid="mem-error">{{ error() }}</ui-banner>
+  }
 
   <div class="split">
     <div class="detail">
@@ -18,10 +20,14 @@
             }
           </select>
         </ui-field>
-        <ui-field label="Included monthly massage"
-                  hint="What the membership covers. Anything longer, the member pays the difference.">
+        <ui-field
+          label="Included monthly massage"
+          hint="What the membership covers. Anything longer, the member pays the difference."
+        >
           <select [(ngModel)]="newVariantId" data-testid="mem-variant">
-            @for (o of included(); track o.id) { <option [ngValue]="o.id">{{ o.label }}</option> }
+            @for (o of included(); track o.id) {
+              <option [ngValue]="o.id">{{ o.label }}</option>
+            }
           </select>
         </ui-field>
         <ui-button icon="loyalty" (click)="enrol()" data-testid="mem-enrol">Enrol</ui-button>
@@ -32,8 +38,13 @@
           <ul class="picker" data-testid="mem-list">
             @for (m of memberships(); track m.id) {
               <li>
-                <button type="button" class="picker__item" [class.on]="selected()?.id === m.id"
-                        (click)="open(m)" [attr.data-testid]="'mem-' + m.id">
+                <button
+                  type="button"
+                  class="picker__item"
+                  [class.on]="selected()?.id === m.id"
+                  (click)="open(m)"
+                  [attr.data-testid]="'mem-' + m.id"
+                >
                   <span class="picker__main">
                     <strong>{{ m.client.full_name }}</strong>
                     <small>{{ m.location.name }}</small>
@@ -46,8 +57,11 @@
             }
           </ul>
         } @else {
-          <ui-empty icon="loyalty" title="No members yet"
-                    hint="Enrol a client above to start a membership." />
+          <ui-empty
+            icon="loyalty"
+            title="No members yet"
+            hint="Enrol a client above to start a membership."
+          />
         }
       </ui-card>
     </div>
@@ -60,15 +74,15 @@
 
           @if (m.at_cap) {
             <ui-banner tone="warning" data-testid="mem-at-cap">
-              At the three-credit cap. The next payment is still taken, but grants no further
-              credit — worth a conversation about booking them in.
+              At the three-credit cap. The next payment is still taken, but grants no further credit
+              — worth a conversation about booking them in.
             </ui-banner>
           }
           @if (m.cancellation_effective_at) {
             <ui-banner tone="info" data-testid="mem-cancelling">
               Cancelling — ends {{ m.cancellation_effective_at | wallClock: 'date' }}. Notice given
-              inside 15 days of renewal takes effect after the following renewal, so one more
-              charge still happens.
+              inside 15 days of renewal takes effect after the following renewal, so one more charge
+              still happens.
             </ui-banner>
           }
         </ui-card>
@@ -77,7 +91,9 @@
           <div class="row">
             <ui-field label="Paid by">
               <select [(ngModel)]="payMethod" data-testid="mem-pay-method">
-                @for (mm of methods; track mm) { <option [value]="mm">{{ humanStatus(mm) }}</option> }
+                @for (mm of methods; track mm) {
+                  <option [value]="mm">{{ humanStatus(mm) }}</option>
+                }
               </select>
             </ui-field>
             <ui-button icon="payments" (click)="recordPayment(m)" data-testid="mem-pay">
@@ -93,11 +109,19 @@
         </ui-card>
 
         @if (m.credit_ledger?.length) {
-          <ui-card heading="Credit ledger" sub="Every credit granted and spent, and who approved any override.">
+          <ui-card
+            heading="Credit ledger"
+            sub="Every credit granted and spent, and who approved any override."
+          >
             <ui-table label="Credit ledger">
               <table data-testid="mem-ledger">
                 <thead>
-                  <tr><th>When</th><th>Kind</th><th class="num">Change</th><th class="num">Balance</th></tr>
+                  <tr>
+                    <th>When</th>
+                    <th>Kind</th>
+                    <th class="num">Change</th>
+                    <th class="num">Balance</th>
+                  </tr>
                 </thead>
                 <tbody>
                   @for (t of m.credit_ledger; track t.occurred_at) {
@@ -124,7 +148,12 @@
             <ui-table label="Billing history">
               <table data-testid="mem-cycles">
                 <thead>
-                  <tr><th>Period</th><th>Charged</th><th class="num">Amount</th><th>Credit</th></tr>
+                  <tr>
+                    <th>Period</th>
+                    <th>Charged</th>
+                    <th class="num">Amount</th>
+                    <th>Credit</th>
+                  </tr>
                 </thead>
                 <tbody>
                   @for (c of m.cycles; track c.period_start) {
@@ -133,9 +162,13 @@
                       <td>{{ c.charged_at || '—' }}</td>
                       <td class="num">${{ c.amount_cents / 100 | number: '1.2-2' }}</td>
                       <td>
-                        @if (c.credit_granted) { <ui-chip tone="success">granted</ui-chip> }
-                        @else if (c.forfeited_to_cap) { <ui-chip tone="warning">at cap</ui-chip> }
-                        @else { — }
+                        @if (c.credit_granted) {
+                          <ui-chip tone="success">granted</ui-chip>
+                        } @else if (c.forfeited_to_cap) {
+                          <ui-chip tone="warning">at cap</ui-chip>
+                        } @else {
+                          —
+                        }
                       </td>
                     </tr>
                   }

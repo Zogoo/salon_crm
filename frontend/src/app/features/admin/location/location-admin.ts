@@ -60,8 +60,12 @@ export class LocationAdminPage implements OnInit {
 
   protected readonly days = DAYS;
 
-  protected tone(status: string | undefined) { return statusTone(status); }
-  protected humanStatus(value: string | undefined) { return humanise(value); }
+  protected tone(status: string | undefined) {
+    return statusTone(status);
+  }
+  protected humanStatus(value: string | undefined) {
+    return humanise(value);
+  }
 
   protected newHour = { day_of_week: 1, opens_at: '09:00', closes_at: '22:00' };
   protected newClosure = { date: '', reason: '' };

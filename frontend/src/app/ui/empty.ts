@@ -13,7 +13,9 @@ import { UiIcon } from './icon';
     <div class="empty">
       <ui-icon [name]="icon()" class="empty__icon" />
       <p class="empty__title">{{ title() }}</p>
-      @if (hint()) { <p class="empty__hint">{{ hint() }}</p> }
+      @if (hint()) {
+        <p class="empty__hint">{{ hint() }}</p>
+      }
       <ng-content />
     </div>
   `,
@@ -29,9 +31,18 @@ import { UiIcon } from './icon';
       padding: var(--sp-6) var(--sp-4);
       color: var(--md-on-surface-variant);
     }
-    .empty__icon { --size: 40px; color: var(--md-outline); }
-    .empty__title { @include type-title-sm; color: var(--md-on-surface); }
-    .empty__hint { @include type-body-sm; max-width: 44ch; }
+    .empty__icon {
+      --size: 40px;
+      color: var(--md-outline);
+    }
+    .empty__title {
+      @include type-title-sm;
+      color: var(--md-on-surface);
+    }
+    .empty__hint {
+      @include type-body-sm;
+      max-width: 44ch;
+    }
   `,
 })
 export class UiEmpty {

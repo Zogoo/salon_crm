@@ -14,7 +14,9 @@ import { UiBanner, UiButton, UiCard, UiChip, UiEmpty, UiPage } from '../../ui';
       title="Approvals"
       sub="A client asked for a specific therapist. Review within 15 minutes where you can — anything still pending at 45 minutes is approved automatically, provided that therapist is still free."
     >
-      @if (error()) { <ui-banner tone="error">{{ error() }}</ui-banner> }
+      @if (error()) {
+        <ui-banner tone="error">{{ error() }}</ui-banner>
+      }
 
       <ui-card>
         @if (requests().length) {
@@ -39,10 +41,19 @@ import { UiBanner, UiButton, UiCard, UiChip, UiEmpty, UiPage } from '../../ui';
                 </ui-chip>
 
                 <div class="item__actions">
-                  <ui-button icon="check" (click)="decide(r, 'approve')"
-                             [attr.data-testid]="'approve-' + r.id">Approve</ui-button>
-                  <ui-button variant="danger" icon="close" (click)="decide(r, 'reject')"
-                             [attr.data-testid]="'reject-' + r.id">Reject</ui-button>
+                  <ui-button
+                    icon="check"
+                    (click)="decide(r, 'approve')"
+                    [attr.data-testid]="'approve-' + r.id"
+                    >Approve</ui-button
+                  >
+                  <ui-button
+                    variant="danger"
+                    icon="close"
+                    (click)="decide(r, 'reject')"
+                    [attr.data-testid]="'reject-' + r.id"
+                    >Reject</ui-button
+                  >
                 </div>
               </li>
             }
@@ -61,7 +72,11 @@ import { UiBanner, UiButton, UiCard, UiChip, UiEmpty, UiPage } from '../../ui';
   styles: `
     @use '../../../styles/tokens' as *;
 
-    .list { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-2);
+    }
 
     .item {
       display: flex;
@@ -75,18 +90,29 @@ import { UiBanner, UiButton, UiCard, UiChip, UiEmpty, UiPage } from '../../ui';
 
     // Past the 15-minute review target: a border rather than a colour swap, so
     // it reads as "look at this one first", not as an error.
-    .item--late { box-shadow: inset 3px 0 0 var(--md-warning); }
+    .item--late {
+      box-shadow: inset 3px 0 0 var(--md-warning);
+    }
 
     .item__who {
       display: flex;
       flex-direction: column;
       min-width: 0;
       margin-right: auto;
-      strong { @include type-body-lg; }
-      small { @include type-body-sm; color: var(--md-on-surface-variant); }
+      strong {
+        @include type-body-lg;
+      }
+      small {
+        @include type-body-sm;
+        color: var(--md-on-surface-variant);
+      }
     }
 
-    .item__actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+    .item__actions {
+      display: flex;
+      gap: var(--sp-2);
+      flex-wrap: wrap;
+    }
   `,
 })
 export class ApprovalsPage implements OnInit {

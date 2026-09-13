@@ -19,7 +19,9 @@ import { UiButton } from './button';
       <header class="panel__head">
         <div class="panel__titles">
           <h2 class="panel__title">{{ heading() }}</h2>
-          @if (sub()) { <p class="panel__sub">{{ sub() }}</p> }
+          @if (sub()) {
+            <p class="panel__sub">{{ sub() }}</p>
+          }
         </div>
         <ng-content select="[sheetBadge]" />
         <ui-button variant="text" icon="close" (click)="closed.emit()" ariaLabel="Close" />

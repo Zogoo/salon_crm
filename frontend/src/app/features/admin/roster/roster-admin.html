@@ -3,19 +3,29 @@
   sub="Draft shifts, then publish them. A drafted shift makes nobody bookable — publishing is what puts a therapist on the schedule."
 >
   <div pageActions class="row">
-    <ui-field label="From"><input type="date" [(ngModel)]="from" data-testid="roster-from" /></ui-field>
+    <ui-field label="From"
+      ><input type="date" [(ngModel)]="from" data-testid="roster-from"
+    /></ui-field>
     <ui-field label="To"><input type="date" [(ngModel)]="to" data-testid="roster-to" /></ui-field>
-    <ui-button variant="tonal" icon="search" (click)="reload()" data-testid="roster-run">Show</ui-button>
+    <ui-button variant="tonal" icon="search" (click)="reload()" data-testid="roster-run"
+      >Show</ui-button
+    >
   </div>
 
-  @if (error()) { <ui-banner tone="error" data-testid="roster-error">{{ error() }}</ui-banner> }
-  @if (notice()) { <ui-banner tone="success" data-testid="roster-notice">{{ notice() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error" data-testid="roster-error">{{ error() }}</ui-banner>
+  }
+  @if (notice()) {
+    <ui-banner tone="success" data-testid="roster-notice">{{ notice() }}</ui-banner>
+  }
 
   <ui-card heading="Draft a shift" data-testid="roster-new">
     <div class="form-grid">
       <ui-field label="Therapist">
         <select [(ngModel)]="newShift.staff_profile_id" data-testid="new-shift-staff">
-          @for (s of staff(); track s.id) { <option [ngValue]="s.id">{{ s.display_name }}</option> }
+          @for (s of staff(); track s.id) {
+            <option [ngValue]="s.id">{{ s.display_name }}</option>
+          }
         </select>
       </ui-field>
       <ui-field label="Date">
@@ -37,16 +47,24 @@
         @for (s of drafts(); track s.id) {
           <li>
             <label class="toggle">
-              <input type="checkbox" (change)="toggleSelected(s.id, $any($event.target).checked)"
-                     [attr.data-testid]="'draft-' + s.id" />
-              {{ nameFor(s) }} · {{ s.work_date }} ·
-              {{ wallClock(s.starts_at) }}–{{ wallClock(s.ends_at) }}
+              <input
+                type="checkbox"
+                (change)="toggleSelected(s.id, $any($event.target).checked)"
+                [attr.data-testid]="'draft-' + s.id"
+              />
+              {{ nameFor(s) }} · {{ s.work_date }} · {{ wallClock(s.starts_at) }}–{{
+                wallClock(s.ends_at)
+              }}
             </label>
           </li>
         }
       </ul>
-      <ui-button icon="publish" (click)="publish()" [disabled]="!selectedIds().length"
-                 data-testid="roster-publish">
+      <ui-button
+        icon="publish"
+        (click)="publish()"
+        [disabled]="!selectedIds().length"
+        data-testid="roster-publish"
+      >
         Publish {{ selectedIds().length || '' }} shift{{ selectedIds().length === 1 ? '' : 's' }}
       </ui-button>
     </ui-card>
@@ -57,7 +75,13 @@
       <ui-table label="Roster">
         <table>
           <thead>
-            <tr><th>Date</th><th>Therapist</th><th>Hours</th><th>Status</th><th></th></tr>
+            <tr>
+              <th>Date</th>
+              <th>Therapist</th>
+              <th>Hours</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
             @for (s of shifts(); track s.id) {
@@ -65,12 +89,24 @@
                 <td>{{ s.work_date }}</td>
                 <td>{{ nameFor(s) }}</td>
                 <td>{{ wallClock(s.starts_at) }}–{{ wallClock(s.ends_at) }}</td>
-                <td><ui-chip [tone]="tone(s.status)">{{ humanStatus(s.status) }}</ui-chip></td>
+                <td>
+                  <ui-chip [tone]="tone(s.status)">{{ humanStatus(s.status) }}</ui-chip>
+                </td>
                 <td class="num">
-                  <ui-button variant="text" icon="edit" (click)="startEdit(s)"
-                             [attr.data-testid]="'edit-' + s.id" ariaLabel="Edit shift" />
-                  <ui-button variant="text" icon="delete" (click)="remove(s)"
-                             [attr.data-testid]="'delete-' + s.id" ariaLabel="Remove shift" />
+                  <ui-button
+                    variant="text"
+                    icon="edit"
+                    (click)="startEdit(s)"
+                    [attr.data-testid]="'edit-' + s.id"
+                    ariaLabel="Edit shift"
+                  />
+                  <ui-button
+                    variant="text"
+                    icon="delete"
+                    (click)="remove(s)"
+                    [attr.data-testid]="'delete-' + s.id"
+                    ariaLabel="Remove shift"
+                  />
                 </td>
               </tr>
             }
@@ -78,14 +114,21 @@
         </table>
       </ui-table>
     } @else {
-      <ui-empty icon="event_busy" title="No shifts in this range"
-                hint="Draft one above, or widen the dates." />
+      <ui-empty
+        icon="event_busy"
+        title="No shifts in this range"
+        hint="Draft one above, or widen the dates."
+      />
     }
   </ui-card>
 
   @if (editing; as shift) {
-    <ui-sheet heading="Edit shift" [sub]="nameFor(shift)" (closed)="editing = null"
-              data-testid="roster-edit">
+    <ui-sheet
+      heading="Edit shift"
+      [sub]="nameFor(shift)"
+      (closed)="editing = null"
+      data-testid="roster-edit"
+    >
       <div class="form-grid">
         <ui-field label="Date"><input type="date" [(ngModel)]="edit.work_date" /></ui-field>
         <ui-field label="Starts">

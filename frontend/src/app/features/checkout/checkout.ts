@@ -6,16 +6,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Order, PaymentMethod } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
-import {
-  UiBanner,
-  UiButton,
-  UiCard,
-  UiEmpty,
-  UiField,
-  UiPage,
-  UiTable,
-  humanise,
-} from '../../ui';
+import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable, humanise } from '../../ui';
 
 /**
  * FRS §5, §7, §21 — the checkout.
@@ -25,7 +16,17 @@ import {
  */
 @Component({
   selector: 'app-checkout',
-  imports: [FormsModule, DecimalPipe, UiPage, UiCard, UiField, UiButton, UiEmpty, UiTable, UiBanner],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiEmpty,
+    UiTable,
+    UiBanner,
+  ],
   templateUrl: './checkout.html',
   // Shared list-and-detail layout first, then what is specific here.
   styleUrls: ['../../ui/layouts.scss', './checkout.scss'],
@@ -40,7 +41,9 @@ export class CheckoutPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
 
-  protected humanStatus(value: string) { return humanise(value); }
+  protected humanStatus(value: string) {
+    return humanise(value);
+  }
 
   protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
   protected method: PaymentMethod = 'card';
@@ -52,7 +55,9 @@ export class CheckoutPage implements OnInit {
   // FRS §21: the terminal prompts 20 / 25 / 30 or a custom amount.
   protected readonly tipPresets = [20, 25, 30];
 
-  protected readonly outstandingDollars = computed(() => (this.order()?.outstanding_cents ?? 0) / 100);
+  protected readonly outstandingDollars = computed(
+    () => (this.order()?.outstanding_cents ?? 0) / 100,
+  );
   protected readonly settled = computed(() => this.order()?.status === 'paid');
   protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
 
@@ -95,7 +100,11 @@ export class CheckoutPage implements OnInit {
     const order = this.order();
     if (!order || !this.giftCardCode) return;
     this.run(
-      this.api.redeemGiftCard(order.id, this.giftCardCode.trim(), Math.round(this.giftCardDollars * 100)),
+      this.api.redeemGiftCard(
+        order.id,
+        this.giftCardCode.trim(),
+        Math.round(this.giftCardDollars * 100),
+      ),
     );
   }
 
@@ -149,8 +158,9 @@ export class CheckoutPage implements OnInit {
   }
 
   private messageFrom(err: unknown): string {
-    const body = (err as { error?: { error?: { code?: string; details?: { available_cents?: number } } } })
-      ?.error?.error;
+    const body = (
+      err as { error?: { error?: { code?: string; details?: { available_cents?: number } } } }
+    )?.error?.error;
     const code = body?.code;
     const map: Record<string, string> = {
       overpayment_rejected: 'That is more than is outstanding. Enter the surplus as a tip instead.',
@@ -163,7 +173,8 @@ export class CheckoutPage implements OnInit {
       }.`,
       no_membership: 'This client has no membership.',
       no_membership_credit: 'No membership credit available.',
-      membership_wrong_location: 'That membership belongs to another location and needs an override.',
+      membership_wrong_location:
+        'That membership belongs to another location and needs an override.',
       unsettled: 'Still outstanding — take the remainder before settling.',
     };
     return code ? (map[code] ?? code) : 'Something went wrong';

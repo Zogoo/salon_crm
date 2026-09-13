@@ -58,7 +58,9 @@ export class CatalogueAdminPage implements OnInit {
   /** The lengths therapist pay is defined for (FRS §4). */
   protected readonly ladder = [30, 45, 60, 75, 90, 120];
 
-  protected humanStatus(value: string) { return humanise(value); }
+  protected humanStatus(value: string) {
+    return humanise(value);
+  }
 
   protected creating = false;
   protected newService = { name: '', kind: 'standard', service_category_id: 0 };
@@ -122,7 +124,9 @@ export class CatalogueAdminPage implements OnInit {
     this.api.setServiceActive(service.id, !service.active).subscribe({
       next: (updated) => {
         this.detail.set(updated);
-        this.notice.set(updated.active ? 'Back on the menu.' : 'Off the menu; history is untouched.');
+        this.notice.set(
+          updated.active ? 'Back on the menu.' : 'Off the menu; history is untouched.',
+        );
         this.reload();
       },
       error: (err) => this.error.set(this.message(err, 'Could not change that')),
@@ -143,7 +147,10 @@ export class CatalogueAdminPage implements OnInit {
       // unpayable earning line (BR-33).
       error: (err) =>
         this.error.set(
-          this.message(err, 'Could not add that duration — it must sit on the pay ladder (30/45/60/75/90/120).'),
+          this.message(
+            err,
+            'Could not add that duration — it must sit on the pay ladder (30/45/60/75/90/120).',
+          ),
         ),
     });
   }

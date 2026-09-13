@@ -5,37 +5,69 @@
 
 *,
 *::before,
-*::after { box-sizing: border-box; }
+*::after {
+  box-sizing: border-box;
+}
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+}
 
 body {
   margin: 0;
   background: var(--md-surface);
   color: var(--md-on-surface);
-  font-family: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    Roboto,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
   @include type-body-md;
   // Long tables scroll inside their own container; the page never does.
   overflow-x: hidden;
 }
 
-h1, h2, h3, h4 { margin: 0; font-weight: 500; }
-p { margin: 0; }
-ul, ol { margin: 0; padding: 0; list-style: none; }
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 500;
+}
+p {
+  margin: 0;
+}
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
 a {
   color: var(--md-primary);
   text-decoration: none;
   @include focus-ring;
-  &:hover { text-decoration: underline; }
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 // Native controls inherit the type scale so a screen never has to restate it.
-button, input, select, textarea { font: inherit; color: inherit; }
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
 
 // Respect the reader's motion preference.
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
@@ -45,8 +77,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 // implied by layout alone.
 .sr-only {
   position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;

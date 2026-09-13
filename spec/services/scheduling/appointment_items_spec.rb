@@ -9,6 +9,7 @@ RSpec.describe Scheduling::AddAppointmentItem do
     variant = create(:service_variant, service:, duration_minutes: 30)
     LocationPrice.create!(location: world[:location], service_variant: variant,
                           price_cents: 3500, effective_from: Date.new(2026, 1, 1))
+    StaffQualification.create!(staff_profile: world[:staff].first, service:)
     variant
   end
 
@@ -44,5 +45,50 @@ RSpec.describe Scheduling::AddAppointmentItem do
 
     expect { described_class.call(appointment: appt.reload, variant_ids: [ add_on.id ], actor: owner) }
       .to raise_error(described_class::Invalid, /cannot_edit_completed/)
+  end
+end
+
+RSpec.describe "Add-on scheduling guards" do
+  let(:world) { build_world(therapists: 1) }
+  let(:appt) { book(world) }
+  let(:add_on) do
+    service = create(:service, kind: "add_on")
+    create(:service_variant, service:, duration_minutes: 30)
+  end
+
+  def add
+    Scheduling::AddAppointmentItem.call(appointment: appt, variant_ids: [ add_on.id ])
+  end
+
+  def qualify
+    StaffQualification.create!(staff_profile: world[:staff].first, service: add_on.service)
+  end
+
+  it "refuses an add-on the assigned therapist is not qualified to deliver" do
+    expect { add }.to raise_error(Scheduling::AddAppointmentItem::Invalid, "therapist_not_qualified")
+    expect(appt.reload.appointment_items.count).to eq(1)
+  end
+
+  it "refuses an extension past the shift end, including buffer" do
+    qualify
+    Shift.where(staff_profile: world[:staff].first).update_all(ends_at: appt.ends_at + 15.minutes)
+    expect { add }.to raise_error(Scheduling::AddAppointmentItem::Conflict, "therapist_not_on_shift")
+    expect(appt.reload.duration_minutes).to eq(60)
+  end
+
+  it "refuses an extension into a therapist break" do
+    qualify
+    shift = Shift.find_by!(staff_profile: world[:staff].first)
+    ShiftBreak.create!(shift:, starts_at: appt.ends_at, ends_at: appt.ends_at + 30.minutes)
+    expect { add }.to raise_error(Scheduling::AddAppointmentItem::Conflict, "therapist_on_break")
+    expect(appt.reload.duration_minutes).to eq(60)
+  end
+
+  it "refuses an extension beyond business hours" do
+    qualify
+    appt
+    world[:location].update!(closes_at: "11:30")
+    expect { add }.to raise_error(Scheduling::AddAppointmentItem::Conflict, "outside_business_hours")
+    expect(appt.reload.duration_minutes).to eq(60)
   end
 end

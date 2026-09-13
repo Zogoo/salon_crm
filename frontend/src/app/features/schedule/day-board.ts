@@ -69,7 +69,8 @@ export class DayBoardPage implements OnInit {
 
   /** Names the location, so a board is never read against the wrong salon. */
   protected readonly subtitle = computed(
-    () => `Every room and therapist at ${this.ctx.current()?.name ?? 'this location'}, hour by hour.`,
+    () =>
+      `Every room and therapist at ${this.ctx.current()?.name ?? 'this location'}, hour by hour.`,
   );
   protected readonly canBook = computed(() => this.auth.user()?.role !== 'staff');
   protected readonly isTherapist = computed(() => this.auth.user()?.role === 'staff');
@@ -80,9 +81,15 @@ export class DayBoardPage implements OnInit {
       : 'Check the date above; the board shows a single day.',
   );
 
-  protected tone(status: string) { return statusTone(status); }
-  protected humanStatus(status: string) { return humanise(status); }
-  protected destructive(action: string) { return action === 'cancelled' || action === 'no_show'; }
+  protected tone(status: string) {
+    return statusTone(status);
+  }
+  protected humanStatus(status: string) {
+    return humanise(status);
+  }
+  protected destructive(action: string) {
+    return action === 'cancelled' || action === 'no_show';
+  }
 
   protected summary(appt: Appointment): Fact[] {
     const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -261,6 +268,15 @@ export class DayBoardPage implements OnInit {
         no_show: 'No-show',
       }[action] ?? action
     );
+  }
+
+  /**
+   * Doc 01 §6 names a printable daily schedule as the fallback for the system
+   * being unavailable, so this is a real operational requirement rather than a
+   * convenience: the front desk needs the day on paper before they need it.
+   */
+  protected print(): void {
+    window.print();
   }
 
   protected newBooking(): void {

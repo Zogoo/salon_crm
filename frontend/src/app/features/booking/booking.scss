@@ -14,17 +14,32 @@
 }
 
 .book__summary {
-  @include expanded-up { grid-column: 1 / -1; }
+  @include expanded-up {
+    grid-column: 1 / -1;
+  }
 }
 
-.checks { display: flex; flex-direction: column; }
+.checks {
+  display: flex;
+  flex-direction: column;
+}
 
-.step__head { @include type-title-sm; margin-bottom: var(--sp-1); }
-.step__hint { @include type-body-sm; color: var(--md-on-surface-variant); }
+.step__head {
+  @include type-title-sm;
+  margin-bottom: var(--sp-1);
+}
+.step__hint {
+  @include type-body-sm;
+  color: var(--md-on-surface-variant);
+}
 
 // Times are the densest choice on the screen, so they get a wrapping grid of
 // full-size touch targets rather than a dropdown.
-.slots { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
 
 .slot {
   @include type-label-lg;

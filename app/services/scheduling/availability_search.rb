@@ -14,7 +14,7 @@ module Scheduling
       @shape = AppointmentShape.call(variants:)
       @date_from = date_from.to_date
       @date_to = (date_to || date_from).to_date
-      @requested_staff_id = requested_staff_profile_id
+      @requested_staff_id = requested_staff_profile_id.presence&.to_i
       @channel = channel.to_s
       @now = now
     end
@@ -34,7 +34,7 @@ module Scheduling
       rel = Shift.published
                  .where(location_id: @location.id, work_date: date)
                  .includes(:shift_breaks, staff_profile: :staff_qualifications)
-      rel = rel.where(staff_profile_id: @requested_staff_id) if @requested_staff_id
+      rel = rel.where(staff_profile_id: @requested_staff_id) if @requested_staff_id && @shape.therapist_count == 1
       rel.select { |s| s.staff_profile.status == "active" && s.staff_profile.qualified_for?(@shape.service_ids) }
     end
 
@@ -98,7 +98,7 @@ module Scheduling
           free = shifts.select { |s| staff_free?(s, t, finish, busy_staff, breaks) }
                        .map(&:staff_profile).uniq
           # C12 — cardinality, not existence. A couples massage needs two.
-          if free.size >= @shape.therapist_count
+          if free.size >= @shape.therapist_count && (!@requested_staff_id || free.any? { |sp| sp.id == @requested_staff_id })
             open_rooms = rooms.reject { |r| clash?(busy_rooms[r.id], t, finish) }
             unless open_rooms.empty?
               slots << Slot.new(

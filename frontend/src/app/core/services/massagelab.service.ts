@@ -13,6 +13,8 @@ import {
   CatalogueVariant,
   ClientLogRow,
   ClientRecord,
+  ClientRating,
+  ClientGiftCard,
   Closure,
   DailyRevenue,
   Dashboard,
@@ -92,12 +94,23 @@ export class MassagelabService {
   }
 
   transition(id: number, to: string, reason?: string): Observable<Appointment> {
-    return this.http.post<Appointment>(`${this.base}/appointments/${id}/transition`, { to, reason });
+    return this.http.post<Appointment>(`${this.base}/appointments/${id}/transition`, {
+      to,
+      reason,
+    });
   }
 
   clients(search = ''): Observable<{ clients: ClientRecord[] }> {
     const params = new HttpParams().set('search', search);
     return this.http.get<{ clients: ClientRecord[] }>(`${this.base}/clients`, { params });
+  }
+
+  clientRatings(id: number): Observable<{ ratings: ClientRating[] }> {
+    return this.http.get<{ ratings: ClientRating[] }>(`${this.base}/clients/${id}/ratings`);
+  }
+
+  clientGiftCards(id: number): Observable<{ gift_cards: ClientGiftCard[] }> {
+    return this.http.get<{ gift_cards: ClientGiftCard[] }>(`${this.base}/clients/${id}/gift_cards`);
   }
 
   client(id: number): Observable<ClientRecord> {
@@ -129,7 +142,9 @@ export class MassagelabService {
   }
 
   approvalRequests(): Observable<{ approval_requests: ApprovalRequest[] }> {
-    return this.http.get<{ approval_requests: ApprovalRequest[] }>(`${this.base}/approval_requests`);
+    return this.http.get<{ approval_requests: ApprovalRequest[] }>(
+      `${this.base}/approval_requests`,
+    );
   }
 
   decideApproval(id: number, decision: 'approve' | 'reject'): Observable<ApprovalRequest> {
@@ -194,7 +209,7 @@ export class MassagelabService {
   }
 
   giftCard(code: string): Observable<GiftCard> {
-    return this.http.get<GiftCard>(`${this.base}/gift_cards/${code}`);
+    return this.http.get<GiftCard>(`${this.base}/gift_cards/${encodeURIComponent(code)}`);
   }
 
   issueGiftCard(payload: Record<string, unknown>): Observable<GiftCard> {
@@ -275,10 +290,15 @@ export class MassagelabService {
   }
 
   qualifications(id: number): Observable<{ qualifications: Qualification[] }> {
-    return this.http.get<{ qualifications: Qualification[] }>(`${this.base}/staff/${id}/qualifications`);
+    return this.http.get<{ qualifications: Qualification[] }>(
+      `${this.base}/staff/${id}/qualifications`,
+    );
   }
 
-  setQualifications(id: number, serviceIds: number[]): Observable<{ qualifications: Qualification[] }> {
+  setQualifications(
+    id: number,
+    serviceIds: number[],
+  ): Observable<{ qualifications: Qualification[] }> {
     return this.http.put<{ qualifications: Qualification[] }>(
       `${this.base}/staff/${id}/qualifications`,
       { service_ids: serviceIds },
@@ -286,7 +306,9 @@ export class MassagelabService {
   }
 
   sessionRates(id: number): Observable<{ session_rates: SessionRate[] }> {
-    return this.http.get<{ session_rates: SessionRate[] }>(`${this.base}/staff/${id}/session_rates`);
+    return this.http.get<{ session_rates: SessionRate[] }>(
+      `${this.base}/staff/${id}/session_rates`,
+    );
   }
 
   // BR-35: all six rungs together, effective-dated.
@@ -307,11 +329,14 @@ export class MassagelabService {
   }
 
   setMonthlyRate(id: number, amountCents: number, effectiveFrom: string, note?: string) {
-    return this.http.post<{ monthly_rates: MonthlyRate[] }>(`${this.base}/staff/${id}/monthly_rate`, {
-      amount_cents: amountCents,
-      effective_from: effectiveFrom,
-      note,
-    });
+    return this.http.post<{ monthly_rates: MonthlyRate[] }>(
+      `${this.base}/staff/${id}/monthly_rate`,
+      {
+        amount_cents: amountCents,
+        effective_from: effectiveFrom,
+        note,
+      },
+    );
   }
 
   // --- Roster ---
@@ -371,11 +396,18 @@ export class MassagelabService {
   }
 
   variantPrices(variantId: number): Observable<{ prices: VariantPrice[] }> {
-    return this.http.get<{ prices: VariantPrice[] }>(`${this.base}/service_variants/${variantId}/prices`);
+    return this.http.get<{ prices: VariantPrice[] }>(
+      `${this.base}/service_variants/${variantId}/prices`,
+    );
   }
 
   // BR-11: a new price is a new period, never an edit of the old one.
-  setVariantPrice(variantId: number, locationId: number, priceCents: number, effectiveFrom: string) {
+  setVariantPrice(
+    variantId: number,
+    locationId: number,
+    priceCents: number,
+    effectiveFrom: string,
+  ) {
     return this.http.post<VariantPrice>(`${this.base}/service_variants/${variantId}/prices`, {
       location_id: locationId,
       price_cents: priceCents,
@@ -390,10 +422,15 @@ export class MassagelabService {
   }
 
   businessHours(id: number): Observable<{ business_hours: BusinessHour[] }> {
-    return this.http.get<{ business_hours: BusinessHour[] }>(`${this.base}/locations/${id}/business_hours`);
+    return this.http.get<{ business_hours: BusinessHour[] }>(
+      `${this.base}/locations/${id}/business_hours`,
+    );
   }
 
-  setBusinessHours(id: number, hours: BusinessHour[]): Observable<{ business_hours: BusinessHour[] }> {
+  setBusinessHours(
+    id: number,
+    hours: BusinessHour[],
+  ): Observable<{ business_hours: BusinessHour[] }> {
     return this.http.put<{ business_hours: BusinessHour[] }>(
       `${this.base}/locations/${id}/business_hours`,
       { business_hours: hours },
@@ -500,7 +537,13 @@ export class MassagelabService {
   kioskQueue(locationId: number) {
     const params = new HttpParams().set('location_id', locationId);
     return this.http.get<{
-      appointments: { id: number; reference: string; client_name: string; therapist: string; time: string }[];
+      appointments: {
+        id: number;
+        reference: string;
+        client_name: string;
+        therapist: string;
+        time: string;
+      }[];
     }>(`${this.base}/ratings/kiosk_queue`, { params });
   }
 

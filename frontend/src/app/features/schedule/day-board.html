@@ -5,12 +5,19 @@
       <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="date-input" />
     </ui-field>
     <ui-button variant="text" icon="chevron_right" (click)="shiftDay(1)" ariaLabel="Next day" />
+    <ui-button variant="outlined" icon="print" (click)="print()" data-testid="print-day">
+      Print
+    </ui-button>
     @if (canBook()) {
-      <ui-button icon="add" (click)="newBooking()" data-testid="new-booking">New appointment</ui-button>
+      <ui-button icon="add" (click)="newBooking()" data-testid="new-booking"
+        >New appointment</ui-button
+      >
     }
   </div>
 
-  @if (error()) { <ui-banner tone="error" data-testid="board-error">{{ error() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error" data-testid="board-error">{{ error() }}</ui-banner>
+  }
 
   @if (board(); as b) {
     @if (b.appointments.length) {
@@ -22,7 +29,9 @@
             <div class="grid__row grid__row--ruler">
               <div class="grid__room-label"></div>
               <div class="grid__hours">
-                @for (h of hours(); track h) { <span class="grid__hour">{{ h }}:00</span> }
+                @for (h of hours(); track h) {
+                  <span class="grid__hour">{{ h }}:00</span>
+                }
               </div>
             </div>
 
@@ -33,7 +42,9 @@
                   <small>{{ room.room_type }} · seats {{ room.client_capacity }}</small>
                 </div>
                 <div class="grid__lane">
-                  @for (h of hours(); track h) { <span class="grid__tick"></span> }
+                  @for (h of hours(); track h) {
+                    <span class="grid__tick"></span>
+                  }
                   @for (p of placed(room); track p.appointment.id) {
                     <button
                       type="button"
@@ -63,16 +74,26 @@
         </ui-table>
       </ui-card>
 
-      <ui-card class="board__list" heading="Appointments" [sub]="b.appointments.length + ' on this day'">
+      <ui-card
+        class="board__list board__print"
+        heading="Appointments"
+        [sub]="b.appointments.length + ' on this day'"
+      >
         <ul class="agenda">
           @for (a of b.appointments; track a.id) {
             <li>
-              <button type="button" class="agenda__item" (click)="select(a)"
-                      [attr.data-testid]="'agenda-' + a.id">
+              <button
+                type="button"
+                class="agenda__item"
+                (click)="select(a)"
+                [attr.data-testid]="'agenda-' + a.id"
+              >
                 <span class="agenda__time">{{ a.starts_at | wallClock }}</span>
                 <span class="agenda__who">
                   <strong>{{ a.client.full_name }}</strong>
-                  <small>{{ a.room.name }} · {{ a.therapists[0]?.display_name ?? 'Unassigned' }}</small>
+                  <small
+                    >{{ a.room.name }} · {{ a.therapists[0]?.display_name ?? 'Unassigned' }}</small
+                  >
                 </span>
                 <ui-chip [tone]="tone(a.status)">{{ humanStatus(a.status) }}</ui-chip>
               </button>
@@ -116,7 +137,9 @@
             @for (item of appt.items; track item.id) {
               <li>
                 <span>{{ item.name }}</span>
-                <small>{{ item.duration_minutes ? item.duration_minutes + ' min' : 'no extra time' }}</small>
+                <small>{{
+                  item.duration_minutes ? item.duration_minutes + ' min' : 'no extra time'
+                }}</small>
                 <span class="num">${{ item.price_cents / 100 | number: '1.2-2' }}</span>
               </li>
             }
@@ -162,8 +185,13 @@
             <ui-field label="Add a care note">
               <textarea rows="2" [(ngModel)]="newCareNote" data-testid="care-note-input"></textarea>
             </ui-field>
-            <ui-button variant="tonal" icon="add_notes" (click)="addCareNote(appt)"
-                       data-testid="care-note-save">Add note</ui-button>
+            <ui-button
+              variant="tonal"
+              icon="add_notes"
+              (click)="addCareNote(appt)"
+              data-testid="care-note-save"
+              >Add note</ui-button
+            >
           </div>
         }
       </section>

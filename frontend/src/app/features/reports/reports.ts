@@ -25,7 +25,17 @@ import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable } from '.
  */
 @Component({
   selector: 'app-reports',
-  imports: [FormsModule, DecimalPipe, UiPage, UiCard, UiField, UiButton, UiTable, UiBanner, UiEmpty],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiTable,
+    UiBanner,
+    UiEmpty,
+  ],
   templateUrl: './reports.html',
   // Shared list-and-detail layout first, then what is specific here.
   styleUrls: ['../../ui/layouts.scss', './reports.scss'],
@@ -37,7 +47,10 @@ export class ReportsPage implements OnInit {
   protected readonly revenue = signal<DailyRevenue | null>(null);
   protected readonly log = signal<ClientLogRow[] | null>(null);
   protected readonly liability = signal<GiftCardLiability | null>(null);
-  protected readonly fees = signal<{ total_cents: number; orders: Record<string, unknown>[] } | null>(null);
+  protected readonly fees = signal<{
+    total_cents: number;
+    orders: Record<string, unknown>[];
+  } | null>(null);
   protected readonly noShows = signal<NoShowReport | null>(null);
   protected readonly utilization = signal<UtilizationReport | null>(null);
   protected readonly retention = signal<RetentionReport | null>(null);

@@ -2,6 +2,9 @@
   title="Clients"
   sub="One record per client, shared across all four locations. Preferences and visit history follow them wherever they book."
 >
+  @if (error()) {
+    <ui-banner tone="error">{{ error() }}</ui-banner>
+  }
   <div class="clients">
     <ui-card class="clients__list">
       <ui-field label="Find a client" hint="Search by name or phone number.">
@@ -40,7 +43,11 @@
         <ui-empty
           icon="person_search"
           title="No clients match"
-          [hint]="search ? 'Try part of a name, or the last four digits of a phone number.' : 'Clients appear here once they have been added at the desk.'"
+          [hint]="
+            search
+              ? 'Try part of a name, or the last four digits of a phone number.'
+              : 'Clients appear here once they have been added at the desk.'
+          "
         />
       }
     </ui-card>
@@ -57,9 +64,16 @@
         >
           <div class="form-grid">
             <ui-field label="Areas to pay more attention to">
-              <textarea rows="2" [(ngModel)]="pref.attention_areas" data-testid="pref-attention"></textarea>
+              <textarea
+                rows="2"
+                [(ngModel)]="pref.attention_areas"
+                data-testid="pref-attention"
+              ></textarea>
             </ui-field>
-            <ui-field label="Areas to avoid" hint="Injuries, recent surgery, anywhere not to touch.">
+            <ui-field
+              label="Areas to avoid"
+              hint="Injuries, recent surgery, anywhere not to touch."
+            >
               <textarea rows="2" [(ngModel)]="pref.avoid_areas" data-testid="pref-avoid"></textarea>
             </ui-field>
             <ui-field label="Pressure">
@@ -71,7 +85,11 @@
               </select>
             </ui-field>
             <ui-field label="Other requests">
-              <textarea rows="2" [(ngModel)]="pref.other_requests" data-testid="pref-other"></textarea>
+              <textarea
+                rows="2"
+                [(ngModel)]="pref.other_requests"
+                data-testid="pref-other"
+              ></textarea>
             </ui-field>
           </div>
 
@@ -90,7 +108,15 @@
             <ui-table label="Visit history">
               <table data-testid="client-visits">
                 <thead>
-                  <tr><th>When</th><th>Location</th><th>Therapist</th><th>Status</th></tr>
+                  <tr>
+                    <th>When</th>
+                    <th>Location</th>
+                    <th>Therapist</th>
+                    <th>Status</th>
+                    @if (canReadHistory()) {
+                      <th>{{ 'client_history.rating' | translate }}</th>
+                    }
+                  </tr>
                 </thead>
                 <tbody>
                   @for (a of client.appointments; track a.id) {
@@ -98,16 +124,72 @@
                       <td>{{ a.starts_at | wallClock: 'datetime' }}</td>
                       <td>{{ a.location }}</td>
                       <td>{{ a.therapists.join(', ') }}</td>
-                      <td><ui-chip [tone]="tone(a.status)">{{ humanStatus(a.status) }}</ui-chip></td>
+                      <td>
+                        <ui-chip [tone]="tone(a.status)">{{ humanStatus(a.status) }}</ui-chip>
+                      </td>
+                      @if (canReadHistory()) {
+                        <td>
+                          @if (ratings()[a.id]; as rating) {
+                            {{ rating.score }} / 10
+                          } @else {
+                            {{ 'client_history.not_rated' | translate }}
+                          }
+                        </td>
+                      }
                     </tr>
                   }
                 </tbody>
               </table>
             </ui-table>
           } @else {
-            <ui-empty icon="history" title="No visits yet" hint="Completed appointments appear here." />
+            <ui-empty
+              icon="history"
+              title="No visits yet"
+              hint="Completed appointments appear here."
+            />
           }
         </ui-card>
+        @if (canReadHistory()) {
+          <ui-card
+            [heading]="'client_history.gift_cards' | translate"
+            [sub]="'client_history.gift_cards_hint' | translate"
+          >
+            @if (giftCards().length) {
+              <ui-table [label]="'client_history.gift_cards' | translate">
+                <table data-testid="client-gift-cards">
+                  <thead>
+                    <tr>
+                      <th>{{ 'gift_card_form.code' | translate }}</th>
+                      <th>{{ 'client_history.sold' | translate }}</th>
+                      <th>{{ 'client_history.location' | translate }}</th>
+                      <th>{{ 'client_history.value' | translate }}</th>
+                      <th>{{ 'client_history.balance' | translate }}</th>
+                      <th>{{ 'client_history.status' | translate }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (card of giftCards(); track card.id) {
+                      <tr>
+                        <td>{{ card.code }}</td>
+                        <td>{{ card.sold_at | wallClock: 'date' }}</td>
+                        <td>{{ card.sold_at_location }}</td>
+                        <td>${{ card.initial_value_cents / 100 | number: '1.2-2' }}</td>
+                        <td>${{ card.balance_cents / 100 | number: '1.2-2' }}</td>
+                        <td>{{ humanStatus(card.status) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </ui-table>
+            } @else {
+              <ui-empty
+                icon="card_giftcard"
+                [title]="'client_history.no_cards' | translate"
+                [hint]="'client_history.no_cards_hint' | translate"
+              />
+            }
+          </ui-card>
+        }
       </div>
     }
   </div>

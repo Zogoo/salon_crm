@@ -14,7 +14,9 @@ import { Component, input } from '@angular/core';
     <header class="page__head">
       <div class="page__titles">
         <h1 class="page__title">{{ title() }}</h1>
-        @if (sub()) { <p class="page__sub">{{ sub() }}</p> }
+        @if (sub()) {
+          <p class="page__sub">{{ sub() }}</p>
+        }
       </div>
       <div class="page__actions"><ng-content select="[pageActions]" /></div>
     </header>
@@ -36,14 +38,20 @@ import { Component, input } from '@angular/core';
       gap: var(--sp-4);
       flex-wrap: wrap;
     }
-    .page__title { @include type-headline-sm; }
+    .page__title {
+      @include type-headline-sm;
+    }
     .page__sub {
       @include type-body-md;
       color: var(--md-on-surface-variant);
       margin-top: var(--sp-1);
       max-width: 70ch;
     }
-    .page__actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+    .page__actions {
+      display: flex;
+      gap: var(--sp-2);
+      flex-wrap: wrap;
+    }
 
     .page__body {
       display: flex;

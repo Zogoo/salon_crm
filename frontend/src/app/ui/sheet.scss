@@ -1,8 +1,17 @@
 @use '../../styles/tokens' as *;
 
-:host { position: fixed; inset: 0; z-index: 40; display: block; }
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: block;
+}
 
-.scrim { position: absolute; inset: 0; background: rgb(0 0 0 / 0.4); }
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.4);
+}
 
 .panel {
   position: absolute;
@@ -31,7 +40,19 @@
   align-items: flex-start;
   gap: var(--sp-2);
 }
-.panel__titles { margin-right: auto; min-width: 0; }
-.panel__title { @include type-title-lg; }
-.panel__sub { @include type-body-sm; color: var(--md-on-surface-variant); }
-.panel__body { display: flex; flex-direction: column; gap: var(--sp-4); }
+.panel__titles {
+  margin-right: auto;
+  min-width: 0;
+}
+.panel__title {
+  @include type-title-lg;
+}
+.panel__sub {
+  @include type-body-sm;
+  color: var(--md-on-surface-variant);
+}
+.panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}

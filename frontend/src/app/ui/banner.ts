@@ -29,11 +29,25 @@ export type BannerTone = 'error' | 'success' | 'info' | 'warning';
       padding: var(--sp-3) var(--sp-4);
       border-radius: var(--md-shape-sm);
     }
-    .banner__text { @include type-body-md; }
-    .banner--error { background: var(--md-error-container); color: var(--md-on-error-container); }
-    .banner--success { background: var(--md-success-container); color: var(--md-on-success-container); }
-    .banner--warning { background: var(--md-warning-container); color: var(--md-on-warning-container); }
-    .banner--info { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+    .banner__text {
+      @include type-body-md;
+    }
+    .banner--error {
+      background: var(--md-error-container);
+      color: var(--md-on-error-container);
+    }
+    .banner--success {
+      background: var(--md-success-container);
+      color: var(--md-on-success-container);
+    }
+    .banner--warning {
+      background: var(--md-warning-container);
+      color: var(--md-on-warning-container);
+    }
+    .banner--info {
+      background: var(--md-secondary-container);
+      color: var(--md-on-secondary-container);
+    }
   `,
 })
 export class UiBanner {

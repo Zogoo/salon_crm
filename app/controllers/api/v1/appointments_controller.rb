@@ -22,7 +22,7 @@ module Api
         location = scoped_location!(params.require(:location_id))
         date = params[:date].present? ? Date.parse(params[:date]) : location.today
         appts = visible_to_current_user(
-          Appointment.on_date(location, date).includes(:client, :room, staff_profiles: [])
+          Appointment.active.on_date(location, date).includes(:client, :room, staff_profiles: [])
         ).order(:starts_at)
 
         render json: {

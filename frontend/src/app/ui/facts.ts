@@ -20,7 +20,9 @@ export interface Fact {
         <div>
           <dt>{{ f.label }}</dt>
           <dd>{{ f.value ?? '—' }}</dd>
-          @if (f.hint) { <p class="facts__hint">{{ f.hint }}</p> }
+          @if (f.hint) {
+            <p class="facts__hint">{{ f.hint }}</p>
+          }
         </div>
       }
     </dl>
@@ -34,9 +36,20 @@ export interface Fact {
       gap: var(--sp-3);
       margin: 0;
     }
-    dt { @include type-label-md; text-transform: uppercase; color: var(--md-on-surface-variant); }
-    dd { @include type-body-md; margin: 0; }
-    .facts__hint { @include type-body-sm; color: var(--md-on-surface-variant); margin-top: var(--sp-1); }
+    dt {
+      @include type-label-md;
+      text-transform: uppercase;
+      color: var(--md-on-surface-variant);
+    }
+    dd {
+      @include type-body-md;
+      margin: 0;
+    }
+    .facts__hint {
+      @include type-body-sm;
+      color: var(--md-on-surface-variant);
+      margin-top: var(--sp-1);
+    }
   `,
 })
 export class UiFacts {

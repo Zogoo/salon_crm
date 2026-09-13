@@ -37,11 +37,11 @@ describe('StaffAdminPage', () => {
     p.rateEffectiveFrom = '2026-07-01';
     p.saveRates();
 
-    const req = http.expectOne((r) => r.url.endsWith("/staff/3/session_rates"));
+    const req = http.expectOne((r) => r.url.endsWith('/staff/3/session_rates'));
     expect(req.request.body.rates).toHaveLength(6);
-    expect(req.request.body.rates.map((x: { duration_minutes: number }) => x.duration_minutes)).toEqual([
-      30, 45, 60, 75, 90, 120,
-    ]);
+    expect(
+      req.request.body.rates.map((x: { duration_minutes: number }) => x.duration_minutes),
+    ).toEqual([30, 45, 60, 75, 90, 120]);
     // Dollars on screen, cents on the wire.
     expect(req.request.body.rates[2]).toEqual({ duration_minutes: 60, rate_cents: 4500 });
     expect(req.request.body.effective_from).toBe('2026-07-01');
@@ -51,7 +51,12 @@ describe('StaffAdminPage', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p = page as any;
     p.seedRateForm([
-      { duration_minutes: 60, rate_cents: 4000, effective_from: '2026-01-01', effective_to: '2026-06-30' },
+      {
+        duration_minutes: 60,
+        rate_cents: 4000,
+        effective_from: '2026-01-01',
+        effective_to: '2026-06-30',
+      },
       { duration_minutes: 60, rate_cents: 5000, effective_from: '2026-07-01', effective_to: null },
     ]);
 

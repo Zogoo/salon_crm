@@ -16,21 +16,41 @@
   gap: var(--sp-4);
   align-items: start;
 
-  @include expanded-up { grid-template-columns: minmax(0, 20rem) minmax(0, 1fr); }
+  @include expanded-up {
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+  }
 }
 
-.detail { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
 
 .form-grid {
   display: grid;
   gap: var(--sp-4);
   grid-template-columns: minmax(0, 1fr);
-  @include medium-up { grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); }
+  @include medium-up {
+    grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr));
+  }
 }
 
-.row { display: flex; gap: var(--sp-3); align-items: flex-end; flex-wrap: wrap; }
+.row {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
 
-.picker { display: flex; flex-direction: column; gap: var(--sp-1); max-height: 26rem; overflow-y: auto; }
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-height: 26rem;
+  overflow-y: auto;
+}
 
 .picker__item {
   @include touch-target;
@@ -47,7 +67,10 @@
   cursor: pointer;
   text-align: left;
 
-  &.on { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+  &.on {
+    background: var(--md-secondary-container);
+    color: var(--md-on-secondary-container);
+  }
 }
 
 .picker__main {
@@ -55,8 +78,13 @@
   flex-direction: column;
   min-width: 0;
   margin-right: auto;
-  strong { @include type-body-lg; }
-  small { @include type-body-sm; color: var(--md-on-surface-variant); }
+  strong {
+    @include type-body-lg;
+  }
+  small {
+    @include type-body-sm;
+    color: var(--md-on-surface-variant);
+  }
 }
 
 .checks {
@@ -74,7 +102,10 @@
   cursor: pointer;
 }
 
-.sub-head { @include type-title-sm; margin-bottom: var(--sp-1); }
+.sub-head {
+  @include type-title-sm;
+  margin-bottom: var(--sp-1);
+}
 .sub-hint {
   @include type-body-sm;
   color: var(--md-on-surface-variant);
@@ -82,15 +113,26 @@
   max-width: 66ch;
 }
 
-.num input { max-width: 8rem; }
-
-.split--even {
-  @include expanded-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.num input {
+  max-width: 8rem;
 }
 
-.checks--stack { flex-direction: column; gap: 0; }
+.split--even {
+  @include expanded-up {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
 
-.rows { display: flex; flex-direction: column; gap: var(--sp-1); }
+.checks--stack {
+  flex-direction: column;
+  gap: 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
 
 .rows li {
   display: flex;
@@ -106,11 +148,21 @@
   flex-direction: column;
   min-width: 0;
   margin-right: auto;
-  strong { @include type-body-md; }
-  small { @include type-body-sm; color: var(--md-on-surface-variant); }
+  strong {
+    @include type-body-md;
+  }
+  small {
+    @include type-body-sm;
+    color: var(--md-on-surface-variant);
+  }
 }
 
 // Used by the booking and checkout screens as well as the admin ones.
-.picker__amount { @include type-title-sm; font-variant-numeric: tabular-nums; }
+.picker__amount {
+  @include type-title-sm;
+  font-variant-numeric: tabular-nums;
+}
 
-.credit { color: var(--md-success); }
+.credit {
+  color: var(--md-success);
+}

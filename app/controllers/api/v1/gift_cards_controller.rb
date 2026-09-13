@@ -29,7 +29,7 @@ module Api
           location:, amount_cents: card_params.require(:amount_cents),
           payment_method: card_params.require(:payment_method), actor: current_user,
           code: card_params[:code],
-          buyer_client: Client.find_by(id: card_params[:buyer_client_id]),
+          buyer_client: buyer_client,
           buyer_name: card_params[:buyer_name], buyer_phone: card_params[:buyer_phone],
           recipient_client: Client.find_by(id: card_params[:recipient_client_id]),
           recipient_name: card_params[:recipient_name],
@@ -102,6 +102,11 @@ module Api
       end
 
       private
+
+      # Client records are company-wide; only an explicit, live client links a sale.
+      def buyer_client
+        Client.kept.find(card_params[:buyer_client_id]) if card_params[:buyer_client_id].present?
+      end
 
       def normalised(value) = value.to_s.strip.upcase
 

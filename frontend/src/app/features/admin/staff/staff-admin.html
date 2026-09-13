@@ -8,8 +8,12 @@
     </ui-button>
   </div>
 
-  @if (error()) { <ui-banner tone="error" data-testid="staff-error">{{ error() }}</ui-banner> }
-  @if (notice()) { <ui-banner tone="success" data-testid="staff-notice">{{ notice() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error" data-testid="staff-error">{{ error() }}</ui-banner>
+  }
+  @if (notice()) {
+    <ui-banner tone="success" data-testid="staff-notice">{{ notice() }}</ui-banner>
+  }
 
   @if (creating) {
     <ui-card heading="Add a therapist" data-testid="staff-create">
@@ -48,14 +52,24 @@
         </p>
         <ui-table label="New pay ladder">
           <table>
-            <thead><tr><th>Session length</th><th class="num">Rate</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Session length</th>
+                <th class="num">Rate</th>
+              </tr>
+            </thead>
             <tbody>
               @for (d of ladder; track d) {
                 <tr>
                   <td>{{ d }} min</td>
                   <td class="num">
-                    <input type="number" min="0" step="0.01" [(ngModel)]="rateForm[d]"
-                           [attr.data-testid]="'new-rate-' + d" />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      [(ngModel)]="rateForm[d]"
+                      [attr.data-testid]="'new-rate-' + d"
+                    />
                   </td>
                 </tr>
               }
@@ -83,8 +97,13 @@
         <ul class="picker">
           @for (m of staff(); track m.id) {
             <li>
-              <button type="button" class="picker__item" [class.on]="selected()?.id === m.id"
-                      (click)="select(m)" [attr.data-testid]="'staff-' + m.id">
+              <button
+                type="button"
+                class="picker__item"
+                [class.on]="selected()?.id === m.id"
+                (click)="select(m)"
+                [attr.data-testid]="'staff-' + m.id"
+              >
                 <span class="picker__main">
                   <strong>{{ m.display_name }}</strong>
                   <small>{{ m.employee_code }}</small>
@@ -97,15 +116,20 @@
           }
         </ul>
       } @else {
-        <ui-empty icon="badge" title="Nobody here yet"
-                  hint="Add a therapist to make them schedulable at this location." />
+        <ui-empty
+          icon="badge"
+          title="Nobody here yet"
+          hint="Add a therapist to make them schedulable at this location."
+        />
       }
     </ui-card>
 
     @if (selected(); as member) {
       <div class="detail" data-testid="staff-detail">
         <ui-card [heading]="member.display_name" [sub]="memberSummary(member)">
-          <ui-chip cardAction [tone]="tone(member.status)">{{ humanStatus(member.status) }}</ui-chip>
+          <ui-chip cardAction [tone]="tone(member.status)">{{
+            humanStatus(member.status)
+          }}</ui-chip>
         </ui-card>
 
         <ui-card
@@ -116,9 +140,12 @@
             @for (s of services(); track s.id) {
               <li>
                 <label class="toggle">
-                  <input type="checkbox" [checked]="qualified(s.id)"
-                         (change)="toggleQualification(s.id, $any($event.target).checked)"
-                         [attr.data-testid]="'qual-' + s.id" />
+                  <input
+                    type="checkbox"
+                    [checked]="qualified(s.id)"
+                    (change)="toggleQualification(s.id, $any($event.target).checked)"
+                    [attr.data-testid]="'qual-' + s.id"
+                  />
                   {{ s.name }}
                 </label>
               </li>
@@ -140,14 +167,24 @@
           >
             <ui-table label="Pay ladder">
               <table>
-                <thead><tr><th>Session length</th><th class="num">Rate</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Session length</th>
+                    <th class="num">Rate</th>
+                  </tr>
+                </thead>
                 <tbody>
                   @for (d of ladder; track d) {
                     <tr>
                       <td>{{ d }} min</td>
                       <td class="num">
-                        <input type="number" min="0" step="0.01" [(ngModel)]="rateForm[d]"
-                               [attr.data-testid]="'rate-' + d" />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          [(ngModel)]="rateForm[d]"
+                          [attr.data-testid]="'rate-' + d"
+                        />
                       </td>
                     </tr>
                   }
@@ -163,14 +200,22 @@
                 <input [(ngModel)]="rateNote" placeholder="Annual review" />
               </ui-field>
             </div>
-            <ui-button icon="save" (click)="saveRates()" data-testid="rate-save">Save ladder</ui-button>
+            <ui-button icon="save" (click)="saveRates()" data-testid="rate-save"
+              >Save ladder</ui-button
+            >
 
             @if (currentRates().length) {
               <div>
                 <h3 class="sub-head">In force now</h3>
                 <ui-table label="Current rates">
                   <table>
-                    <thead><tr><th>Length</th><th class="num">Rate</th><th>From</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th>Length</th>
+                        <th class="num">Rate</th>
+                        <th>From</th>
+                      </tr>
+                    </thead>
                     <tbody>
                       @for (r of currentRates(); track r.duration_minutes) {
                         <tr>
@@ -191,7 +236,13 @@
                 <p class="sub-hint">Kept so past pay can always be explained.</p>
                 <ui-table label="Previous rates">
                   <table>
-                    <thead><tr><th>Length</th><th class="num">Rate</th><th>Period</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th>Length</th>
+                        <th class="num">Rate</th>
+                        <th>Period</th>
+                      </tr>
+                    </thead>
                     <tbody>
                       @for (r of pastRates(); track r.effective_from + '-' + r.duration_minutes) {
                         <tr>
@@ -213,8 +264,13 @@
             heading="Offboarding"
             sub="Soft, never a delete. Blocked while they still have appointments on the books, and it disables their sign-in."
           >
-            <ui-button variant="danger" icon="person_remove" (click)="offboard(member)"
-                       data-testid="offboard">Offboard {{ member.display_name }}</ui-button>
+            <ui-button
+              variant="danger"
+              icon="person_remove"
+              (click)="offboard(member)"
+              data-testid="offboard"
+              >Offboard {{ member.display_name }}</ui-button
+            >
           </ui-card>
         }
       </div>

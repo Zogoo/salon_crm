@@ -2,8 +2,12 @@
   title="Location"
   sub="Opening hours, holidays, rooms and rooms out of service. Each of these decides what can be booked — a closed day offers no times at all."
 >
-  @if (error()) { <ui-banner tone="error" data-testid="loc-error">{{ error() }}</ui-banner> }
-  @if (notice()) { <ui-banner tone="success" data-testid="loc-notice">{{ notice() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error" data-testid="loc-error">{{ error() }}</ui-banner>
+  }
+  @if (notice()) {
+    <ui-banner tone="success" data-testid="loc-notice">{{ notice() }}</ui-banner>
+  }
 
   <div class="split split--even">
     <ui-card
@@ -14,20 +18,33 @@
       @if (hours().length) {
         <ui-table label="Opening hours">
           <table>
-            <thead><tr><th>Day</th><th>Opens</th><th>Closes</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Opens</th>
+                <th>Closes</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
               @for (h of hours(); track $index) {
                 <tr>
                   <td>
                     <select [(ngModel)]="h.day_of_week" aria-label="Day of week">
-                      @for (d of days; track $index) { <option [ngValue]="$index">{{ d }}</option> }
+                      @for (d of days; track $index) {
+                        <option [ngValue]="$index">{{ d }}</option>
+                      }
                     </select>
                   </td>
                   <td><input type="time" [(ngModel)]="h.opens_at" aria-label="Opens at" /></td>
                   <td><input type="time" [(ngModel)]="h.closes_at" aria-label="Closes at" /></td>
                   <td class="num">
-                    <ui-button variant="text" icon="delete" (click)="removeHour($index)"
-                               ariaLabel="Remove this row" />
+                    <ui-button
+                      variant="text"
+                      icon="delete"
+                      (click)="removeHour($index)"
+                      ariaLabel="Remove this row"
+                    />
                   </td>
                 </tr>
               }
@@ -45,7 +62,9 @@
       <div class="form-grid">
         <ui-field label="Day">
           <select [(ngModel)]="newHour.day_of_week">
-            @for (d of days; track $index) { <option [ngValue]="$index">{{ d }}</option> }
+            @for (d of days; track $index) {
+              <option [ngValue]="$index">{{ d }}</option>
+            }
           </select>
         </ui-field>
         <ui-field label="Opens"><input type="time" [(ngModel)]="newHour.opens_at" /></ui-field>
@@ -72,8 +91,13 @@
                 <strong>{{ c.date }}</strong>
                 <small>{{ c.reason || 'No reason given' }}</small>
               </span>
-              <ui-button variant="text" icon="undo" (click)="removeClosure(c)"
-                         [attr.data-testid]="'closure-remove-' + c.id">Reopen</ui-button>
+              <ui-button
+                variant="text"
+                icon="undo"
+                (click)="removeClosure(c)"
+                [attr.data-testid]="'closure-remove-' + c.id"
+                >Reopen</ui-button
+              >
             </li>
           }
         </ul>
@@ -95,22 +119,40 @@
     </ui-card>
   </div>
 
-  <ui-card heading="Rooms" sub="A room's type and how many it seats decide what can be booked into it."
-           data-testid="loc-rooms">
+  <ui-card
+    heading="Rooms"
+    sub="A room's type and how many it seats decide what can be booked into it."
+    data-testid="loc-rooms"
+  >
     @if (rooms().length) {
       <ui-table label="Rooms">
         <table>
-          <thead><tr><th>Name</th><th>Type</th><th>Seats</th><th>Status</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Seats</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
             @for (r of rooms(); track r.id) {
               <tr>
                 <td>{{ r.name }}</td>
                 <td>{{ humanStatus(r.room_type) }}</td>
                 <td>{{ r.client_capacity }}</td>
-                <td><ui-chip [tone]="tone(r.status)">{{ humanStatus(r.status) }}</ui-chip></td>
+                <td>
+                  <ui-chip [tone]="tone(r.status)">{{ humanStatus(r.status) }}</ui-chip>
+                </td>
                 <td class="num">
-                  <ui-button variant="text" icon="block" (click)="showBlocks(r)"
-                             [attr.data-testid]="'blocks-' + r.id">Out of service</ui-button>
+                  <ui-button
+                    variant="text"
+                    icon="block"
+                    (click)="showBlocks(r)"
+                    [attr.data-testid]="'blocks-' + r.id"
+                    >Out of service</ui-button
+                  >
                 </td>
               </tr>
             }
@@ -118,8 +160,11 @@
         </table>
       </ui-table>
     } @else {
-      <ui-empty icon="meeting_room" title="No rooms yet"
-                hint="Nothing can be booked at a location with no rooms." />
+      <ui-empty
+        icon="meeting_room"
+        title="No rooms yet"
+        hint="Nothing can be booked at a location with no rooms."
+      />
     }
 
     <div class="form-grid">
@@ -134,7 +179,9 @@
       </ui-field>
       <ui-field label="Seats">
         <select [(ngModel)]="newRoom.client_capacity">
-          <option [ngValue]="1">1</option><option [ngValue]="2">2</option><option [ngValue]="3">3</option>
+          <option [ngValue]="1">1</option>
+          <option [ngValue]="2">2</option>
+          <option [ngValue]="3">3</option>
         </select>
       </ui-field>
     </div>
@@ -155,7 +202,12 @@
                 <strong>{{ wallClock(b.starts_at) }} → {{ wallClock(b.ends_at) }}</strong>
                 <small>{{ b.reason || 'No reason given' }}</small>
               </span>
-              <ui-button variant="text" icon="delete" (click)="removeBlock(b)" ariaLabel="Remove block" />
+              <ui-button
+                variant="text"
+                icon="delete"
+                (click)="removeBlock(b)"
+                ariaLabel="Remove block"
+              />
             </li>
           }
         </ul>

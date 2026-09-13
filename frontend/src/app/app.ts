@@ -81,6 +81,8 @@ export class App implements OnInit {
   }
 
   private applyChrome(url: string): void {
-    this.bare.set(url.startsWith('/kiosk') || url.startsWith('/sign-in') || url.startsWith('/sign-up'));
+    this.bare.set(
+      url.startsWith('/kiosk') || url.startsWith('/sign-in') || url.startsWith('/sign-up'),
+    );
   }
 }

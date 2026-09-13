@@ -1,6 +1,11 @@
 @use '../../../styles/tokens' as *;
 
-.dash__actions { display: flex; gap: var(--sp-3); align-items: flex-end; flex-wrap: wrap; }
+.dash__actions {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
 
 .tiles {
   display: grid;
@@ -13,7 +18,9 @@
   display: grid;
   gap: var(--sp-4);
   grid-template-columns: minmax(0, 1fr);
-  @include medium-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  @include medium-up {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 .people {
@@ -22,6 +29,12 @@
   gap: var(--sp-2);
   @include type-body-md;
 
-  li { display: flex; align-items: center; gap: var(--sp-2); }
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
 }
-.people--muted { color: var(--md-on-surface-variant); }
+.people--muted {
+  color: var(--md-on-surface-variant);
+}

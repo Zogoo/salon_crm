@@ -155,7 +155,13 @@ export interface Appointment {
   location?: { id: number; name: string };
   appointment_note?: string | null;
   fee_charged_cents?: number;
-  items?: { id: number; name: string; kind: string; duration_minutes: number; price_cents: number }[];
+  items?: {
+    id: number;
+    name: string;
+    kind: string;
+    duration_minutes: number;
+    price_cents: number;
+  }[];
   preference?: ClientRecord['preference'];
 }
 
@@ -336,7 +342,13 @@ export interface Order {
     line_total_cents: number;
     revenue_category: string;
   }[];
-  payments: { id: number; method: string; amount_cents: number; status: string; reference: string | null }[];
+  payments: {
+    id: number;
+    method: string;
+    amount_cents: number;
+    status: string;
+    reference: string | null;
+  }[];
   discounts: { id: number; kind: string; amount_cents: number; reason: string | null }[];
   gift_card_redemptions: { code: string; amount_cents: number }[];
   tips: { staff_profile_id: number; amount_cents: number; display_name: string }[];
@@ -512,4 +524,23 @@ export interface CareNote {
   created_at: string;
   author: string;
   supersedes_note_id: number | null;
+}
+
+export interface ClientRating {
+  id: number;
+  appointment_id: number;
+  score: number;
+  comment: string | null;
+  therapist: string | null;
+  created_at: string;
+}
+
+export interface ClientGiftCard {
+  id: number;
+  code: string;
+  initial_value_cents: number;
+  balance_cents: number;
+  status: string;
+  sold_at: string;
+  sold_at_location: string;
 }

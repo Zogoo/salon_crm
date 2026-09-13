@@ -31,7 +31,20 @@ import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
  */
 @Component({
   selector: 'app-membership',
-  imports: [FormsModule, DecimalPipe, WallClockPipe, UiPage, UiCard, UiField, UiButton, UiChip, UiEmpty, UiTable, UiFacts, UiBanner],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    WallClockPipe,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiChip,
+    UiEmpty,
+    UiTable,
+    UiFacts,
+    UiBanner,
+  ],
   templateUrl: './membership.html',
   styleUrl: '../../ui/layouts.scss',
 })
@@ -48,8 +61,12 @@ export class MembershipPage implements OnInit {
   protected newClientId: number | null = null;
   protected newVariantId: number | null = null;
   protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
-  protected tone(status: string) { return statusTone(status); }
-  protected humanStatus(value: string) { return humanise(value); }
+  protected tone(status: string) {
+    return statusTone(status);
+  }
+  protected humanStatus(value: string) {
+    return humanise(value);
+  }
 
   protected memberFacts(m: MembershipRecord): Fact[] {
     return [

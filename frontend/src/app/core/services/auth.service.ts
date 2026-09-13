@@ -23,7 +23,11 @@ export class AuthService {
   // `otpCode` is only sent once the API has asked for it (doc 05 §3).
   signIn(email: string, password: string, otpCode?: string): Observable<AuthResponse> {
     return this.http
-      .post<AuthResponse>(`${environment.apiUrl}/auth/sign_in`, { email, password, otp_code: otpCode })
+      .post<AuthResponse>(`${environment.apiUrl}/auth/sign_in`, {
+        email,
+        password,
+        otp_code: otpCode,
+      })
       .pipe(tap((res) => this.accept(res)));
   }
 

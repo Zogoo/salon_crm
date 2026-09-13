@@ -22,14 +22,16 @@ module Earnings
 
     def call
       return [] unless @appt&.status == "completed"
-      return [] if EarningLine.exists?(appointment_id: @appt.id, source: "session")
-
       items = @appt.appointment_items.payable.includes(:service_variant).order(:position).to_a
       return [] if items.empty?
 
       service_date = @appt.starts_at.in_time_zone(@appt.location.tz).to_date
 
       ImmediateTransaction.call do
+        # Completion and settlement can both reach this service. Re-check under
+        # the SQLite write lock so retries never produce a second session line.
+        next [] if EarningLine.exists?(appointment_id: @appt.id, source: "session")
+
         @appt.staff_profiles.flat_map do |therapist|
           buckets(items).filter_map { |b| line_for(therapist, b, service_date) }
         end

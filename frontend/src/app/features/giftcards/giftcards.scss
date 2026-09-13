@@ -6,7 +6,12 @@
   gap: var(--sp-4);
   align-items: start;
 
-  @include expanded-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  @include expanded-up {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
-.picker__amount { @include type-title-sm; font-variant-numeric: tabular-nums; }
+.picker__amount {
+  @include type-title-sm;
+  font-variant-numeric: tabular-nums;
+}

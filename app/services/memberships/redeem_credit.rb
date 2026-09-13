@@ -54,17 +54,35 @@ module Memberships
 
     private
 
-    # The credit is worth the included 60-minute massage at this location today.
+    # What the credit is worth on this order: the included 60-minute massage at
+    # this location today, plus the enhancements that come free with it.
     # The member pays whatever the chosen service costs above that.
     def entitlement_value
+      # Never credit more than the order is worth.
+      [ included_massage_value + complimentary_value, @order.subtotal_cents ].min
+    end
+
+    def included_massage_value
       variant = @membership.default_service_variant
       return 0 unless variant
 
-      included = Catalogue::ResolvePrice.call(
+      Catalogue::ResolvePrice.call(
         variant:, location: @order.location, on: @order.location.today
       )
-      # Never credit more than the order is worth.
-      [ included, @order.subtotal_cents ].min
+    end
+
+    # FRS §23: hot stone, hot herbal compression and aromatherapy are included
+    # at no extra charge. Essential oil is not, so this reads the flag on the
+    # service rather than a list of names — the Owner can rename a service from
+    # the Services screen, and a rename must not start charging for something
+    # that is meant to be free.
+    def complimentary_value
+      @order.order_line_items
+            .where(purchasable_type: "ServiceVariant")
+            .joins("INNER JOIN service_variants ON service_variants.id = order_line_items.purchasable_id")
+            .joins("INNER JOIN services ON services.id = service_variants.service_id")
+            .where(services: { complimentary_with_membership: true })
+            .sum(:line_total_cents)
     end
   end
 end

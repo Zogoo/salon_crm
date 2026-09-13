@@ -86,6 +86,7 @@ module Scheduling
       when "scheduled"
         confirm!
       when "completed"
+        Earnings::GenerateForAppointment.call(appointment: @appt)
         request_rating!
       when "no_show", "late_cancelled"
         # BR-19: recorded as owed, not charged — Release 1 has no gateway.

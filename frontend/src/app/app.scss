@@ -37,7 +37,9 @@
   // Flex children default to min-width:auto and refuse to shrink below their
   // content, which pushed the whole bar — and so the page — wider than a phone.
   min-width: 0;
-  > * { min-width: 0; }
+  > * {
+    min-width: 0;
+  }
 }
 
 .appbar__menu {
@@ -53,7 +55,9 @@
   cursor: pointer;
   color: var(--md-on-surface);
 
-  @include expanded-up { display: none; }
+  @include expanded-up {
+    display: none;
+  }
 }
 
 .appbar__brand {
@@ -67,11 +71,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  &:hover { text-decoration: none; }
+  &:hover {
+    text-decoration: none;
+  }
 
   // The brand is the first thing to give up room: the location and who you are
   // signed in as are what the reader actually needs from this bar.
-  @include compact-only { flex: 0 1 auto; }
+  @include compact-only {
+    flex: 0 1 auto;
+  }
 }
 
 .appbar__location {
@@ -98,7 +106,9 @@
     color: var(--md-on-surface);
     text-overflow: ellipsis;
 
-    @include compact-only { max-width: 5.5rem; }
+    @include compact-only {
+      max-width: 5.5rem;
+    }
   }
 }
 
@@ -113,7 +123,9 @@
 // because "why can I not see earnings?" is answered by the role.
 .appbar__name {
   @include type-body-md;
-  @include compact-only { display: none; }
+  @include compact-only {
+    display: none;
+  }
 }
 
 .appbar__role {
@@ -126,7 +138,9 @@
 }
 
 .appbar__signout-label {
-  @include compact-only { display: none; }
+  @include compact-only {
+    display: none;
+  }
 }
 
 // --- Drawer ----------------------------------------------------------------
@@ -160,7 +174,9 @@
   }
 }
 
-.shell--drawer-open .drawer { transform: translateX(0); }
+.shell--drawer-open .drawer {
+  transform: translateX(0);
+}
 
 .scrim {
   position: fixed;
@@ -171,8 +187,13 @@
   transition: opacity 200ms ease;
   z-index: 25;
 
-  .shell--drawer-open & { opacity: 1; pointer-events: auto; }
-  @include expanded-up { display: none; }
+  .shell--drawer-open & {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  @include expanded-up {
+    display: none;
+  }
 }
 
 .drawer__cta {
@@ -189,7 +210,9 @@
   color: var(--md-on-primary-container);
   border-radius: var(--md-shape-lg);
   text-decoration: none;
-  &:hover { text-decoration: none; }
+  &:hover {
+    text-decoration: none;
+  }
 }
 
 .drawer__group {
@@ -211,7 +234,9 @@
   border-radius: var(--md-shape-full);
   color: var(--md-on-surface-variant);
   text-decoration: none;
-  &:hover { text-decoration: none; }
+  &:hover {
+    text-decoration: none;
+  }
 
   // The active destination is filled, not merely bolded — position in the app
   // should be readable at a glance from across the desk.
@@ -229,14 +254,37 @@
   padding: var(--sp-4);
   min-width: 0;
 
-  @include medium-up { padding: var(--sp-5); }
-  @include expanded-up { padding: var(--sp-6); }
+  @include medium-up {
+    padding: var(--sp-5);
+  }
+  @include expanded-up {
+    padding: var(--sp-6);
+  }
 }
 
-.bare { min-height: 100vh; }
+.bare {
+  min-height: 100vh;
+}
 
 .loading {
   padding: var(--sp-7);
   text-align: center;
   color: var(--md-on-surface-variant);
+}
+
+// Nothing in the shell belongs on paper: the drawer, the app bar and the
+// scrim are all navigation. Only the page content prints.
+@media print {
+  .appbar,
+  .drawer,
+  .scrim {
+    display: none !important;
+  }
+
+  .shell {
+    display: block;
+  }
+  .content {
+    padding: 0;
+  }
 }

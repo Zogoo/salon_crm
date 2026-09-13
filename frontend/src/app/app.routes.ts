@@ -64,8 +64,7 @@ export const routes: Routes = [
     // Doc 01 §3.1 / doc 05 §6 — onboarding, qualifications and pay rates.
     path: 'admin/staff',
     canActivate: [authGuard, ownerGuard],
-    loadComponent: () =>
-      import('./features/admin/staff/staff-admin').then((m) => m.StaffAdminPage),
+    loadComponent: () => import('./features/admin/staff/staff-admin').then((m) => m.StaffAdminPage),
   },
   {
     // BR-05: staff never self-edit shifts, so the roster is Manager-and-above.

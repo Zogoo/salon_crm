@@ -56,7 +56,8 @@ export class DashboardPage implements OnInit {
 
     this.api.dashboard(loc.id, this.date).subscribe({
       next: (d) => this.data.set(d),
-      error: () => this.error.set('Could not load the dashboard. Check the connection and try again.'),
+      error: () =>
+        this.error.set('Could not load the dashboard. Check the connection and try again.'),
     });
     this.api.shifts(loc.id, this.date).subscribe({
       next: (s) => this.shifts.set(s),

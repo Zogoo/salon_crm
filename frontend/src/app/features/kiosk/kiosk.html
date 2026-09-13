@@ -13,7 +13,9 @@
       <h1 class="kiosk__title">How was your session?</h1>
       <p class="kiosk__lede">{{ appt.client_name }} · {{ appt.therapist }} · {{ appt.time }}</p>
 
-      @if (error()) { <ui-banner tone="error" data-testid="kiosk-error">{{ error() }}</ui-banner> }
+      @if (error()) {
+        <ui-banner tone="error" data-testid="kiosk-error">{{ error() }}</ui-banner>
+      }
 
       <div class="scores" role="group" aria-label="Score out of ten" data-testid="kiosk-scores">
         @for (s of scores; track s) {
@@ -40,12 +42,26 @@
 
       <div class="recommend">
         <span class="recommend__q">Would you recommend us?</span>
-        <button type="button" class="pill" [class.on]="wouldRecommend === true"
-                [attr.aria-pressed]="wouldRecommend === true"
-                (click)="wouldRecommend = true" data-testid="rec-yes">Yes</button>
-        <button type="button" class="pill" [class.on]="wouldRecommend === false"
-                [attr.aria-pressed]="wouldRecommend === false"
-                (click)="wouldRecommend = false" data-testid="rec-no">No</button>
+        <button
+          type="button"
+          class="pill"
+          [class.on]="wouldRecommend === true"
+          [attr.aria-pressed]="wouldRecommend === true"
+          (click)="wouldRecommend = true"
+          data-testid="rec-yes"
+        >
+          Yes
+        </button>
+        <button
+          type="button"
+          class="pill"
+          [class.on]="wouldRecommend === false"
+          [attr.aria-pressed]="wouldRecommend === false"
+          (click)="wouldRecommend = false"
+          data-testid="rec-no"
+        >
+          No
+        </button>
       </div>
 
       <div class="kiosk__actions">
@@ -67,8 +83,12 @@
         <ul class="queue" data-testid="kiosk-queue">
           @for (w of queue(); track w.id) {
             <li>
-              <button type="button" class="queue__item" (click)="choose(w)"
-                      [attr.data-testid]="'kiosk-appt-' + w.id">
+              <button
+                type="button"
+                class="queue__item"
+                (click)="choose(w)"
+                [attr.data-testid]="'kiosk-appt-' + w.id"
+              >
                 <strong>{{ w.client_name }}</strong>
                 <small>{{ w.time }} · {{ w.therapist }}</small>
               </button>

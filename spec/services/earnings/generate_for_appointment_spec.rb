@@ -24,9 +24,9 @@ RSpec.describe Earnings::GenerateForAppointment do
   end
 
   def complete(appt)
-    %w[checked_in in_progress completed].each do |to|
-      Scheduling::TransitionStatus.call(appointment: appt, to:)
-    end
+    # Isolate this unit from TransitionStatus, whose completion integration is
+    # covered by the request regression spec.
+    appt.update!(status: "completed")
     appt.reload
   end
 

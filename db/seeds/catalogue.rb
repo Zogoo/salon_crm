@@ -88,9 +88,10 @@ module Seeds
     # herbal compression and aromatherapy $15 each. None adds time.
     ENHANCEMENTS = [
       { name: "Essential oil", cents: 1000 },
-      { name: "Hot stone", cents: 1500 },
-      { name: "Hot herbal compression", cents: 1500 },
-      { name: "Aromatherapy", cents: 1500 }
+      # FRS §23: these three come free with the included monthly massage.
+      { name: "Hot stone", cents: 1500, complimentary: true },
+      { name: "Hot herbal compression", cents: 1500, complimentary: true },
+      { name: "Aromatherapy", cents: 1500, complimentary: true }
     ].freeze
 
     def seed!
@@ -225,6 +226,7 @@ module Seeds
     def seed_enhancements(locations)
       ENHANCEMENTS.each do |e|
         service = upsert_service(e[:name], "enhancement", kind: "enhancement")
+        service.update!(complimentary_with_membership: e.fetch(:complimentary, false))
         variant = upsert_variant(service, 0, base: e[:cents])
         locations.each_value { |l| price!(l, variant, e[:cents]) }
       end

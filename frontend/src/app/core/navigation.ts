@@ -38,7 +38,7 @@ export const NAV_GROUPS: NavGroup[] = [
         path: '/dashboard',
         label: 'Dashboard',
         icon: 'space_dashboard',
-        description: "How today is going at this location, at a glance.",
+        description: 'How today is going at this location, at a glance.',
         roles: ALL,
       },
       {

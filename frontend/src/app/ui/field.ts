@@ -12,7 +12,9 @@ import { Component, input } from '@angular/core';
     <label class="field">
       <span class="field__label">
         {{ label() }}
-        @if (optional()) { <span class="field__optional">optional</span> }
+        @if (optional()) {
+          <span class="field__optional">optional</span>
+        }
       </span>
       <ng-content />
       @if (error()) {

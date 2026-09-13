@@ -41,12 +41,31 @@ module Scheduling
       service_end = @appt.service_ends_at + minutes.minutes
       finish = @appt.ends_at + minutes.minutes
 
+      assert_coverage!(finish)
       assert_room_free!(finish)
       assert_staff_free!(finish)
       # Duration is derived from these two, so there is no counter to keep.
       @appt.update!(service_ends_at: service_end, ends_at: finish)
       # The denormalised copy drives the conflict query, so it moves too.
       @appt.appointment_staff.update_all(ends_at: finish) # rubocop:disable Rails/SkipsModelValidations
+    end
+
+    def assert_coverage!(finish)
+      location = @appt.location
+      date = @appt.starts_at.in_time_zone(location.tz).to_date
+      covered = location.business_windows(date).any? { |w| @appt.starts_at >= w.first && finish <= w.last }
+      raise Conflict, "outside_business_hours" unless covered
+
+      service_ids = @variants.select(&:payable?).map(&:service_id)
+      @appt.staff_profiles.each do |staff|
+        raise Invalid, "therapist_not_qualified" unless staff.qualified_for?(service_ids)
+        shifts = Shift.published.where(staff_profile: staff, location:, work_date: date).includes(:shift_breaks)
+        shift = shifts.find { |s| s.covers?(@appt.starts_at, finish) }
+        raise Conflict, "therapist_not_on_shift" unless shift && staff.status == "active"
+        if shift.shift_breaks.any? { |b| b.starts_at < finish && b.ends_at > @appt.starts_at }
+          raise Conflict, "therapist_on_break"
+        end
+      end
     end
 
     # Only the newly added tail is contested; the original span is already ours.

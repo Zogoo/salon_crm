@@ -61,8 +61,12 @@ export class StaffAdminPage implements OnInit {
 
   protected readonly ladder = LADDER;
 
-  protected tone(status: string) { return statusTone(status); }
-  protected humanStatus(status: string) { return humanise(status); }
+  protected tone(status: string) {
+    return statusTone(status);
+  }
+  protected humanStatus(status: string) {
+    return humanise(status);
+  }
 
   protected memberSummary(member: StaffMember): string {
     const paid = member.engagement_type === 'manager_flat' ? 'flat monthly' : 'per session';
@@ -151,7 +155,9 @@ export class StaffAdminPage implements OnInit {
     // BR-36: a manager earns no session rates, so sending a ladder for one
     // would be meaningless rather than merely unused.
     if (!manager && this.ladderPayload().every((r) => r.rate_cents === 0)) {
-      this.error.set('Set the pay ladder before adding a therapist — a ladder of zeros is not a rate.');
+      this.error.set(
+        'Set the pay ladder before adding a therapist — a ladder of zeros is not a rate.',
+      );
       return;
     }
 
@@ -240,7 +246,9 @@ export class StaffAdminPage implements OnInit {
         next: ({ session_rates }) => {
           this.rates.set(session_rates);
           this.rateNote = '';
-          this.notice.set(`New rates take effect ${this.rateEffectiveFrom}. Earlier pay is unchanged.`);
+          this.notice.set(
+            `New rates take effect ${this.rateEffectiveFrom}. Earlier pay is unchanged.`,
+          );
         },
         error: (err) => this.error.set(this.message(err, 'Could not save rates')),
       });

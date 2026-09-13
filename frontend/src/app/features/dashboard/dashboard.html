@@ -3,24 +3,34 @@
     <ui-field label="Date">
       <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="dash-date" />
     </ui-field>
-    <ui-button variant="tonal" icon="calendar_month" (click)="openSchedule()">Open schedule</ui-button>
+    <ui-button variant="tonal" icon="calendar_month" (click)="openSchedule()"
+      >Open schedule</ui-button
+    >
   </div>
 
-  @if (error()) { <ui-banner tone="error">{{ error() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error">{{ error() }}</ui-banner>
+  }
 
   @if (data(); as d) {
     <section class="tiles" data-testid="dash-tiles" aria-label="Today at a glance">
-      <ui-stat label="Appointments" [value]="d.appointments_today"
-               hint="Booked and completed; cancellations are counted separately."
-               data-testid="tile-appointments" />
+      <ui-stat
+        label="Appointments"
+        [value]="d.appointments_today"
+        hint="Booked and completed; cancellations are counted separately."
+        data-testid="tile-appointments"
+      />
       <ui-stat label="Completed" [value]="d.completed_today" />
       <ui-stat label="Cancelled" [value]="d.cancelled_today" />
       <ui-stat label="No-shows" [value]="d.no_shows_today" />
       <ui-stat label="Staff working" [value]="d.staff_working" />
       <ui-stat label="Rooms free now" [value]="d.rooms_free_now + ' / ' + d.rooms_total" />
-      <ui-stat label="Awaiting approval" [value]="d.pending_approvals"
-               hint="Auto-approves after 45 minutes if the therapist is still free."
-               data-testid="tile-approvals" />
+      <ui-stat
+        label="Awaiting approval"
+        [value]="d.pending_approvals"
+        hint="Auto-approves after 45 minutes if the therapist is still free."
+        data-testid="tile-approvals"
+      />
       @if (d.revenue_booked_cents !== undefined) {
         <ui-stat
           tone="primary"

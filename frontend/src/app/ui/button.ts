@@ -21,7 +21,9 @@ export type ButtonVariant = 'filled' | 'tonal' | 'outlined' | 'text' | 'danger';
       [disabled]="disabled()"
       [attr.aria-label]="ariaLabel() || null"
     >
-      @if (icon()) { <ui-icon [name]="icon()!" /> }
+      @if (icon()) {
+        <ui-icon [name]="icon()!" />
+      }
       <span class="label"><ng-content /></span>
     </button>
   `,
@@ -35,5 +37,7 @@ export class UiButton {
   readonly full = input(false);
   readonly ariaLabel = input<string | undefined>(undefined);
 
-  protected readonly classes = computed(() => `btn btn--${this.variant()}${this.full() ? ' btn--full' : ''}`);
+  protected readonly classes = computed(
+    () => `btn btn--${this.variant()}${this.full() ? ' btn--full' : ''}`,
+  );
 }

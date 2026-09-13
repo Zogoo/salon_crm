@@ -72,8 +72,14 @@ import { UiBanner, UiButton, UiField } from '../../ui';
       border-radius: var(--md-shape-lg);
       box-shadow: var(--md-elev-1);
     }
-    .auth__title { @include type-headline-sm; }
-    .auth__sub { @include type-body-md; color: var(--md-on-surface-variant); margin-bottom: var(--sp-2); }
+    .auth__title {
+      @include type-headline-sm;
+    }
+    .auth__sub {
+      @include type-body-md;
+      color: var(--md-on-surface-variant);
+      margin-bottom: var(--sp-2);
+    }
   `,
 })
 export class SignIn {
@@ -113,7 +119,9 @@ export class SignIn {
           this.error.set('Enter the code from your authenticator app to finish signing in.');
         } else if (code === 'otp_invalid') {
           this.otpNeeded.set(true);
-          this.error.set('That code was not right. Codes change every 30 seconds — try the current one.');
+          this.error.set(
+            'That code was not right. Codes change every 30 seconds — try the current one.',
+          );
         } else {
           this.error.set('That email and password did not match an account.');
         }

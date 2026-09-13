@@ -11,7 +11,9 @@ import { Component, input } from '@angular/core';
       <header class="card__head">
         <div>
           <h2 class="card__title">{{ heading() }}</h2>
-          @if (sub()) { <p class="card__sub">{{ sub() }}</p> }
+          @if (sub()) {
+            <p class="card__sub">{{ sub() }}</p>
+          }
         </div>
         <ng-content select="[cardAction]" />
       </header>
@@ -30,7 +32,11 @@ import { Component, input } from '@angular/core';
       border: 1px solid var(--md-outline-variant);
       border-radius: var(--md-shape-md);
     }
-    @include medium-up { :host { padding: var(--sp-5); } }
+    @include medium-up {
+      :host {
+        padding: var(--sp-5);
+      }
+    }
 
     .card__head {
       display: flex;
@@ -39,14 +45,20 @@ import { Component, input } from '@angular/core';
       gap: var(--sp-3);
       flex-wrap: wrap;
     }
-    .card__title { @include type-title-md; }
+    .card__title {
+      @include type-title-md;
+    }
     .card__sub {
       @include type-body-sm;
       color: var(--md-on-surface-variant);
       margin-top: var(--sp-1);
       max-width: 60ch;
     }
-    .card__body { display: flex; flex-direction: column; gap: var(--sp-4); }
+    .card__body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-4);
+    }
   `,
 })
 export class UiCard {

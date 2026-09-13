@@ -2,7 +2,9 @@
   title="Gift cards"
   sub="A card is sold at one location and spendable at all four. The sale is a liability until it is redeemed — it is not revenue on the day it is sold."
 >
-  @if (error()) { <ui-banner tone="error" data-testid="gc-error">{{ error() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error" data-testid="gc-error">{{ error() }}</ui-banner>
+  }
 
   <div class="gc">
     <ui-card
@@ -10,49 +12,114 @@
       [sub]="'Attributed to ' + (ctx.current()?.name ?? 'this location') + ' for reporting.'"
     >
       <div class="form-grid">
+        <ui-field
+          [label]="'gift_card_form.code' | translate"
+          [hint]="'gift_card_form.code_hint' | translate"
+          [optional]="true"
+        >
+          <input type="text" [(ngModel)]="form.code" data-testid="gc-new-code" />
+        </ui-field>
+        <ui-field
+          [label]="'gift_card_form.find_buyer' | translate"
+          [hint]="'gift_card_form.find_buyer_hint' | translate"
+          [optional]="true"
+        >
+          <input
+            type="search"
+            [(ngModel)]="buyerSearch"
+            (input)="searchBuyers()"
+            data-testid="gc-buyer-search"
+          />
+        </ui-field>
+        <ui-field [label]="'gift_card_form.link_buyer' | translate" [optional]="true">
+          <select
+            [ngModel]="form.buyer_client_id"
+            (ngModelChange)="chooseBuyer($event)"
+            data-testid="gc-buyer-client"
+          >
+            <option [ngValue]="null">{{ 'gift_card_form.manual_buyer' | translate }}</option>
+            @for (buyer of buyers(); track buyer.id) {
+              <option [ngValue]="buyer.id">{{ buyer.full_name }} · {{ buyer.phone }}</option>
+            }
+          </select>
+        </ui-field>
         <ui-field label="Amount" hint="What the client is paying, in dollars.">
-          <input type="number" step="1" min="1" [(ngModel)]="form.amountDollars"
-                 data-testid="gc-new-amount" />
+          <input
+            type="number"
+            step="1"
+            min="1"
+            [(ngModel)]="form.amountDollars"
+            data-testid="gc-new-amount"
+          />
         </ui-field>
         <ui-field label="Paid by">
           <select [(ngModel)]="form.payment_method" data-testid="gc-new-method">
-            @for (m of methods; track m) { <option [value]="m">{{ m }}</option> }
+            @for (m of methods; track m) {
+              <option [value]="m">{{ m }}</option>
+            }
           </select>
         </ui-field>
         <ui-field label="Buyer name">
-          <input [(ngModel)]="form.buyer_name" data-testid="gc-buyer" />
+          <input
+            [(ngModel)]="form.buyer_name"
+            [readOnly]="form.buyer_client_id !== null"
+            data-testid="gc-buyer"
+          />
         </ui-field>
         <ui-field label="Buyer phone" [optional]="true">
-          <input [(ngModel)]="form.buyer_phone" data-testid="gc-buyer-phone" />
+          <input
+            [(ngModel)]="form.buyer_phone"
+            [readOnly]="form.buyer_client_id !== null"
+            data-testid="gc-buyer-phone"
+          />
         </ui-field>
-        <ui-field label="Recipient name" [optional]="true"
-                  hint="If the card is a present for someone else.">
+        <ui-field
+          label="Recipient name"
+          [optional]="true"
+          hint="If the card is a present for someone else."
+        >
           <input [(ngModel)]="form.recipient_name" data-testid="gc-recipient" />
         </ui-field>
       </div>
 
-      <ui-button icon="card_giftcard" (click)="issue()" data-testid="gc-issue">Issue card</ui-button>
+      <ui-button
+        icon="card_giftcard"
+        (click)="issue()"
+        [disabled]="issuing()"
+        data-testid="gc-issue"
+        >Issue card</ui-button
+      >
 
       @if (issued(); as card) {
         <ui-banner tone="success" data-testid="gc-issued">
-          Issued {{ card.code }} — ${{ card.current_balance_cents / 100 | number: '1.2-2' }}.
-          Write the code on the card before handing it over.
+          Issued {{ card.code }} — ${{ card.current_balance_cents / 100 | number: '1.2-2' }}. Write
+          the code on the card before handing it over.
         </ui-banner>
       }
     </ui-card>
 
     <ui-card heading="Find a card">
       <ui-field label="Search" hint="Scan the barcode, or type a code or buyer name.">
-        <input type="search" placeholder="e.g. GC-2026-… or Sarah"
-               [(ngModel)]="search" (input)="reload()" data-testid="gc-search" />
+        <input
+          type="search"
+          placeholder="e.g. GC-2026-… or Sarah"
+          [(ngModel)]="search"
+          (input)="reload()"
+          data-testid="gc-search"
+        />
       </ui-field>
 
       @if (cards().length) {
         <ul class="picker" data-testid="gc-list">
           @for (c of cards(); track c.id) {
             <li>
-              <button type="button" class="picker__item" [class.on]="selected()?.id === c.id"
-                      (click)="open(c)" [attr.data-testid]="'gc-' + c.id">
+              <button
+                type="button"
+                class="picker__item"
+                [class.on]="selected()?.id === c.id"
+                (click)="open(c)"
+                [attr.data-testid]="'gc-' + c.id"
+              >
                 <span class="picker__main">
                   <strong>{{ c.code }}</strong>
                   <small>{{ c.sold_at_location.name }}</small>
@@ -60,7 +127,9 @@
                 <span class="picker__amount">
                   ${{ c.current_balance_cents / 100 | number: '1.2-2' }}
                 </span>
-                @if (c.expired) { <ui-chip tone="warning">expired</ui-chip> }
+                @if (c.expired) {
+                  <ui-chip tone="warning">expired</ui-chip>
+                }
               </button>
             </li>
           }
@@ -100,7 +169,12 @@
           <ui-table label="Gift card ledger">
             <table data-testid="gc-ledger">
               <thead>
-                <tr><th>When</th><th>Kind</th><th class="num">Amount</th><th class="num">Balance</th></tr>
+                <tr>
+                  <th>When</th>
+                  <th>Kind</th>
+                  <th class="num">Amount</th>
+                  <th class="num">Balance</th>
+                </tr>
               </thead>
               <tbody>
                 @for (t of card.ledger; track t.occurred_at) {

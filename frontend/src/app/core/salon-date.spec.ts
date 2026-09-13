@@ -25,7 +25,7 @@ describe('todayIn', () => {
     expect(tokyo >= chicago).toBe(true);
   });
 
-  it('falls back to the UTC date when no timezone is known' , () => {
+  it('falls back to the UTC date when no timezone is known', () => {
     expect(todayIn(undefined)).toBe(new Date().toISOString().slice(0, 10));
     expect(todayIn(null)).toBe(new Date().toISOString().slice(0, 10));
   });

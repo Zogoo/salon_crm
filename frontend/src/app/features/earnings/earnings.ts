@@ -27,7 +27,18 @@ import { todayIn } from '../../core/salon-date';
  */
 @Component({
   selector: 'app-earnings',
-  imports: [FormsModule, DecimalPipe, UiPage, UiCard, UiField, UiButton, UiChip, UiEmpty, UiTable, UiBanner],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiChip,
+    UiEmpty,
+    UiTable,
+    UiBanner,
+  ],
   templateUrl: './earnings.html',
   styleUrl: '../../ui/layouts.scss',
 })
@@ -44,7 +55,9 @@ export class EarningsPage implements OnInit {
   /** The lengths pay is defined for (FRS §4). */
   protected readonly ladder = [30, 45, 60, 75, 90, 120];
 
-  protected humanStatus(value: string) { return humanise(value); }
+  protected humanStatus(value: string) {
+    return humanise(value);
+  }
 
   protected staffId: number | null = null;
   protected from = '';

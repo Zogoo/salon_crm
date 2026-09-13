@@ -101,3 +101,49 @@ RSpec.describe Scheduling::AvailabilitySearch do
     expect(client.map(&:start_at).min).to be >= noon + w[:location].booking_cutoff_minutes.minutes
   end
 end
+
+RSpec.describe "Requested therapist for two-therapist services" do
+  [ 1, 2 ].each do |capacity|
+    context "with client capacity #{capacity}" do
+      let(:world) { build_world(rooms: { couple: 2 }, therapists: 3) }
+      let(:variant) { create(:service_variant, service: world[:service], duration_minutes: 90, therapist_count: 2, required_client_capacity: capacity) }
+      let(:requested) { world[:staff].last }
+
+      def slots
+        Scheduling::AvailabilitySearch.call(location: world[:location], variants: [ variant ],
+          date_from: world[:date], requested_staff_profile_id: requested.id.to_s).first[:slots]
+      end
+
+      it "offers a pair including the requested therapist and books it with approval" do
+        slot = slots.first
+        expect(slot).to be_present
+        expect(slot.staff.pluck(:id)).to include(requested.id)
+        appt = book(world, variant_ids: [ variant.id ], start_at: slot.start_at, requested_staff_profile_id: requested.id)
+        expect(appt.staff_profiles.count).to eq(2)
+        expect(appt.staff_profiles).to include(requested)
+        expect(appt.status).to eq("pending_approval")
+        expect(appt.approval_request.requested_staff_profile_id).to eq(requested.id)
+      end
+
+      it "does not substitute other free therapists when the requested one is busy" do
+        book(world, staff_profile_ids: [ requested.id ])
+        expect(slots.map(&:start_at)).not_to include(world[:at])
+        expect { book(world, variant_ids: [ variant.id ], requested_staff_profile_id: requested.id) }
+          .to raise_error(Scheduling::BookAppointment::Conflict)
+      end
+
+      it "offers nothing when the requested therapist has no covering shift" do
+        Shift.where(staff_profile: requested).delete_all
+        expect(slots).to be_empty
+        expect { book(world, variant_ids: [ variant.id ], requested_staff_profile_id: requested.id) }
+          .to raise_error(Scheduling::BookAppointment::Conflict)
+      end
+
+      it "rejects an explicit pair that excludes the requested therapist" do
+        expect { book(world, variant_ids: [ variant.id ], requested_staff_profile_id: requested.id,
+                      staff_profile_ids: world[:staff].first(2).map(&:id)) }
+          .to raise_error(Scheduling::BookAppointment::Invalid, "requested_therapist_missing")
+      end
+    end
+  end
+end

@@ -9,6 +9,9 @@ class Service < ApplicationRecord
   validates :kind, inclusion: { in: KINDS }
 
   scope :active, -> { where(active: true) }
+  # FRS §23: free with the included monthly massage (hot stone, hot herbal
+  # compression, aromatherapy) — but not essential oil.
+  scope :complimentary_with_membership, -> { where(complimentary_with_membership: true) }
   # Only these two consume therapist time and therefore pay (BR-33).
   scope :payable, -> { where(kind: %w[standard add_on]) }
 end

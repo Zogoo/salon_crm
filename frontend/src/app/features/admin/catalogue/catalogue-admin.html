@@ -8,8 +8,12 @@
     </ui-button>
   </div>
 
-  @if (error()) { <ui-banner tone="error" data-testid="cat-error">{{ error() }}</ui-banner> }
-  @if (notice()) { <ui-banner tone="success" data-testid="cat-notice">{{ notice() }}</ui-banner> }
+  @if (error()) {
+    <ui-banner tone="error" data-testid="cat-error">{{ error() }}</ui-banner>
+  }
+  @if (notice()) {
+    <ui-banner tone="success" data-testid="cat-notice">{{ notice() }}</ui-banner>
+  }
 
   <ui-banner tone="info">
     Prices below are for {{ ctx.current()?.name }}. Switch location in the top bar to price
@@ -31,11 +35,15 @@
         </ui-field>
         <ui-field label="Category">
           <select [(ngModel)]="newService.service_category_id">
-            @for (c of categories(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
+            @for (c of categories(); track c.id) {
+              <option [ngValue]="c.id">{{ c.name }}</option>
+            }
           </select>
         </ui-field>
       </div>
-      <ui-button icon="check" (click)="createService()" data-testid="new-service-save">Add</ui-button>
+      <ui-button icon="check" (click)="createService()" data-testid="new-service-save"
+        >Add</ui-button
+      >
     </ui-card>
   }
 
@@ -45,8 +53,13 @@
         <ul class="picker">
           @for (s of services(); track s.id) {
             <li>
-              <button type="button" class="picker__item" [class.on]="detail()?.id === s.id"
-                      (click)="open(s)" [attr.data-testid]="'service-' + s.id">
+              <button
+                type="button"
+                class="picker__item"
+                [class.on]="detail()?.id === s.id"
+                (click)="open(s)"
+                [attr.data-testid]="'service-' + s.id"
+              >
                 <span class="picker__main">
                   <strong>{{ s.name }}</strong>
                   <small>{{ humanStatus(s.kind) }}</small>
@@ -56,8 +69,11 @@
           }
         </ul>
       } @else {
-        <ui-empty icon="spa" title="Nothing on the menu here"
-                  hint="Add a service, then give it a length and a price." />
+        <ui-empty
+          icon="spa"
+          title="Nothing on the menu here"
+          hint="Add a service, then give it a length and a price."
+        />
       }
     </ui-card>
 
@@ -72,8 +88,12 @@
             A service that has been booked is taken off the menu rather than deleted — removing it
             would rewrite what past clients were actually sold.
           </p>
-          <ui-button variant="tonal" [icon]="service.active ? 'visibility_off' : 'visibility'"
-                     (click)="toggleActive(service)" data-testid="cat-toggle">
+          <ui-button
+            variant="tonal"
+            [icon]="service.active ? 'visibility_off' : 'visibility'"
+            (click)="toggleActive(service)"
+            data-testid="cat-toggle"
+          >
             {{ service.active ? 'Take off the menu' : 'Put back on the menu' }}
           </ui-button>
         </ui-card>
@@ -83,7 +103,12 @@
             <ui-table label="Service lengths">
               <table>
                 <thead>
-                  <tr><th>Length</th><th>Therapists</th><th>Seats</th><th></th></tr>
+                  <tr>
+                    <th>Length</th>
+                    <th>Therapists</th>
+                    <th>Seats</th>
+                    <th></th>
+                  </tr>
                 </thead>
                 <tbody>
                   @for (v of service.variants; track v.id) {
@@ -92,8 +117,13 @@
                       <td>{{ v.therapist_count }}</td>
                       <td>{{ v.required_client_capacity }}</td>
                       <td class="num">
-                        <ui-button variant="text" icon="sell" (click)="showPrices(v)"
-                                   [attr.data-testid]="'prices-' + v.id">Prices</ui-button>
+                        <ui-button
+                          variant="text"
+                          icon="sell"
+                          (click)="showPrices(v)"
+                          [attr.data-testid]="'prices-' + v.id"
+                          >Prices</ui-button
+                        >
                       </td>
                     </tr>
                   }
@@ -101,8 +131,11 @@
               </table>
             </ui-table>
           } @else {
-            <ui-empty icon="schedule" title="No lengths yet"
-                      hint="A service needs at least one length before it can be booked." />
+            <ui-empty
+              icon="schedule"
+              title="No lengths yet"
+              hint="A service needs at least one length before it can be booked."
+            />
           }
 
           <div>
@@ -114,17 +147,21 @@
             <div class="form-grid">
               <ui-field label="Length">
                 <select [(ngModel)]="newVariant.duration_minutes" data-testid="new-variant-minutes">
-                  @for (d of ladder; track d) { <option [ngValue]="d">{{ d }} min</option> }
+                  @for (d of ladder; track d) {
+                    <option [ngValue]="d">{{ d }} min</option>
+                  }
                 </select>
               </ui-field>
               <ui-field label="Therapists">
                 <select [(ngModel)]="newVariant.therapist_count">
-                  <option [ngValue]="1">1</option><option [ngValue]="2">2</option>
+                  <option [ngValue]="1">1</option>
+                  <option [ngValue]="2">2</option>
                 </select>
               </ui-field>
               <ui-field label="Seats" hint="How many clients share the room.">
                 <select [(ngModel)]="newVariant.required_client_capacity">
-                  <option [ngValue]="1">1</option><option [ngValue]="2">2</option>
+                  <option [ngValue]="1">1</option>
+                  <option [ngValue]="2">2</option>
                   <option [ngValue]="3">3</option>
                 </select>
               </ui-field>
@@ -142,19 +179,36 @@
           >
             <div class="form-grid">
               <ui-field label="Price">
-                <input type="number" min="0" step="0.01" [(ngModel)]="priceForm.dollars"
-                       data-testid="price-amount" />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  [(ngModel)]="priceForm.dollars"
+                  data-testid="price-amount"
+                />
               </ui-field>
               <ui-field label="Effective from">
-                <input type="date" [(ngModel)]="priceForm.effective_from" data-testid="price-from" />
+                <input
+                  type="date"
+                  [(ngModel)]="priceForm.effective_from"
+                  data-testid="price-from"
+                />
               </ui-field>
             </div>
-            <ui-button icon="save" (click)="savePrice()" data-testid="price-save">Set price</ui-button>
+            <ui-button icon="save" (click)="savePrice()" data-testid="price-save"
+              >Set price</ui-button
+            >
 
             @if (currentPrices().length) {
               <ui-table label="Current prices">
                 <table>
-                  <thead><tr><th>Location</th><th class="num">Price</th><th>From</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Location</th>
+                      <th class="num">Price</th>
+                      <th>From</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     @for (p of currentPrices(); track p.id) {
                       <tr>
@@ -173,7 +227,13 @@
                 <h3 class="sub-head">Earlier prices</h3>
                 <ui-table label="Previous prices">
                   <table>
-                    <thead><tr><th>Location</th><th class="num">Price</th><th>Period</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th>Location</th>
+                        <th class="num">Price</th>
+                        <th>Period</th>
+                      </tr>
+                    </thead>
                     <tbody>
                       @for (p of pastPrices(); track p.id) {
                         <tr>

@@ -10,12 +10,20 @@
 // A timeline needs room to be read. Below the medium breakpoint the same
 // appointments are shown as an agenda list instead — a grid squeezed onto a
 // phone is a grid nobody can use.
-.board__timeline { display: none; }
-.board__list { display: block; }
+.board__timeline {
+  display: none;
+}
+.board__list {
+  display: block;
+}
 
 @include medium-up {
-  .board__timeline { display: block; }
-  .board__list { display: none; }
+  .board__timeline {
+    display: block;
+  }
+  .board__list {
+    display: none;
+  }
 }
 
 // --- Timeline --------------------------------------------------------------
@@ -40,8 +48,12 @@
   justify-content: center;
   @include type-body-sm;
 
-  strong { @include type-title-sm; }
-  small { color: var(--md-on-surface-variant); }
+  strong {
+    @include type-title-sm;
+  }
+  small {
+    color: var(--md-on-surface-variant);
+  }
 }
 
 .grid__hours {
@@ -67,7 +79,9 @@
   background: var(--md-outline-variant);
 
   @for $i from 1 through 14 {
-    &:nth-child(#{$i}) { left: calc(100% / 14 * #{$i - 1}); }
+    &:nth-child(#{$i}) {
+      left: calc(100% / 14 * #{$i - 1});
+    }
   }
 }
 
@@ -90,17 +104,37 @@
   @include focus-ring;
   @include state-layer($position: absolute);
 
-  &__client { @include type-label-md; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  &__meta { @include type-body-sm; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  &__client {
+    @include type-label-md;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  &__meta {
+    @include type-body-sm;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 // Status colours match the chips used everywhere else, so a colour means the
 // same thing on the board as it does in a list.
-.appt--completed { background: var(--md-success-container); color: var(--md-on-success-container); }
-.appt--pending_approval { background: var(--md-warning-container); color: var(--md-on-warning-container); }
+.appt--completed {
+  background: var(--md-success-container);
+  color: var(--md-on-success-container);
+}
+.appt--pending_approval {
+  background: var(--md-warning-container);
+  color: var(--md-on-warning-container);
+}
 .appt--cancelled,
 .appt--late_cancelled,
-.appt--no_show { background: var(--md-error-container); color: var(--md-on-error-container); }
+.appt--no_show {
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+}
 
 .appt__buffer {
   position: absolute;
@@ -117,7 +151,11 @@
 
 // --- Agenda (compact) ------------------------------------------------------
 
-.agenda { display: flex; flex-direction: column; gap: var(--sp-2); }
+.agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
 
 .agenda__item {
   @include touch-target;
@@ -135,21 +173,35 @@
   cursor: pointer;
   text-align: left;
 }
-.agenda__time { @include type-title-sm; font-variant-numeric: tabular-nums; }
+.agenda__time {
+  @include type-title-sm;
+  font-variant-numeric: tabular-nums;
+}
 .agenda__who {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  strong { @include type-body-lg; }
-  small { @include type-body-sm; color: var(--md-on-surface-variant); }
+  strong {
+    @include type-body-lg;
+  }
+  small {
+    @include type-body-sm;
+    color: var(--md-on-surface-variant);
+  }
 }
 
 // --- Detail sheet content --------------------------------------------------
 // The sheet shell and the facts list are shared components; only what is
 // specific to an appointment stays here.
 
-.sheet__h3 { @include type-title-sm; margin-bottom: var(--sp-2); }
-.sheet__hint { @include type-body-sm; color: var(--md-on-surface-variant); }
+.sheet__h3 {
+  @include type-title-sm;
+  margin-bottom: var(--sp-2);
+}
+.sheet__hint {
+  @include type-body-sm;
+  color: var(--md-on-surface-variant);
+}
 
 .sheet__addnote {
   display: flex;
@@ -167,20 +219,73 @@
   border-top: 1px solid var(--md-outline-variant);
 }
 
-.lines, .notes { display: flex; flex-direction: column; gap: var(--sp-2); }
+.lines,
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
 
 .lines li {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
   @include type-body-md;
-  small { color: var(--md-on-surface-variant); }
-  .num { margin-left: auto; font-variant-numeric: tabular-nums; }
+  small {
+    color: var(--md-on-surface-variant);
+  }
+  .num {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 .notes li {
   padding: var(--sp-2) var(--sp-3);
   background: var(--md-surface-container-low);
   border-radius: var(--md-shape-sm);
-  small { @include type-body-sm; color: var(--md-on-surface-variant); }
+  small {
+    @include type-body-sm;
+    color: var(--md-on-surface-variant);
+  }
+}
+
+// --- Printed fallback (doc 01 §6) -----------------------------------------
+//
+// The schedule has to survive the system being unavailable, so the day has to
+// leave the building on paper. What prints is the agenda list, not the
+// timeline: a room-by-hour grid relies on colour and horizontal space, and
+// neither survives a monochrome sheet of A4.
+
+@media print {
+  // The shell's chrome is navigation — useless on paper.
+  :host {
+    color: #000;
+  }
+
+  .board__nav {
+    display: none !important;
+  }
+  .board__timeline {
+    display: none !important;
+  }
+
+  // The agenda is hidden on wide screens; printing is the one case where a
+  // desktop browser should show it.
+  .board__list {
+    display: block !important;
+    break-inside: avoid;
+  }
+
+  .agenda__item {
+    border: 1px solid #999;
+    border-radius: 0;
+    background: #fff !important;
+    break-inside: avoid;
+  }
+
+  // Status is a colour on screen; on paper it has to be the word.
+  ui-chip {
+    border: 1px solid #666;
+  }
 }

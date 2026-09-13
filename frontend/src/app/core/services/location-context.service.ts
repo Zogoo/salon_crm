@@ -16,9 +16,7 @@ export class LocationContextService {
   private readonly selectedId = signal<number | null>(null);
 
   readonly locations = this.all.asReadonly();
-  readonly current = computed(
-    () => this.all().find((l) => l.id === this.selectedId()) ?? null,
-  );
+  readonly current = computed(() => this.all().find((l) => l.id === this.selectedId()) ?? null);
   readonly canSwitch = computed(() => this.all().length > 1);
 
   load(): Promise<void> {

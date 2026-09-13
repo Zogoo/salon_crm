@@ -55,8 +55,12 @@ export class RosterAdminPage implements OnInit {
   protected readonly notice = signal<string | null>(null);
   protected readonly selectedIds = signal<number[]>([]);
 
-  protected tone(status: string) { return statusTone(status); }
-  protected humanStatus(status: string) { return humanise(status); }
+  protected tone(status: string) {
+    return statusTone(status);
+  }
+  protected humanStatus(status: string) {
+    return humanise(status);
+  }
 
   protected from = '';
   protected to = '';
@@ -186,8 +190,7 @@ export class RosterAdminPage implements OnInit {
       error: (err) => {
         // All-or-nothing: nothing was published, and the clash says which.
         const conflicts = err?.error?.error?.details?.conflicts as
-          | { shift_id: number; errors: string[] }[]
-          | undefined;
+          { shift_id: number; errors: string[] }[] | undefined;
         this.error.set(
           conflicts?.length
             ? `Nothing was published. Shift ${conflicts[0].shift_id}: ${conflicts[0].errors.join(', ')}`
@@ -222,7 +225,9 @@ export class RosterAdminPage implements OnInit {
 
   /** BR-07 answers with the appointments that would be left uncovered. */
   private orphanMessage(err: unknown, fallback: string): string {
-    const e = err as { error?: { error?: { code?: string; details?: { appointment_ids?: number[] } } } };
+    const e = err as {
+      error?: { error?: { code?: string; details?: { appointment_ids?: number[] } } };
+    };
     const ids = e?.error?.error?.details?.appointment_ids;
     if (ids?.length) {
       return `That would leave appointment(s) ${ids.join(', ')} without a therapist. Move them first.`;

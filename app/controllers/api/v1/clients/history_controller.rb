@@ -68,13 +68,14 @@ module Api
         end
 
         def gift_card_json(card)
-          { id: card.id, code: card.code, balance_cents: card.balance_cents,
-            status: card.status, sold_at: card.sold_at&.to_date,
+          { id: card.id, code: card.code, balance_cents: card.current_balance_cents,
+            initial_value_cents: card.initial_value_cents,
+            status: card.status, sold_at: local_iso(card.sold_at, card.sold_at_location),
             sold_at_location: card.sold_at_location&.name }
         end
 
         def rating_json(rating)
-          { id: rating.id, score: rating.score, comment: rating.comment,
+          { id: rating.id, appointment_id: rating.appointment_id, score: rating.score, comment: rating.feedback,
             therapist: rating.staff_profile&.display_name,
             created_at: local_iso(rating.created_at, rating.appointment.location) }
         end

@@ -86,29 +86,88 @@ $bp-medium: 600px;
 $bp-expanded: 1024px;
 
 @mixin compact-only {
-  @media (max-width: #{$bp-medium - 1px}) { @content; }
+  @media (max-width: #{$bp-medium - 1px}) {
+    @content;
+  }
 }
 @mixin medium-up {
-  @media (min-width: #{$bp-medium}) { @content; }
+  @media (min-width: #{$bp-medium}) {
+    @content;
+  }
 }
 @mixin expanded-up {
-  @media (min-width: #{$bp-expanded}) { @content; }
+  @media (min-width: #{$bp-expanded}) {
+    @content;
+  }
 }
 
 // M3 type scale, trimmed to the roles this console actually uses.
-@mixin type-display-sm { font-size: 2.25rem; line-height: 2.75rem; font-weight: 400; letter-spacing: 0; }
-@mixin type-headline-sm { font-size: 1.5rem; line-height: 2rem; font-weight: 400; letter-spacing: 0; }
-@mixin type-title-lg { font-size: 1.375rem; line-height: 1.75rem; font-weight: 400; letter-spacing: 0; }
-@mixin type-title-md { font-size: 1rem; line-height: 1.5rem; font-weight: 500; letter-spacing: 0.009rem; }
-@mixin type-title-sm { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; letter-spacing: 0.006rem; }
-@mixin type-body-lg { font-size: 1rem; line-height: 1.5rem; font-weight: 400; letter-spacing: 0.031rem; }
-@mixin type-body-md { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0.016rem; }
-@mixin type-body-sm { font-size: 0.75rem; line-height: 1rem; font-weight: 400; letter-spacing: 0.025rem; }
-@mixin type-label-lg { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; letter-spacing: 0.006rem; }
-@mixin type-label-md { font-size: 0.75rem; line-height: 1rem; font-weight: 500; letter-spacing: 0.031rem; }
+@mixin type-display-sm {
+  font-size: 2.25rem;
+  line-height: 2.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+@mixin type-headline-sm {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+@mixin type-title-lg {
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+@mixin type-title-md {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 500;
+  letter-spacing: 0.009rem;
+}
+@mixin type-title-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.006rem;
+}
+@mixin type-body-lg {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 400;
+  letter-spacing: 0.031rem;
+}
+@mixin type-body-md {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0.016rem;
+}
+@mixin type-body-sm {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.025rem;
+}
+@mixin type-label-lg {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.006rem;
+}
+@mixin type-label-md {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.031rem;
+}
 
 // Every interactive target is at least 48dp, per M3 accessibility guidance.
-@mixin touch-target { min-height: 48px; min-width: 48px; }
+@mixin touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
 
 // M3 state layers: hover and focus tint the element with its own foreground
 // colour rather than swapping to a different colour.
@@ -133,9 +192,15 @@ $bp-expanded: 1024px;
     border-radius: inherit;
     z-index: -1;
   }
-  &:hover::after { opacity: 0.08; }
-  &:focus-visible::after { opacity: 0.12; }
-  &:active::after { opacity: 0.12; }
+  &:hover::after {
+    opacity: 0.08;
+  }
+  &:focus-visible::after {
+    opacity: 0.12;
+  }
+  &:active::after {
+    opacity: 0.12;
+  }
 }
 
 @mixin focus-ring {

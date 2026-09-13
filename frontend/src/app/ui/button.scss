@@ -1,7 +1,11 @@
 @use '../../styles/tokens' as *;
 
-:host { display: inline-flex; }
-:host([full]) { display: flex; }
+:host {
+  display: inline-flex;
+}
+:host([full]) {
+  display: flex;
+}
 
 .btn {
   @include type-label-lg;
@@ -23,11 +27,15 @@
   &:disabled {
     cursor: not-allowed;
     opacity: 0.38;
-    &::after { opacity: 0; }
+    &::after {
+      opacity: 0;
+    }
   }
 }
 
-.btn--full { width: 100%; }
+.btn--full {
+  width: 100%;
+}
 
 .btn--filled {
   background: var(--md-primary);

@@ -13,7 +13,9 @@ import { Component, input } from '@angular/core';
   template: `
     <p class="stat__label">{{ label() }}</p>
     <p class="stat__value">{{ value() }}</p>
-    @if (hint()) { <p class="stat__hint">{{ hint() }}</p> }
+    @if (hint()) {
+      <p class="stat__hint">{{ hint() }}</p>
+    }
   `,
   styles: `
     @use '../../styles/tokens' as *;
@@ -37,11 +39,21 @@ import { Component, input } from '@angular/core';
       @include type-label-md;
       text-transform: uppercase;
       color: var(--md-on-surface-variant);
-      :host([tone='primary']) & { color: inherit; }
+      :host([tone='primary']) & {
+        color: inherit;
+      }
     }
-    .stat__value { @include type-headline-sm; font-variant-numeric: tabular-nums; }
-    .stat__hint { @include type-body-sm; color: var(--md-on-surface-variant);
-      :host([tone='primary']) & { color: inherit; } }
+    .stat__value {
+      @include type-headline-sm;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat__hint {
+      @include type-body-sm;
+      color: var(--md-on-surface-variant);
+      :host([tone='primary']) & {
+        color: inherit;
+      }
+    }
   `,
 })
 export class UiStat {

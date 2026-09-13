@@ -23,7 +23,19 @@ import { todayIn } from '../../core/salon-date';
 /** FRS §5 — the New Appointment screen. */
 @Component({
   selector: 'app-booking',
-  imports: [FormsModule, DecimalPipe, WallClockPipe, UiPage, UiCard, UiField, UiButton, UiChip, UiEmpty, UiFacts, UiBanner],
+  imports: [
+    FormsModule,
+    DecimalPipe,
+    WallClockPipe,
+    UiPage,
+    UiCard,
+    UiField,
+    UiButton,
+    UiChip,
+    UiEmpty,
+    UiFacts,
+    UiBanner,
+  ],
   templateUrl: './booking.html',
   // Shared list-and-detail layout first, then what is specific here.
   styleUrls: ['../../ui/layouts.scss', './booking.scss'],
@@ -62,7 +74,9 @@ export class BookingPage implements OnInit {
   protected showNewClient = false;
   protected newClient = { first_name: '', last_name: '', phone: '', email: '' };
 
-  protected readonly bookable = computed(() => this.services().filter((s) => s.kind === 'standard'));
+  protected readonly bookable = computed(() =>
+    this.services().filter((s) => s.kind === 'standard'),
+  );
   protected readonly addOns = computed(() => this.services().filter((s) => s.kind === 'add_on'));
   protected readonly enhancements = computed(() =>
     this.services().filter((s) => s.kind === 'enhancement'),
@@ -188,19 +202,17 @@ export class BookingPage implements OnInit {
     this.suggestions.set([]);
     this.selectedSlot = null;
 
-    this.api
-      .availability(loc.id, this.variantIds(), this.date, this.requestedStaffId)
-      .subscribe({
-        next: (res) => {
-          this.searched.set(true);
-          this.slots.set(res.days[0]?.slots ?? []);
-          this.searching.set(false);
-        },
-        error: (err) => {
-          this.error.set(this.messageFrom(err));
-          this.searching.set(false);
-        },
-      });
+    this.api.availability(loc.id, this.variantIds(), this.date, this.requestedStaffId).subscribe({
+      next: (res) => {
+        this.searched.set(true);
+        this.slots.set(res.days[0]?.slots ?? []);
+        this.searching.set(false);
+      },
+      error: (err) => {
+        this.error.set(this.messageFrom(err));
+        this.searching.set(false);
+      },
+    });
   }
 
   protected book(): void {

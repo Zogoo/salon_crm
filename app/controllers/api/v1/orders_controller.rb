@@ -102,11 +102,12 @@ module Api
       def discounts
         require_owner!
         order = find_order
-        OrderDiscount.create!(order:, kind: "manual",
-                              amount_cents: params.require(:amount_cents),
-                              reason: params[:reason], applied_by_user: current_user)
-        order.recalculate!
+        Sales::ApplyDiscount.call(order:, actor: current_user,
+                                  amount_cents: params.require(:amount_cents),
+                                  reason: params[:reason])
         render json: order_json(order.reload), status: :created
+      rescue Sales::ApplyDiscount::Invalid => e
+        render_invalid(e.message, code: e.message)
       rescue ActiveRecord::RecordInvalid => e
         render_invalid(e.record.errors.full_messages.join(", "))
       end
@@ -138,17 +139,15 @@ module Api
         require_owner!
         order = find_order
         payment = order.payments.captured.find(params.require(:payment_id))
-        amount = params.require(:amount_cents).to_i
 
-        already = Refund.where(payment:).sum(:amount_cents)
-        if amount + already > payment.amount_cents
-          return render_invalid("Refund exceeds the captured amount", code: "refund_exceeds_payment")
-        end
-
-        refund = Refund.create!(order:, payment:, amount_cents: amount,
-                                reason: params.fetch(:reason, "owner_discretion"),
-                                issued_by_user: current_user, issued_at: Time.current)
+        refund = Sales::IssueRefund.call(
+          order:, payment:, actor: current_user,
+          amount_cents: params.require(:amount_cents),
+          reason: params.fetch(:reason, "owner_discretion")
+        )
         render json: order_json(order.reload).merge(refund_id: refund.id), status: :created
+      rescue Sales::IssueRefund::Invalid => e
+        render_invalid(e.message, code: e.message)
       rescue ActiveRecord::RecordInvalid => e
         render_invalid(e.record.errors.full_messages.join(", "))
       end

@@ -6,24 +6,46 @@
   align-items: start;
   grid-template-columns: minmax(0, 1fr);
 
-  @include medium-up { grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
+  @include medium-up {
+    grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  }
 }
 
-.rows { display: flex; flex-direction: column; gap: var(--sp-2); }
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
 
 .rows li {
   display: flex;
   gap: var(--sp-2);
   @include type-body-md;
-  span { margin-left: auto; font-variant-numeric: tabular-nums; }
+  span {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-.big { @include type-display-sm; font-variant-numeric: tabular-nums; }
-.big small { @include type-body-sm; color: var(--md-on-surface-variant); }
+.big {
+  @include type-display-sm;
+  font-variant-numeric: tabular-nums;
+}
+.big small {
+  @include type-body-sm;
+  color: var(--md-on-surface-variant);
+}
 
-.hint { @include type-body-sm; color: var(--md-on-surface-variant); }
-.muted { color: var(--md-on-surface-variant); }
+.hint {
+  @include type-body-sm;
+  color: var(--md-on-surface-variant);
+}
+.muted {
+  color: var(--md-on-surface-variant);
+}
 
 // BR-48: liabilities are money the salon owes, not money it earned. They are
 // tinted so nobody adds them to the revenue line by eye.
-.liab td { color: var(--md-warning); }
+.liab td {
+  color: var(--md-warning);
+}
