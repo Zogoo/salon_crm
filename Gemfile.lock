@@ -77,8 +77,8 @@ GEM
       uri (>= 0.13.1)
     ast (2.4.3)
     aws-eventstream (1.4.0)
-    aws-partitions (1.1283.0)
-    aws-sdk-core (3.254.1)
+    aws-partitions (1.1286.0)
+    aws-sdk-core (3.256.0)
       aws-eventstream (~> 1, >= 1.3.0)
       aws-partitions (~> 1, >= 1.992.0)
       aws-sigv4 (~> 1.9)
@@ -86,11 +86,12 @@ GEM
       bigdecimal
       jmespath (~> 1, >= 1.6.1)
       logger
-    aws-sdk-kms (1.130.0)
-      aws-sdk-core (~> 3, >= 3.254.0)
+      rexml (~> 3.4, >= 3.4.2)
+    aws-sdk-kms (1.132.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
-    aws-sdk-s3 (1.229.0)
-      aws-sdk-core (~> 3, >= 3.254.1)
+    aws-sdk-s3 (1.231.0)
+      aws-sdk-core (~> 3, >= 3.255.0)
       aws-sdk-kms (~> 1)
       aws-sigv4 (~> 1.5)
     aws-sigv4 (1.12.1)
@@ -278,6 +279,7 @@ GEM
     regexp_parser (2.12.0)
     reline (0.7.0)
       io-console (~> 0.5)
+    rexml (3.4.4)
     rotp (6.3.0)
     rspec-core (3.13.6)
       rspec-support (~> 3.13.0)
@@ -369,7 +371,7 @@ PLATFORMS
   x86_64-linux-musl
 
 DEPENDENCIES
-  aws-sdk-s3 (~> 1.220)
+  aws-sdk-s3 (~> 1.231)
   bcrypt (~> 3.1)
   bootsnap
   brakeman
