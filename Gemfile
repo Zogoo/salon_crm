@@ -40,7 +40,7 @@ end
 # json 3.0 made JSON.parse keyword-only, but ActiveSupport::JSON.decode still
 # passes its options hash positionally, so every JSON request 400s under
 # Ruby 3.4. Pin to 2.x until ActiveSupport catches up.
-gem "json", "~> 2.7"
+gem "json", "~> 3.0"
 gem "jwt"
 gem "bcrypt", "~> 3.1"
 gem "pagy", "~> 43"
