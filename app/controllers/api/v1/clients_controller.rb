@@ -7,7 +7,7 @@ module Api
 
       SORTS = {
         "name" => %i[last_name first_name],
-        "last_visit" => ClientsQuery::LAST_VISIT_SQL,
+        "last_visit" => ClientsQuery.last_visit,
         "no_shows" => :no_show_count,
         "created" => :created_at
       }.freeze

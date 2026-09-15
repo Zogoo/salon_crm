@@ -2,9 +2,17 @@
 # is a WHERE clause the database answers, never a Ruby loop over all clients.
 class ClientsQuery < ApplicationQuery
   # Visit dates are derived from completed appointments rather than a stored
-  # column, so they can never drift from what actually happened.
-  LAST_VISIT_SQL = "(SELECT MAX(a.starts_at) FROM appointments a " \
-                   "WHERE a.client_id = clients.id AND a.status = 'completed')".freeze
+  # column, so they can never drift from what actually happened. Built as an
+  # Arel node, not SQL text, so it can be filtered on and sorted by without
+  # any string ever being spliced into a query.
+  def self.last_visit
+    appointments = Appointment.arel_table
+    subquery = appointments
+               .project(appointments[:starts_at].maximum)
+               .where(appointments[:client_id].eq(Client.arel_table[:id]))
+               .where(appointments[:status].eq("completed"))
+    Arel::Nodes::Grouping.new(subquery.ast)
+  end
 
   LAPSED_AFTER = 90.days
 
@@ -39,10 +47,11 @@ class ClientsQuery < ApplicationQuery
   end
 
   def visited(scope)
+    last_visit = self.class.last_visit
     case @visited
-    when "recent" then scope.where("#{LAST_VISIT_SQL} >= ?", LAPSED_AFTER.ago)
-    when "lapsed" then scope.where("#{LAST_VISIT_SQL} < ?", LAPSED_AFTER.ago)
-    when "never" then scope.where("#{LAST_VISIT_SQL} IS NULL")
+    when "recent" then scope.where(last_visit.gteq(LAPSED_AFTER.ago))
+    when "lapsed" then scope.where(last_visit.lt(LAPSED_AFTER.ago))
+    when "never" then scope.where(last_visit.eq(nil))
     else scope
     end
   end

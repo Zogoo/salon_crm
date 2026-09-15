@@ -6,7 +6,7 @@ module Api
       before_action :require_owner!, only: :adjust_credits
 
       MEMBERSHIP_SORTS = {
-        "client" => "clients.last_name", "renews" => :current_period_end,
+        "client" => Client.arel_table[:last_name], "renews" => :current_period_end,
         "credits" => :credits_balance, "enrolled" => :enrolled_at
       }.freeze
 

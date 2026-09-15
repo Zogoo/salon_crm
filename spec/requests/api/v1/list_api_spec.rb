@@ -66,6 +66,39 @@ RSpec.describe "List API", type: :request do
       get "/api/v1/clients", params: { q: "zed", visited: "never" }, headers: headers
       expect(json["meta"]["count"]).to eq(29)
     end
+
+    it "sorts by last visit with never-visited clients last in both directions" do
+      recent, older = %w[Page05 Page06].map { |name| Client.find_by!(first_name: name) }
+      { recent => 2.days.ago, older => 20.days.ago }.each_with_index do |(client, at), i|
+        appt = Scheduling::BookAppointment.call(location: world[:location], client:,
+                                                variant_ids: [ world[:variant].id ],
+                                                start_at: world[:at] + (i * 2).hours)
+        appt.update_columns(status: "completed", starts_at: at, service_ends_at: at + 1.hour,
+                            ends_at: at + 75.minutes)
+      end
+
+      get "/api/v1/clients", params: { q: "zed", sort: "last_visit", dir: "desc", limit: 100 }, headers: headers
+      expect(json["clients"].first(2).pluck("id")).to eq([ recent.id, older.id ])
+      expect(json["clients"].last["last_visit_at"]).to be_nil
+
+      get "/api/v1/clients", params: { q: "zed", sort: "last_visit", dir: "asc", limit: 100 }, headers: headers
+      expect(json["clients"].first(2).pluck("id")).to eq([ older.id, recent.id ])
+      expect(json["clients"].last["last_visit_at"]).to be_nil
+    end
+  end
+
+  # Sorting is built from Arel nodes only. A whitelist entry that is SQL text
+  # is refused outright, so no later change can reintroduce string splicing.
+  describe "sort whitelist entries" do
+    let(:lister) { Class.new { include Listable }.new }
+
+    it "accepts column symbols and Arel nodes, and refuses SQL strings" do
+      table = Client.arel_table
+      expect(lister.send(:sort_expression, table, :last_name)).to eq(table[:last_name])
+      expect(lister.send(:sort_expression, table, ClientsQuery.last_visit)).to be_a(Arel::Nodes::Grouping)
+      expect { lister.send(:sort_expression, table, "clients.last_name") }.to raise_error(ArgumentError)
+      expect { lister.send(:sort_expression, table, Arel.sql("clients.last_name")) }.to raise_error(ArgumentError)
+    end
   end
 
   describe "staff" do
@@ -120,6 +153,13 @@ RSpec.describe "List API", type: :request do
       get "/api/v1/memberships", params: { q: "other member" }, headers: headers
       expect(json["memberships"].map { |m| m.dig("client", "id") }).to eq([ other.id ])
       expect(json["meta"]["count"]).to eq(1)
+
+      # Sorting by the joined client's name, without any SQL text in the whitelist.
+      capped.update!(last_name: "Aardvark")
+      get "/api/v1/memberships", params: { sort: "client", dir: "asc" }, headers: headers
+      expect(json["memberships"].first.dig("client", "id")).to eq(capped.id)
+      get "/api/v1/memberships", params: { sort: "client", dir: "desc" }, headers: headers
+      expect(json["memberships"].last.dig("client", "id")).to eq(capped.id)
     end
   end
 
