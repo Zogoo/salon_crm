@@ -1,0 +1,250 @@
+@if (member(); as m) {
+  <ui-page [title]="m.display_name" [sub]="m.location_name + ' · ' + m.employee_code">
+    <div pageActions data-testid="staff-actions">
+      <ui-button variant="text" icon="arrow_back" (click)="back()">All staff</ui-button>
+      @if (m.status === 'active') {
+        <details class="more-menu" data-testid="staff-more">
+          <summary aria-label="More actions for this team member">
+            <ui-icon name="more_vert" />
+          </summary>
+          <div class="more-menu__items">
+            <button type="button" class="danger" (click)="offboard($event)" data-testid="offboard">
+              <ui-icon name="person_remove" /> Offboard…
+            </button>
+          </div>
+        </details>
+      }
+    </div>
+
+    @if (error()) {
+      <ui-banner tone="error" data-testid="staff-error">{{ error() }}</ui-banner>
+    }
+    @if (notice()) {
+      <ui-banner tone="success" data-testid="staff-notice">{{ notice() }}</ui-banner>
+    }
+
+    <ui-card>
+      <ui-chip cardAction [tone]="tone(m.status)">{{
+        m.status === 'active' ? 'Working' : humanStatus(m.status)
+      }}</ui-chip>
+      <ui-facts [items]="facts(m)" />
+    </ui-card>
+
+    <div class="record-tabs" role="tablist" aria-label="Team member record">
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="tab() === 'profile'"
+        (click)="selectTab('profile')"
+        data-testid="staff-tab-profile"
+      >
+        Profile
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="tab() === 'qualifications'"
+        (click)="selectTab('qualifications')"
+        data-testid="staff-tab-qualifications"
+      >
+        Qualifications ({{ quals().length }})
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="tab() === 'pay'"
+        (click)="selectTab('pay')"
+        data-testid="staff-tab-pay"
+      >
+        Pay
+      </button>
+    </div>
+
+    @switch (tab()) {
+      @case ('profile') {
+        <ui-card heading="Profile" sub="How they sign in and appear on the schedule.">
+          <div class="form-grid">
+            <ui-field label="Name" hint="Shown on the schedule and to clients.">
+              <input [(ngModel)]="staffForm.display_name" data-testid="staff-edit-name" />
+            </ui-field>
+            <ui-field label="Email" hint="They sign in with this.">
+              <input type="email" [(ngModel)]="staffForm.email" />
+            </ui-field>
+            <ui-field label="Employee code"
+              ><input [(ngModel)]="staffForm.employee_code"
+            /></ui-field>
+            <ui-field label="Hire date"
+              ><input type="date" [(ngModel)]="staffForm.hire_date"
+            /></ui-field>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" [(ngModel)]="staffForm.can_edit_service_menu" />
+            Can edit the service menu
+          </label>
+          <div class="row">
+            <ui-button icon="save" (click)="saveStaff()" data-testid="staff-edit-save"
+              >Save profile</ui-button
+            >
+          </div>
+        </ui-card>
+      }
+
+      @case ('qualifications') {
+        <ui-card
+          heading="Qualifications"
+          sub="Tick every service they can perform. Each tick saves straight away; every length of a service comes with it. Someone with none drops out of every search, so the last one cannot be removed."
+        >
+          @if (services().length) {
+            <ul class="quals">
+              @for (s of services(); track s.id) {
+                <li>
+                  <label>
+                    <input
+                      type="checkbox"
+                      [checked]="qualified(s.id)"
+                      (change)="toggleQualification(s.id, $any($event.target).checked)"
+                      [attr.data-testid]="'qual-' + s.id"
+                    />
+                    {{ s.name }}
+                  </label>
+                </li>
+              }
+            </ul>
+          } @else {
+            <ui-empty icon="spa" title="No services at this location" />
+          }
+        </ui-card>
+      }
+
+      @case ('pay') {
+        @if (isManagerEngagement()) {
+          <ui-card
+            heading="Monthly pay"
+            sub="Managers are paid a flat monthly amount and never per session. A change opens a new period; earlier months keep their amount."
+          >
+            <div class="form-grid">
+              <ui-field label="Monthly amount" hint="In dollars.">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  [(ngModel)]="monthlyForm.dollars"
+                  data-testid="monthly-rate-amount"
+                />
+              </ui-field>
+              <ui-field label="Effective from">
+                <input type="date" [(ngModel)]="monthlyForm.effective_from" />
+              </ui-field>
+              <ui-field label="Note" [optional]="true"
+                ><input [(ngModel)]="monthlyForm.note"
+              /></ui-field>
+            </div>
+            <div class="row">
+              <ui-button icon="save" (click)="saveMonthlyRate()" data-testid="monthly-rate-save"
+                >Save monthly rate</ui-button
+              >
+            </div>
+            @if (monthlyRates().length) {
+              <div class="dt rates-table" role="table" aria-label="Monthly rate history">
+                <div class="dt__row dt__head" role="row">
+                  <div class="dt__cell" role="columnheader">From</div>
+                  <div class="dt__cell" role="columnheader">To</div>
+                  <div class="dt__cell dt__cell--num" role="columnheader">Amount</div>
+                </div>
+                @for (rate of monthlyRates(); track rate.effective_from) {
+                  <div class="dt__row" role="row">
+                    <div class="dt__cell" role="cell">{{ rate.effective_from }}</div>
+                    <div class="dt__cell" role="cell">{{ rate.effective_to || 'Current' }}</div>
+                    <div class="dt__cell dt__cell--num" role="cell">
+                      ${{ rate.amount_cents / 100 | number: '1.2-2' }}
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </ui-card>
+        } @else {
+          <ui-card
+            heading="Pay ladder"
+            sub="What they earn per completed session, by length. Saving opens a new period from the date you choose; sessions already worked keep the rate they were worked at."
+          >
+            <div class="ladder">
+              @for (d of ladder; track d) {
+                <ui-field [label]="d + ' min session'" hint="Dollars">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    [(ngModel)]="rateForm[d]"
+                    [attr.data-testid]="'rate-' + d"
+                  />
+                </ui-field>
+              }
+            </div>
+            <div class="form-grid">
+              <ui-field label="Effective from">
+                <input type="date" [(ngModel)]="rateEffectiveFrom" data-testid="rate-from" />
+              </ui-field>
+              <ui-field label="Note" [optional]="true">
+                <input [(ngModel)]="rateNote" placeholder="e.g. Annual review" />
+              </ui-field>
+            </div>
+            <div class="row">
+              <ui-button icon="save" (click)="saveRates()" data-testid="rate-save"
+                >Save ladder</ui-button
+              >
+            </div>
+
+            @if (rates().length) {
+              <div>
+                <h3 class="sub-head">Rate history</h3>
+                <div class="dt rates-table" role="table" aria-label="Rate history">
+                  <div class="dt__row dt__head" role="row">
+                    <div class="dt__cell" role="columnheader">Length</div>
+                    <div class="dt__cell dt__cell--num" role="columnheader">Rate</div>
+                    <div class="dt__cell" role="columnheader">Period</div>
+                  </div>
+                  @for (r of currentRates(); track r.duration_minutes) {
+                    <div class="dt__row" role="row">
+                      <div class="dt__cell" role="cell">{{ r.duration_minutes }} min</div>
+                      <div class="dt__cell dt__cell--num" role="cell">
+                        ${{ r.rate_cents / 100 | number: '1.2-2' }}
+                      </div>
+                      <div class="dt__cell" role="cell">
+                        <ui-chip tone="success">In force</ui-chip> since {{ r.effective_from }}
+                      </div>
+                    </div>
+                  }
+                  @for (r of pastRates(); track r.effective_from + '-' + r.duration_minutes) {
+                    <div class="dt__row" role="row">
+                      <div class="dt__cell dt__cell--muted" role="cell">
+                        {{ r.duration_minutes }} min
+                      </div>
+                      <div class="dt__cell dt__cell--num dt__cell--muted" role="cell">
+                        ${{ r.rate_cents / 100 | number: '1.2-2' }}
+                      </div>
+                      <div class="dt__cell dt__cell--muted" role="cell">
+                        {{ r.effective_from }} → {{ r.effective_to }}
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </ui-card>
+        }
+      }
+    }
+  </ui-page>
+} @else if (error()) {
+  <ui-page title="Team member">
+    <ui-banner tone="error">{{ error() }}</ui-banner>
+    <div>
+      <ui-button variant="outlined" icon="arrow_back" routerLink="/admin/staff"
+        >All staff</ui-button
+      >
+    </div>
+  </ui-page>
+} @else {
+  <ui-page title="Team member"><ui-empty icon="hourglass_top" title="Loading…" /></ui-page>
+}

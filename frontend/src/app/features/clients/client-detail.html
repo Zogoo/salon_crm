@@ -1,0 +1,381 @@
+@if (client(); as c) {
+  <ui-page [title]="c.full_name" [sub]="contact(c)">
+    <!-- Every action on the record, in one place. -->
+    <div pageActions class="client-actions" data-testid="client-actions">
+      <ui-button variant="text" icon="arrow_back" (click)="back()" data-testid="client-back">
+        All clients
+      </ui-button>
+      <ui-button variant="outlined" icon="edit" (click)="openEdit()" data-testid="client-edit">
+        Edit details
+      </ui-button>
+      <ui-button icon="event" (click)="book()" data-testid="client-book">
+        Book appointment
+      </ui-button>
+      @if (isOwner()) {
+        <details class="more-menu" data-testid="client-more">
+          <summary aria-label="More actions for this client"><ui-icon name="more_vert" /></summary>
+          <div class="more-menu__items">
+            <button
+              type="button"
+              class="danger"
+              (click)="openMerge($event)"
+              data-testid="client-merge"
+            >
+              <ui-icon name="merge" /> Merge into another client…
+            </button>
+          </div>
+        </details>
+      }
+    </div>
+
+    @if (error()) {
+      <ui-banner tone="error" data-testid="client-error">{{ error() }}</ui-banner>
+    }
+    @if (notice()) {
+      <ui-banner tone="success" data-testid="client-notice">{{ notice() }}</ui-banner>
+    }
+
+    <ui-card>
+      <div class="client-head">
+        @if (c.no_show_count) {
+          <ui-chip tone="warning"
+            >{{ c.no_show_count }} no-show{{ c.no_show_count > 1 ? 's' : '' }}</ui-chip
+          >
+        }
+        @if (c.late_cancel_count) {
+          <ui-chip tone="warning"
+            >{{ c.late_cancel_count }} late cancellation{{
+              c.late_cancel_count > 1 ? 's' : ''
+            }}</ui-chip
+          >
+        }
+        @if (c.date_of_birth) {
+          <ui-chip tone="neutral">Born {{ c.date_of_birth }}</ui-chip>
+        }
+      </div>
+      <ui-facts [items]="facts(c)" />
+    </ui-card>
+
+    <div class="client-tabs" role="tablist" aria-label="Client record">
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="tab() === 'visits'"
+        (click)="selectTab('visits')"
+        data-testid="tab-visits"
+      >
+        Visits
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="tab() === 'preferences'"
+        (click)="selectTab('preferences')"
+        data-testid="tab-preferences"
+      >
+        Preferences
+      </button>
+      @if (canReadMoney()) {
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="tab() === 'orders'"
+          (click)="selectTab('orders')"
+          data-testid="tab-orders"
+        >
+          Orders
+        </button>
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="tab() === 'gift_cards'"
+          (click)="selectTab('gift_cards')"
+          data-testid="tab-gift-cards"
+        >
+          Gift cards
+        </button>
+      }
+    </div>
+
+    @switch (tab()) {
+      @case ('visits') {
+        <div
+          class="dt visits-table"
+          role="table"
+          aria-label="Visit history"
+          data-testid="client-visits"
+        >
+          <div class="dt__row dt__head" role="row">
+            <div class="dt__cell" role="columnheader">When</div>
+            <div class="dt__cell" role="columnheader">Location</div>
+            <div class="dt__cell" role="columnheader">Therapist</div>
+            <div class="dt__cell" role="columnheader">Status</div>
+            <div class="dt__cell dt__cell--num" role="columnheader">Rating</div>
+            <div class="dt__cell dt__cell--num" role="columnheader">Price</div>
+          </div>
+          @for (v of visits(); track v.id) {
+            <div class="dt__row" role="row" [attr.data-testid]="'visit-' + v.id">
+              <div class="dt__cell dt__cell--stack" role="cell">
+                <strong>{{ v.starts_at | wallClock: 'datetime' }}</strong>
+                <small>{{ v.reference }}</small>
+              </div>
+              <div class="dt__cell dt__cell--wide-only" role="cell">{{ v.location }}</div>
+              <div class="dt__cell dt__cell--wide-only" role="cell">
+                {{ v.therapists.join(', ') || '—' }}
+              </div>
+              <div class="dt__cell" role="cell">
+                <ui-chip [tone]="tone(v.status)">{{ humanStatus(v.status) }}</ui-chip>
+              </div>
+              <div class="dt__cell dt__cell--num dt__cell--wide-only" role="cell">
+                @if (ratings()[v.id]; as r) {
+                  {{ r.score }} / 10
+                } @else {
+                  <span class="dt__cell--muted">—</span>
+                }
+              </div>
+              <div class="dt__cell dt__cell--num dt__cell--wide-only" role="cell">
+                ${{ v.total_price_cents / 100 | number: '1.2-2' }}
+              </div>
+            </div>
+          } @empty {
+            <div class="dt__empty">
+              <ui-empty
+                icon="history"
+                title="No visits yet"
+                hint="Booked and completed visits appear here."
+              />
+            </div>
+          }
+          @if ((visitsMeta()?.pages ?? 1) > 1) {
+            <ui-paginator
+              class="dt__footer"
+              [meta]="visitsMeta()"
+              [sizes]="[10]"
+              (pageChange)="loadVisits($event)"
+            />
+          }
+        </div>
+      }
+
+      @case ('preferences') {
+        <ui-card
+          heading="Preferences"
+          sub="What the therapist should know. Each save keeps the previous version, so nothing asked for is ever lost."
+        >
+          <div class="form-grid">
+            <ui-field label="Areas to pay more attention to">
+              <textarea
+                rows="2"
+                [(ngModel)]="pref.attention_areas"
+                data-testid="pref-attention"
+              ></textarea>
+            </ui-field>
+            <ui-field
+              label="Areas to avoid"
+              hint="Injuries, recent surgery, anywhere not to touch."
+            >
+              <textarea rows="2" [(ngModel)]="pref.avoid_areas" data-testid="pref-avoid"></textarea>
+            </ui-field>
+            <ui-field label="Pressure">
+              <select [(ngModel)]="pref.pressure" data-testid="pref-pressure">
+                <option value="">No preference</option>
+                <option value="light">Light</option>
+                <option value="medium">Medium</option>
+                <option value="firm">Firm</option>
+              </select>
+            </ui-field>
+            <ui-field label="Other requests">
+              <textarea
+                rows="2"
+                [(ngModel)]="pref.other_requests"
+                data-testid="pref-other"
+              ></textarea>
+            </ui-field>
+          </div>
+          <div class="row">
+            <ui-button icon="save" (click)="savePreferences()" data-testid="pref-save"
+              >Save preferences</ui-button
+            >
+          </div>
+
+          @if (versions().length) {
+            <div>
+              <h3 class="sub-head">Previous versions</h3>
+              <ul class="rows" data-testid="preference-versions">
+                @for (version of versions(); track version.superseded_at) {
+                  <li>
+                    <span class="rows__main">
+                      <strong>Replaced {{ version.superseded_at | wallClock: 'date' }}</strong>
+                      <small>
+                        {{
+                          version.pressure
+                            ? humanStatus(version.pressure) + ' pressure'
+                            : 'No pressure preference'
+                        }}
+                        · {{ version.attention_areas || 'No attention areas' }} · Avoid
+                        {{ version.avoid_areas || 'nothing noted' }}
+                      </small>
+                    </span>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        </ui-card>
+      }
+
+      @case ('orders') {
+        <div class="dt orders-table" role="table" aria-label="Orders" data-testid="client-orders">
+          <div class="dt__row dt__head" role="row">
+            <div class="dt__cell" role="columnheader">When</div>
+            <div class="dt__cell" role="columnheader">Order</div>
+            <div class="dt__cell" role="columnheader">Location</div>
+            <div class="dt__cell" role="columnheader">Status</div>
+            <div class="dt__cell dt__cell--num" role="columnheader">Total</div>
+          </div>
+          @for (o of orders(); track o.id) {
+            <div class="dt__row" role="row">
+              <div class="dt__cell" role="cell">{{ o.created_at | wallClock: 'date' }}</div>
+              <div class="dt__cell" role="cell">{{ o.number }}</div>
+              <div class="dt__cell dt__cell--wide-only" role="cell">{{ o.location }}</div>
+              <div class="dt__cell dt__cell--wide-only" role="cell">
+                <ui-chip [tone]="tone(o.status)">{{ humanStatus(o.status) }}</ui-chip>
+              </div>
+              <div class="dt__cell dt__cell--num" role="cell">
+                ${{ o.total_cents / 100 | number: '1.2-2' }}
+              </div>
+            </div>
+          } @empty {
+            <div class="dt__empty">
+              <ui-empty icon="receipt_long" title="No orders yet" />
+            </div>
+          }
+          @if ((ordersMeta()?.pages ?? 1) > 1) {
+            <ui-paginator
+              class="dt__footer"
+              [meta]="ordersMeta()"
+              [sizes]="[10]"
+              (pageChange)="loadOrders($event)"
+            />
+          }
+        </div>
+      }
+
+      @case ('gift_cards') {
+        <div
+          class="dt cards-table"
+          role="table"
+          aria-label="Gift cards bought"
+          data-testid="client-gift-cards"
+        >
+          <div class="dt__row dt__head" role="row">
+            <div class="dt__cell" role="columnheader">Code</div>
+            <div class="dt__cell" role="columnheader">Sold</div>
+            <div class="dt__cell" role="columnheader">Location</div>
+            <div class="dt__cell dt__cell--num" role="columnheader">Value</div>
+            <div class="dt__cell dt__cell--num" role="columnheader">Balance</div>
+            <div class="dt__cell" role="columnheader">Status</div>
+          </div>
+          @for (card of giftCards(); track card.id) {
+            <a
+              class="dt__row dt__row--link"
+              role="row"
+              routerLink="/gift-cards"
+              [queryParams]="{ q: card.code }"
+            >
+              <div class="dt__cell" role="cell">
+                <strong>{{ card.code }}</strong>
+              </div>
+              <div class="dt__cell dt__cell--wide-only" role="cell">
+                {{ card.sold_at | wallClock: 'date' }}
+              </div>
+              <div class="dt__cell dt__cell--wide-only" role="cell">
+                {{ card.sold_at_location }}
+              </div>
+              <div class="dt__cell dt__cell--num dt__cell--wide-only" role="cell">
+                ${{ card.initial_value_cents / 100 | number: '1.2-2' }}
+              </div>
+              <div class="dt__cell dt__cell--num" role="cell">
+                ${{ card.balance_cents / 100 | number: '1.2-2' }}
+              </div>
+              <div class="dt__cell dt__cell--wide-only" role="cell">
+                {{ humanStatus(card.status) }}
+              </div>
+            </a>
+          } @empty {
+            <div class="dt__empty">
+              <ui-empty
+                icon="card_giftcard"
+                title="No gift cards bought"
+                hint="Link the client as the buyer when selling a card and it will show here."
+              />
+            </div>
+          }
+        </div>
+      }
+    }
+
+    @if (editing()) {
+      <ui-dialog heading="Edit contact details" (closed)="editing.set(false)">
+        <div class="form-grid">
+          <ui-field label="First name">
+            <input [(ngModel)]="edit.first_name" data-testid="client-edit-first" />
+          </ui-field>
+          <ui-field label="Last name"><input [(ngModel)]="edit.last_name" /></ui-field>
+          <ui-field label="Phone" hint="Any format — it is stored as +1…">
+            <input type="tel" [(ngModel)]="edit.phone" />
+          </ui-field>
+          <ui-field label="Email" [optional]="true">
+            <input type="email" [(ngModel)]="edit.email" />
+          </ui-field>
+          <ui-field label="Date of birth" [optional]="true">
+            <input type="date" [(ngModel)]="edit.date_of_birth" />
+          </ui-field>
+        </div>
+        <div dialogActions>
+          <ui-button variant="text" (click)="editing.set(false)">Cancel</ui-button>
+          <ui-button icon="save" (click)="saveEdit()" data-testid="client-edit-save"
+            >Save changes</ui-button
+          >
+        </div>
+      </ui-dialog>
+    }
+
+    @if (merging()) {
+      <ui-dialog
+        heading="Merge duplicate client"
+        [sub]="'Choose the record to keep. ' + c.full_name + '\'s history moves into it.'"
+        (closed)="merging.set(false)"
+      >
+        <ui-field label="Keep this client">
+          <app-client-picker
+            [excludeId]="c.id"
+            label="Client to keep"
+            (picked)="mergeTarget.set($event)"
+          />
+        </ui-field>
+        <div dialogActions>
+          <ui-button variant="text" (click)="merging.set(false)">Cancel</ui-button>
+          <ui-button
+            variant="danger"
+            icon="merge"
+            [disabled]="!mergeTarget()"
+            (click)="merge()"
+            data-testid="client-merge-continue"
+          >
+            Review merge…
+          </ui-button>
+        </div>
+      </ui-dialog>
+    }
+  </ui-page>
+} @else if (error()) {
+  <ui-page title="Client">
+    <ui-banner tone="error">{{ error() }}</ui-banner>
+    <div>
+      <ui-button variant="outlined" icon="arrow_back" routerLink="/clients">All clients</ui-button>
+    </div>
+  </ui-page>
+} @else {
+  <ui-page title="Client"><ui-empty icon="hourglass_top" title="Loading the client…" /></ui-page>
+}

@@ -4,6 +4,8 @@ module Api
       # FRS §12 / BR-42: the client profile is company-wide, so every read here
       # spans all four locations rather than the current one.
       class HistoryController < ApplicationController
+        include Listable
+
         before_action :set_client
 
         def appointments
@@ -15,13 +17,15 @@ module Api
                          .where(appointment_staff: { staff_profile_id: current_user.staff_profile&.id })
           end
 
-          render json: { appointments: scope.limit(limit).map { |a| appointment_json(a) } }
+          pagy, records = list_page(scope)
+          render json: { appointments: records.map { |a| appointment_json(a) }, meta: pagy.data_hash }
         end
 
         def orders
           require_role!(:owner, :manager)
           scope = @client.orders.includes(:location, :payments).order(created_at: :desc)
-          render json: { orders: scope.limit(limit).map { |o| order_json(o) } }
+          pagy, records = list_page(scope)
+          render json: { orders: records.map { |o| order_json(o) }, meta: pagy.data_hash }
         end
 
         def gift_cards
@@ -49,8 +53,6 @@ module Api
         private
 
         def set_client = @client = Client.kept.find(params[:client_id])
-
-        def limit = [ params.fetch(:limit, 50).to_i, 200 ].min
 
         def appointment_json(appt)
           { id: appt.id, reference: appt.reference, status: appt.status,

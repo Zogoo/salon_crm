@@ -31,7 +31,9 @@ module StaffScoped
       id: profile.id, display_name: profile.display_name,
       employee_code: profile.employee_code, location_id: profile.location_id,
       status: profile.status, engagement_type: profile.engagement_type,
-      can_edit_service_menu: profile.can_edit_service_menu
+      can_edit_service_menu: profile.can_edit_service_menu,
+      role: profile.user.role, hire_date: profile.hire_date,
+      location_name: profile.location&.name
     }
     return json unless detail
 

@@ -72,3 +72,36 @@ bin/rails db:test:prepare
 ```
 
 Specs run in transactions (`use_transactional_fixtures`), so they do not leak state.
+
+## Designing and testing at real volume
+
+Seeds create six clients; the business will have thousands. List screens must
+be judged against realistic volume, not against the seed data.
+
+```bash
+bin/rails massagelab:demo_volume   # dev/review only; refuses to run in production
+```
+
+Adds 2,000 clients (most with past visits), 1,000 staff across the four
+locations, 500 gift cards and 500 memberships in a few seconds, using bulk
+inserts. Running it again adds nothing.
+
+### The list contract
+
+Every large collection — clients, staff, gift cards, memberships, a client's
+visits and orders, the audit log — uses one contract, implemented once in
+`app/controllers/concerns/listable.rb`:
+
+```
+GET /api/v1/<resource>?q=&page=&limit=&sort=&dir=&<filters>
+=> { <resource>: [...], meta: { count, page, pages, limit, sort, dir } }
+```
+
+- Search, filters, sorting and paging happen in the database, never in the browser.
+- `limit` is capped at 100; `sort` only accepts whitelisted keys.
+- A page past the end returns the last page rather than an error.
+
+On the frontend, `ListState` (`core/list-state.ts`) keeps search, filters, sort
+and page in the URL, and `ui/data-table.scss` + `<ui-paginator>` render the
+table. Choosing one record from thousands uses `<app-client-picker>` or
+`<app-staff-picker>`, never a `<select>`.

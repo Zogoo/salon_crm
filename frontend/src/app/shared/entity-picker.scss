@@ -1,0 +1,107 @@
+@use '../../styles/tokens' as *;
+
+// Typeahead used wherever one record is chosen from thousands: a client for a
+// membership or a merge, a therapist for a shift or an earnings report.
+
+:host {
+  display: block;
+  position: relative;
+}
+
+.picker-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 3rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-shape-xs);
+  background: var(--md-surface);
+  color: var(--md-on-surface-variant);
+
+  &:focus-within {
+    border-color: var(--md-primary);
+    box-shadow: inset 0 0 0 1px var(--md-primary);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--md-on-surface);
+    font: inherit;
+  }
+}
+
+.picker-results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--sp-1));
+  left: 0;
+  right: 0;
+  max-height: 20rem;
+  margin: 0;
+  padding: var(--sp-1);
+  overflow-y: auto;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface-container-lowest);
+  box-shadow: var(--md-elev-3);
+  list-style: none;
+
+  li[role='option'] {
+    display: flex;
+    flex-direction: column;
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--md-shape-xs);
+    cursor: pointer;
+
+    small {
+      color: var(--md-on-surface-variant);
+      @include type-body-sm;
+    }
+  }
+
+  li[role='option'].on,
+  li[role='option']:hover {
+    background: var(--md-surface-container-high);
+  }
+}
+
+.picker-note {
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--md-on-surface-variant);
+  @include type-body-sm;
+}
+
+.picker-chosen {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 3rem;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-primary-container);
+
+  span {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  small {
+    color: var(--md-on-surface-variant);
+  }
+
+  button {
+    border: 0;
+    background: transparent;
+    color: var(--md-primary);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+  }
+}

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_15_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -132,6 +132,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_200000) do
     t.integer "total_price_cents", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["client_id", "starts_at"], name: "index_appointments_on_client_id_and_starts_at"
+    t.index ["client_id", "status", "starts_at"], name: "idx_appointments_client_status_start"
     t.index ["client_id"], name: "index_appointments_on_client_id"
     t.index ["created_by_user_id"], name: "index_appointments_on_created_by_user_id"
     t.index ["location_id", "status", "starts_at"], name: "index_appointments_on_location_id_and_status_and_starts_at"

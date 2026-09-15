@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 
 import { RosterShift, ShiftBreak, StaffMember } from '../../../core/models';
 import {
+  ConfirmService,
   UiBanner,
   UiButton,
   UiCard,
@@ -18,6 +19,7 @@ import {
 import { LocationContextService } from '../../../core/services/location-context.service';
 import { MassagelabService } from '../../../core/services/massagelab.service';
 import { todayIn } from '../../../core/salon-date';
+import { StaffPicker } from '../../../shared/staff-picker';
 
 /**
  * Doc 01 §3.3 / doc 05 §"Shifts" — the roster a Manager actually edits.
@@ -41,12 +43,14 @@ import { todayIn } from '../../../core/salon-date';
     UiTable,
     UiBanner,
     UiSheet,
+    StaffPicker,
   ],
   templateUrl: './roster-admin.html',
   styleUrl: '../../../ui/layouts.scss',
 })
 export class RosterAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);
+  private readonly confirm = inject(ConfirmService);
   protected readonly ctx = inject(LocationContextService);
 
   protected readonly shifts = signal<RosterShift[]>([]);
@@ -78,14 +82,12 @@ export class RosterAdminPage implements OnInit {
       this.to = this.addDays(today, 13);
       this.newShift.work_date = today;
       this.reload();
-      this.loadStaff();
     });
   }
 
   protected onLocationChange(id: number): void {
     this.ctx.select(id);
     this.reload();
-    this.loadStaff();
   }
 
   protected reload(): void {
@@ -120,7 +122,11 @@ export class RosterAdminPage implements OnInit {
 
   protected create(): void {
     const loc = this.ctx.current();
-    if (!loc || !this.newShift.staff_profile_id) return;
+    if (!loc) return;
+    if (!this.newShift.staff_profile_id) {
+      this.error.set('Choose who the shift is for.');
+      return;
+    }
     this.clear();
 
     this.api
@@ -163,7 +169,15 @@ export class RosterAdminPage implements OnInit {
     });
   }
 
-  protected remove(shift: RosterShift): void {
+  protected async remove(shift: RosterShift): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: `Remove ${this.nameFor(shift)}'s shift on ${shift.work_date}?`,
+      message:
+        'They stop being bookable for that time. This is refused if an appointment is already booked in it.',
+      confirmLabel: 'Remove shift',
+      tone: 'danger',
+    });
+    if (!ok) return;
     this.clear();
     this.api.deleteShift(shift.id).subscribe({
       next: () => {
@@ -231,18 +245,6 @@ export class RosterAdminPage implements OnInit {
             : this.message(err, 'Could not publish'),
         );
       },
-    });
-  }
-
-  private loadStaff(): void {
-    const loc = this.ctx.current();
-    if (!loc) return;
-    this.api.staff(loc.id).subscribe({
-      next: ({ staff }) => {
-        this.staff.set(staff);
-        this.newShift.staff_profile_id = staff[0]?.id ?? 0;
-      },
-      error: () => this.staff.set([]),
     });
   }
 

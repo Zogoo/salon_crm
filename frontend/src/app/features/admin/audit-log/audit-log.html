@@ -1,83 +1,110 @@
-<ui-page title="Audit log" sub="Every sensitive read and business change, newest first.">
+<ui-page
+  title="Audit log"
+  sub="Every sensitive read and business change, newest first. Search by what happened, or narrow by record and date."
+>
   @if (error()) {
     <ui-banner tone="error">{{ error() }}</ui-banner>
   }
 
-  <ui-card heading="Filter activity">
-    <div class="form-grid">
-      <ui-field label="Action" hint="For example: payment, care_notes or staff.updated">
-        <input [(ngModel)]="filters.action" data-testid="audit-action" />
-      </ui-field>
-      <ui-field label="Record type">
-        <input [(ngModel)]="filters.auditable_type" placeholder="Appointment, Payment…" />
-      </ui-field>
-      <ui-field label="From"><input type="date" [(ngModel)]="filters.from" /></ui-field>
-      <ui-field label="To"><input type="date" [(ngModel)]="filters.to" /></ui-field>
+  <div class="dt audit-table" role="table" aria-label="Audit activity" data-testid="audit-table">
+    <div class="dt__toolbar">
+      <label class="dt__search">
+        <ui-icon name="search" />
+        <input
+          type="search"
+          [ngModel]="list.q()"
+          (ngModelChange)="list.search($event)"
+          placeholder="What happened, e.g. payment, refund, care_notes"
+          aria-label="Search actions"
+          data-testid="audit-action"
+        />
+      </label>
+      <label class="dt__filter">
+        <span class="dt__filter-label">Record</span>
+        <select
+          [ngModel]="list.filters().auditable_type"
+          (ngModelChange)="list.setFilter('auditable_type', $event)"
+          data-testid="audit-type"
+        >
+          <option value="">Any record</option>
+          @for (t of recordTypes; track t[0]) {
+            <option [value]="t[0]">{{ t[1] }}</option>
+          }
+        </select>
+      </label>
+      <label class="dt__filter">
+        <span class="dt__filter-label">From</span>
+        <input
+          type="date"
+          class="dt__date"
+          [ngModel]="list.filters().from"
+          (ngModelChange)="list.setFilter('from', $event)"
+        />
+      </label>
+      <label class="dt__filter">
+        <span class="dt__filter-label">To</span>
+        <input
+          type="date"
+          class="dt__date"
+          [ngModel]="list.filters().to"
+          (ngModelChange)="list.setFilter('to', $event)"
+        />
+      </label>
     </div>
-    <ui-button icon="search" (click)="reload()" [disabled]="loading()" data-testid="audit-search">
-      Search
-    </ui-button>
-  </ui-card>
 
-  <ui-card heading="Activity" [sub]="(meta()?.count ?? logs().length) + ' matching records'">
-    @if (logs().length) {
-      <ui-table label="Audit activity">
-        <table data-testid="audit-table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Actor</th>
-              <th>Action</th>
-              <th>Record</th>
-              <th>Changes</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (log of logs(); track log.id) {
-              <tr>
-                <td>{{ log.occurred_at | wallClock: 'datetime' }}</td>
-                <td>
-                  {{ log.actor?.name ?? 'System' }}
-                  @if (roleLabel(log); as role) {
-                    <br /><small>{{ role }}</small>
-                  }
-                </td>
-                <td>
-                  {{ actionLabel(log.action) }}<br /><small class="audit__code">{{
-                    log.action
-                  }}</small>
-                </td>
-                <td>{{ recordLabel(log.auditable_type) }} #{{ log.auditable_id }}</td>
-                <td>
-                  {{ changes(log) }}
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </ui-table>
-      <div class="row">
-        <ui-button
-          variant="outlined"
-          (click)="reload(filters.page - 1)"
-          [disabled]="filters.page <= 1"
-        >
-          Previous
-        </ui-button>
-        <span>Page {{ filters.page }} of {{ meta()?.pages ?? 1 }}</span>
-        <ui-button
-          variant="outlined"
-          (click)="reload(filters.page + 1)"
-          [disabled]="filters.page >= (meta()?.pages ?? 1)"
-          >Next</ui-button
-        >
+    @if (list.isFiltered()) {
+      <div class="dt__summary">
+        <span>{{ meta()?.count ?? 0 }} matching entries</span>
+        <button type="button" (click)="list.clear()">Clear filters</button>
       </div>
-    } @else if (!loading()) {
-      <ui-empty
-        icon="history"
-        title="No activity matches"
-        hint="Adjust the filters and try again."
-      />
     }
-  </ui-card>
+
+    <div class="dt__row dt__head" role="row">
+      <div class="dt__cell" role="columnheader">When</div>
+      <div class="dt__cell" role="columnheader">Who</div>
+      <div class="dt__cell" role="columnheader">What happened</div>
+      <div class="dt__cell" role="columnheader">Record</div>
+      <div class="dt__cell" role="columnheader">Details</div>
+    </div>
+
+    @for (log of logs(); track log.id) {
+      <div class="dt__row" role="row" [class.is-stale]="loading()">
+        <div class="dt__cell" role="cell">{{ log.occurred_at | wallClock: 'datetime' }}</div>
+        <div class="dt__cell dt__cell--stack" role="cell">
+          <span>{{ log.actor?.name ?? 'System' }}</span>
+          @if (roleLabel(log); as role) {
+            <small>{{ role }}</small>
+          }
+        </div>
+        <div class="dt__cell dt__cell--stack" role="cell">
+          <strong>{{ actionLabel(log.action) }}</strong>
+          <small>{{ log.action }}</small>
+        </div>
+        <div class="dt__cell dt__cell--wide-only" role="cell">
+          {{ recordLabel(log.auditable_type) }} #{{ log.auditable_id }}
+        </div>
+        <div class="dt__cell dt__cell--wrap dt__cell--wide-only" role="cell">
+          {{ changes(log) }}
+        </div>
+      </div>
+    } @empty {
+      @if (!loading()) {
+        <div class="dt__empty">
+          <ui-empty
+            icon="history"
+            title="No activity matches"
+            hint="Try another word or a wider date range."
+          />
+        </div>
+      }
+    }
+
+    <ui-paginator
+      class="dt__footer"
+      [meta]="meta()"
+      [sizes]="[50, 100]"
+      (pageChange)="list.goTo($event)"
+      (limitChange)="list.setLimit($event)"
+    />
+  </div>
 </ui-page>

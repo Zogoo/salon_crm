@@ -1,102 +1,274 @@
 <ui-page
   title="Memberships"
-  sub="A membership is tied to the location it was bought at. Using it elsewhere needs an Owner or Manager override, and that override is recorded."
+  sub="$80 a month for one 60-minute massage; unused credits roll over up to three. A membership belongs to the location it was bought at."
 >
+  <div pageActions>
+    <ui-button icon="loyalty" (click)="openEnrol()" data-testid="mem-enrol-open"
+      >Enrol member</ui-button
+    >
+  </div>
+
   @if (error()) {
     <ui-banner tone="error" data-testid="mem-error">{{ error() }}</ui-banner>
   }
+  @if (notice()) {
+    <ui-banner tone="success" data-testid="mem-notice">{{ notice() }}</ui-banner>
+  }
 
-  <div class="split">
-    <div class="detail">
-      <ui-card
-        heading="Enrol a member"
-        [sub]="'$80 a month at ' + (ctx.current()?.name ?? 'this location') + '.'"
-      >
-        <ui-field label="Client">
-          <select [(ngModel)]="newClientId" data-testid="mem-client">
-            <option [ngValue]="null">Choose…</option>
-            @for (c of clients(); track c.id) {
-              <option [ngValue]="c.id">{{ c.full_name }} · {{ c.phone }}</option>
-            }
-          </select>
-        </ui-field>
-        <ui-field
-          label="Included monthly massage"
-          hint="What the membership covers. Anything longer, the member pays the difference."
+  <div class="dt members-table" role="table" aria-label="Members" data-testid="mem-table">
+    <div class="dt__toolbar">
+      <label class="dt__search">
+        <ui-icon name="search" />
+        <input
+          type="search"
+          [ngModel]="list.q()"
+          (ngModelChange)="list.search($event)"
+          placeholder="Search members by name or phone"
+          aria-label="Search members"
+          data-testid="mem-search"
+        />
+      </label>
+      <label class="dt__filter">
+        <span class="dt__filter-label">Status</span>
+        <select
+          [ngModel]="list.filters().status"
+          (ngModelChange)="list.setFilter('status', $event)"
+          data-testid="mem-filter-status"
         >
-          <select [(ngModel)]="newVariantId" data-testid="mem-variant">
-            @for (o of included(); track o.id) {
-              <option [ngValue]="o.id">{{ o.label }}</option>
+          <option value="current">Current (active or cancelling)</option>
+          <option value="active">Active</option>
+          <option value="pending_cancellation">Cancelling</option>
+          <option value="past_due">Payment overdue</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="">Any status</option>
+        </select>
+      </label>
+      @if (ctx.locations().length > 1) {
+        <label class="dt__filter">
+          <span class="dt__filter-label">Joined at</span>
+          <select
+            [ngModel]="list.filters().location_id"
+            (ngModelChange)="list.setFilter('location_id', $event)"
+          >
+            <option value="">Any location</option>
+            @for (l of ctx.locations(); track l.id) {
+              <option [value]="'' + l.id">{{ l.name }}</option>
             }
           </select>
-        </ui-field>
-        <ui-button icon="loyalty" (click)="enrol()" data-testid="mem-enrol">Enrol</ui-button>
-      </ui-card>
-
-      <ui-card heading="Members">
-        @if (memberships().length) {
-          <ul class="picker" data-testid="mem-list">
-            @for (m of memberships(); track m.id) {
-              <li>
-                <button
-                  type="button"
-                  class="picker__item"
-                  [class.on]="selected()?.id === m.id"
-                  (click)="open(m)"
-                  [attr.data-testid]="'mem-' + m.id"
-                >
-                  <span class="picker__main">
-                    <strong>{{ m.client.full_name }}</strong>
-                    <small>{{ m.location.name }}</small>
-                  </span>
-                  <ui-chip [tone]="m.at_cap ? 'warning' : 'info'">
-                    {{ m.credits_balance }}/{{ m.credits_cap }} credits
-                  </ui-chip>
-                </button>
-              </li>
-            }
-          </ul>
-        } @else {
-          <ui-empty
-            icon="loyalty"
-            title="No members yet"
-            hint="Enrol a client above to start a membership."
-          />
+        </label>
+      }
+      <button
+        type="button"
+        class="dt__chip"
+        [attr.aria-pressed]="list.filters().at_cap === 'true'"
+        (click)="toggleAtCap()"
+        data-testid="mem-filter-cap"
+      >
+        @if (list.filters().at_cap === 'true') {
+          <ui-icon name="check" />
         }
-      </ui-card>
+        At credit cap
+      </button>
     </div>
 
-    @if (!selected() && memberships().length) {
-      <ui-card class="detail-placeholder">
-        <ui-empty
-          icon="loyalty"
-          title="Select a member"
-          hint="Pick a member to record a payment, use a credit or handle a cancellation."
-        />
-      </ui-card>
+    @if (list.isFiltered()) {
+      <div class="dt__summary">
+        <span
+          >{{ meta()?.count ?? 0 }} {{ meta()?.count === 1 ? 'member' : 'members' }} ·
+          {{ summary() }}</span
+        >
+        <button type="button" (click)="list.clear()">Clear filters</button>
+      </div>
     }
-    @if (selected(); as m) {
-      <div class="detail" data-testid="mem-detail">
-        <ui-card [heading]="m.client.full_name" [sub]="'Home location: ' + m.location.name">
-          <ui-chip cardAction [tone]="tone(m.status)">{{ humanStatus(m.status) }}</ui-chip>
-          <ui-facts [items]="memberFacts(m)" />
 
-          @if (m.at_cap) {
-            <ui-banner tone="warning" data-testid="mem-at-cap">
-              At the three-credit cap. The next payment is still taken, but grants no further credit
-              — worth a conversation about booking them in.
-            </ui-banner>
-          }
-          @if (m.cancellation_effective_at) {
-            <ui-banner tone="info" data-testid="mem-cancelling">
-              Cancelling — ends {{ m.cancellation_effective_at | wallClock: 'date' }}. Notice given
-              inside 15 days of renewal takes effect after the following renewal, so one more charge
-              still happens.
-            </ui-banner>
-          }
-        </ui-card>
+    <div class="dt__row dt__head" role="row">
+      <div class="dt__cell" role="columnheader" [attr.aria-sort]="list.ariaSort('client')">
+        <button
+          type="button"
+          class="dt__sort"
+          [class.dt__sort--on]="list.sort() === 'client'"
+          (click)="list.sortBy('client')"
+        >
+          Member <ui-icon [name]="list.sortIcon('client')" />
+        </button>
+      </div>
+      <div
+        class="dt__cell dt__cell--num"
+        role="columnheader"
+        [attr.aria-sort]="list.ariaSort('credits')"
+      >
+        <button
+          type="button"
+          class="dt__sort"
+          [class.dt__sort--on]="list.sort() === 'credits'"
+          (click)="list.sortBy('credits')"
+        >
+          Credits <ui-icon [name]="list.sortIcon('credits')" />
+        </button>
+      </div>
+      <div class="dt__cell" role="columnheader" [attr.aria-sort]="list.ariaSort('renews')">
+        <button
+          type="button"
+          class="dt__sort"
+          [class.dt__sort--on]="list.sort() === 'renews'"
+          (click)="list.sortBy('renews')"
+        >
+          Renews <ui-icon [name]="list.sortIcon('renews')" />
+        </button>
+      </div>
+      <div class="dt__cell" role="columnheader" [attr.aria-sort]="list.ariaSort('enrolled')">
+        <button
+          type="button"
+          class="dt__sort"
+          [class.dt__sort--on]="list.sort() === 'enrolled'"
+          (click)="list.sortBy('enrolled')"
+        >
+          Since <ui-icon [name]="list.sortIcon('enrolled')" />
+        </button>
+      </div>
+      <div class="dt__cell" role="columnheader">Status</div>
+    </div>
 
-        <ui-card heading="Monthly payment" sub="Recording the payment is what grants the credit.">
+    @if (loading() && !rows().length) {
+      @for (s of skeleton; track $index) {
+        <div class="dt__row" role="row" aria-hidden="true">
+          @for (c of [1, 2, 3, 4, 5]; track c) {
+            <div class="dt__cell"><div class="dt__skeleton"></div></div>
+          }
+        </div>
+      }
+    } @else {
+      @for (m of rows(); track m.id) {
+        <button
+          type="button"
+          class="dt__row dt__row--link"
+          role="row"
+          [class.dt__row--on]="selected()?.id === m.id"
+          [class.is-stale]="loading()"
+          (click)="open(m)"
+          [attr.data-testid]="'mem-' + m.id"
+        >
+          <div class="dt__cell dt__cell--stack" role="cell">
+            <strong>{{ m.client.full_name }}</strong>
+            <small
+              >{{ m.location.name
+              }}{{ m.client.phone ? ' · ' + (m.client.phone | phone) : '' }}</small
+            >
+          </div>
+          <div class="dt__cell dt__cell--num" role="cell">
+            @if (m.at_cap) {
+              <ui-chip tone="warning">{{ m.credits_balance }} / {{ m.credits_cap }}</ui-chip>
+            } @else {
+              {{ m.credits_balance }} / {{ m.credits_cap }}
+            }
+          </div>
+          <div class="dt__cell dt__cell--wide-only" role="cell">
+            {{ m.current_period_end | wallClock: 'date' }}
+          </div>
+          <div class="dt__cell dt__cell--wide-only" role="cell">
+            {{ m.enrolled_at ? (m.enrolled_at | wallClock: 'date') : '—' }}
+          </div>
+          <div class="dt__cell dt__cell--wide-only" role="cell">
+            <ui-chip [tone]="statusTone(m.status)">{{ statusLabel(m.status) }}</ui-chip>
+          </div>
+        </button>
+      } @empty {
+        <div class="dt__empty">
+          @if (list.isFiltered()) {
+            <ui-empty
+              icon="person_search"
+              title="No members match"
+              hint="Try another spelling or fewer filters."
+            >
+              <ui-button variant="outlined" (click)="list.clear()">Clear filters</ui-button>
+            </ui-empty>
+          } @else {
+            <ui-empty
+              icon="loyalty"
+              title="No current members"
+              hint="Use Enrol member to start one."
+            >
+              <ui-button (click)="openEnrol()">Enrol member</ui-button>
+            </ui-empty>
+          }
+        </div>
+      }
+    }
+
+    <ui-paginator
+      class="dt__footer"
+      [meta]="meta()"
+      (pageChange)="list.goTo($event)"
+      (limitChange)="list.setLimit($event)"
+    />
+  </div>
+
+  @if (enrolling()) {
+    <ui-dialog
+      heading="Enrol a member"
+      [sub]="
+        '$80 a month at ' +
+        (ctx.current()?.name ?? 'this location') +
+        ', their home location. The first credit is granted when the first payment is recorded.'
+      "
+      (closed)="enrolling.set(false)"
+    >
+      <ui-field label="Client">
+        <app-client-picker
+          label="Client to enrol"
+          (picked)="enrolClient.set($event)"
+          data-testid="mem-client"
+        />
+      </ui-field>
+      <ui-field
+        label="Included monthly massage"
+        hint="What the membership covers. Anything longer, the member pays the difference."
+      >
+        <select [(ngModel)]="newVariantId" data-testid="mem-variant">
+          @for (o of included(); track o.id) {
+            <option [ngValue]="o.id">{{ o.label }}</option>
+          }
+        </select>
+      </ui-field>
+      <div dialogActions>
+        <ui-button variant="text" (click)="enrolling.set(false)">Cancel</ui-button>
+        <ui-button
+          icon="loyalty"
+          [disabled]="!enrolClient()"
+          (click)="enrol()"
+          data-testid="mem-enrol"
+          >Enrol</ui-button
+        >
+      </div>
+    </ui-dialog>
+  }
+
+  @if (selected(); as m) {
+    <ui-sheet
+      [heading]="m.client.full_name"
+      [sub]="'Member at ' + m.location.name"
+      (closed)="selected.set(null)"
+      data-testid="mem-detail"
+    >
+      <ui-chip sheetBadge [tone]="statusTone(m.status)">{{ statusLabel(m.status) }}</ui-chip>
+      <ui-facts [items]="memberFacts(m)" />
+
+      @if (m.at_cap) {
+        <ui-banner tone="warning" data-testid="mem-at-cap">
+          At the three-credit cap. The next payment is still taken but grants no further credit —
+          worth suggesting they book in.
+        </ui-banner>
+      }
+      @if (m.cancellation_effective_at) {
+        <ui-banner tone="info" data-testid="mem-cancelling">
+          Cancelling — ends {{ m.cancellation_effective_at | wallClock: 'date' }}.
+        </ui-banner>
+      }
+
+      @if (m.status !== 'cancelled') {
+        <section>
+          <h3 class="sub-head">Monthly payment</h3>
+          <p class="sub-hint">Recording the payment is what grants this month's credit.</p>
           <div class="row">
             <ui-field label="Paid by">
               <select [(ngModel)]="payMethod" data-testid="mem-pay-method">
@@ -105,24 +277,16 @@
                 }
               </select>
             </ui-field>
-            <ui-button icon="payments" (click)="recordPayment(m)" data-testid="mem-pay">
-              Record $80 payment
-            </ui-button>
+            <ui-button icon="payments" (click)="recordPayment(m)" data-testid="mem-pay"
+              >Record $80 payment</ui-button
+            >
           </div>
+        </section>
 
-          @if (m.status !== 'pending_cancellation' && m.status !== 'cancelled') {
-            <ui-button variant="danger" icon="cancel" (click)="cancel(m)" data-testid="mem-cancel">
-              Request cancellation
-            </ui-button>
-          }
-        </ui-card>
-
-        <ui-card
-          heading="Included service"
-          sub="Change which eligible 60-minute massage this membership covers."
-        >
+        <section>
+          <h3 class="sub-head">Included massage</h3>
           <div class="row">
-            <ui-field label="Included monthly massage">
+            <ui-field label="Covers">
               <select [(ngModel)]="editVariantId" data-testid="mem-edit-variant">
                 @for (option of included(); track option.id) {
                   <option [ngValue]="option.id">{{ option.label }}</option>
@@ -137,107 +301,98 @@
               >Save</ui-button
             >
           </div>
-        </ui-card>
+        </section>
+      }
 
-        @if (isOwner()) {
-          <ui-card
-            heading="Credit correction"
-            sub="Owner-only. Positive adds credit; negative removes it. The reason stays in the ledger."
+      @if (m.credit_ledger?.length) {
+        <section>
+          <h3 class="sub-head">Credit ledger</h3>
+          <div
+            class="dt ledger-table"
+            role="table"
+            aria-label="Credit ledger"
+            data-testid="mem-ledger"
           >
-            <div class="form-grid">
-              <ui-field label="Credit change">
-                <input
-                  type="number"
-                  min="-3"
-                  max="3"
-                  [(ngModel)]="creditAdjustment.amount"
-                  data-testid="mem-adjust-amount"
-                />
-              </ui-field>
-              <ui-field label="Reason">
-                <input [(ngModel)]="creditAdjustment.reason" data-testid="mem-adjust-reason" />
-              </ui-field>
+            <div class="dt__row dt__head" role="row">
+              <div class="dt__cell" role="columnheader">When</div>
+              <div class="dt__cell" role="columnheader">What</div>
+              <div class="dt__cell dt__cell--num" role="columnheader">Change</div>
+              <div class="dt__cell dt__cell--num" role="columnheader">Balance</div>
             </div>
+            @for (t of m.credit_ledger; track $index) {
+              <div class="dt__row" role="row">
+                <div class="dt__cell" role="cell">{{ t.occurred_at | wallClock: 'date' }}</div>
+                <div class="dt__cell" role="cell">
+                  {{ humanStatus(t.kind) }}
+                  @if (t.cross_location_override) {
+                    <ui-chip tone="warning">override</ui-chip>
+                  }
+                </div>
+                <div class="dt__cell dt__cell--num" role="cell">
+                  {{ t.amount > 0 ? '+' : '' }}{{ t.amount }}
+                </div>
+                <div class="dt__cell dt__cell--num" role="cell">{{ t.balance_after }}</div>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      @if (m.cycles?.length) {
+        <section>
+          <h3 class="sub-head">Billing history</h3>
+          <div
+            class="dt ledger-table"
+            role="table"
+            aria-label="Billing history"
+            data-testid="mem-cycles"
+          >
+            <div class="dt__row dt__head" role="row">
+              <div class="dt__cell" role="columnheader">Period</div>
+              <div class="dt__cell" role="columnheader">Paid</div>
+              <div class="dt__cell dt__cell--num" role="columnheader">Amount</div>
+              <div class="dt__cell" role="columnheader">Credit</div>
+            </div>
+            @for (c of m.cycles; track c.period_start) {
+              <div class="dt__row" role="row">
+                <div class="dt__cell" role="cell">{{ c.period_start }}</div>
+                <div class="dt__cell" role="cell">{{ c.charged_at || 'Not yet' }}</div>
+                <div class="dt__cell dt__cell--num" role="cell">
+                  ${{ c.amount_cents / 100 | number: '1.2-2' }}
+                </div>
+                <div class="dt__cell" role="cell">
+                  @if (c.credit_granted) {
+                    <ui-chip tone="success">Granted</ui-chip>
+                  } @else if (c.forfeited_to_cap) {
+                    <ui-chip tone="warning">At cap</ui-chip>
+                  } @else {
+                    —
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      @if (m.status !== 'cancelled') {
+        <footer class="sheet-actions">
+          @if (isOwner()) {
             <ui-button
-              variant="tonal"
+              variant="outlined"
               icon="tune"
               (click)="adjustCredits(m)"
-              data-testid="mem-adjust-save"
-              >Adjust credits</ui-button
+              data-testid="mem-adjust"
+              >Correct credits…</ui-button
             >
-          </ui-card>
-        }
-
-        @if (m.credit_ledger?.length) {
-          <ui-card
-            heading="Credit ledger"
-            sub="Every credit granted and spent, and who approved any override."
-          >
-            <ui-table label="Credit ledger">
-              <table data-testid="mem-ledger">
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>Kind</th>
-                    <th class="num">Change</th>
-                    <th class="num">Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (t of m.credit_ledger; track t.occurred_at) {
-                    <tr>
-                      <td>{{ t.occurred_at | wallClock: 'date' }}</td>
-                      <td>
-                        {{ humanStatus(t.kind) }}
-                        @if (t.cross_location_override) {
-                          <ui-chip tone="warning">override</ui-chip>
-                        }
-                      </td>
-                      <td class="num">{{ t.amount }}</td>
-                      <td class="num">{{ t.balance_after }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </ui-table>
-          </ui-card>
-        }
-
-        @if (m.cycles?.length) {
-          <ui-card heading="Billing history">
-            <ui-table label="Billing history">
-              <table data-testid="mem-cycles">
-                <thead>
-                  <tr>
-                    <th>Period</th>
-                    <th>Charged</th>
-                    <th class="num">Amount</th>
-                    <th>Credit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (c of m.cycles; track c.period_start) {
-                    <tr>
-                      <td>{{ c.period_start }}</td>
-                      <td>{{ c.charged_at || '—' }}</td>
-                      <td class="num">${{ c.amount_cents / 100 | number: '1.2-2' }}</td>
-                      <td>
-                        @if (c.credit_granted) {
-                          <ui-chip tone="success">granted</ui-chip>
-                        } @else if (c.forfeited_to_cap) {
-                          <ui-chip tone="warning">at cap</ui-chip>
-                        } @else {
-                          —
-                        }
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </ui-table>
-          </ui-card>
-        }
-      </div>
-    }
-  </div>
+          }
+          @if (m.status !== 'pending_cancellation') {
+            <ui-button variant="danger" icon="cancel" (click)="cancel(m)" data-testid="mem-cancel"
+              >Request cancellation…</ui-button
+            >
+          }
+        </footer>
+      }
+    </ui-sheet>
+  }
 </ui-page>

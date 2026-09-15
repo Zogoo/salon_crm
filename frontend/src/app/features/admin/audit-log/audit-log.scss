@@ -1,0 +1,26 @@
+@use '../../../../styles/tokens' as *;
+
+.audit-table {
+  --dt-cols: 11rem minmax(8rem, 1fr) minmax(12rem, 1.4fr) minmax(8rem, 1fr) minmax(14rem, 2fr);
+}
+
+// Details can be long; they wrap rather than hide behind an ellipsis.
+.dt__cell--wrap {
+  white-space: normal;
+  word-break: break-word;
+  color: var(--md-on-surface-variant);
+}
+
+.dt__date {
+  min-height: 2.5rem;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font: inherit;
+}
+
+.is-stale {
+  opacity: 0.55;
+}

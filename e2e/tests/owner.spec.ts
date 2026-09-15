@@ -49,6 +49,8 @@ test.describe('Owner tools', () => {
     await page.getByTestId('gc-view-issued').click();
     await expect(page.getByTestId('gc-detail')).toContainText(code);
     await expect(page.getByTestId('gc-ledger')).toContainText('Issue');
+    // The card opens in a side panel over the list; close it to carry on.
+    await page.getByTestId('gc-detail').getByRole('button', { name: 'Close' }).click();
 
     await page.getByTestId('gc-tab-sell').click();
     await sell();
@@ -60,9 +62,9 @@ test.describe('Owner tools', () => {
     // Let the unfiltered first load finish; Search is disabled while it runs.
     await expect(page.getByTestId('audit-table')).toBeVisible();
 
-    await page.getByTestId('audit-action').fill('gift_card');
+    // Search runs as you type — no button to find.
     const searched = page.waitForResponse((r) => r.url().includes('audit_action=gift_card'));
-    await page.getByTestId('audit-search').click();
+    await page.getByTestId('audit-action').fill('gift_card');
     const body = await (await searched).json();
 
     expect(body.audit_logs.length).toBeGreaterThan(0);
@@ -81,9 +83,10 @@ test.describe('Owner tools', () => {
 
   test('adds an earnings amount without inventing a session (feedback 5.1)', async ({ page }) => {
     await page.goto('/earnings');
-    const staff = page.getByTestId('earn-staff');
-    await expect(staff.locator('option').nth(1)).toBeAttached();
-    await staff.selectOption({ index: 1 });
+    // A therapist is found by typing, not by scrolling a dropdown of hundreds.
+    await page.getByTestId('staff-picker-input').click();
+    await page.getByTestId('staff-picker-results').locator('[role=option]').first().click();
+    await expect(page.getByTestId('staff-picked')).toBeVisible();
     // Manual entry sits under the therapist's report, so run it first.
     await page.getByTestId('earn-run').click();
     await expect(page.getByTestId('earn-table')).toBeVisible();

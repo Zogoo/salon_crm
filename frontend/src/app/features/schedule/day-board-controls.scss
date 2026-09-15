@@ -98,11 +98,11 @@
   touch-action: none;
 }
 
+// The original stays put, faded, while the dashed preview shows where it goes.
 .appt--dragging {
   z-index: 4;
   cursor: grabbing;
-  opacity: 0.85;
-  box-shadow: 0 6px 16px rgb(0 0 0 / 24%);
+  opacity: 0.5;
 }
 
 // --- Appointment panel ------------------------------------------------------

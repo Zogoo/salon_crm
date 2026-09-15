@@ -1,0 +1,155 @@
+<ui-page title="Staff" [sub]="subtitle()">
+  <div pageActions>
+    <ui-button icon="person_add" routerLink="/admin/staff/new" data-testid="staff-new">
+      Add team member
+    </ui-button>
+  </div>
+
+  @if (error()) {
+    <ui-banner tone="error">{{ error() }}</ui-banner>
+  }
+
+  <div class="dt staff-table" role="table" aria-label="Team" data-testid="staff-table">
+    <div class="dt__toolbar">
+      <label class="dt__search">
+        <ui-icon name="search" />
+        <input
+          type="search"
+          [ngModel]="list.q()"
+          (ngModelChange)="list.search($event)"
+          placeholder="Search by name, employee code or email"
+          aria-label="Search staff"
+          data-testid="staff-search"
+        />
+      </label>
+      <label class="dt__filter">
+        <span class="dt__filter-label">Status</span>
+        <select
+          [ngModel]="list.filters().status"
+          (ngModelChange)="list.setFilter('status', $event)"
+          data-testid="staff-filter-status"
+        >
+          <option value="active">Working</option>
+          <option value="offboarded">Offboarded</option>
+          <option value="all">Everyone</option>
+        </select>
+      </label>
+      <label class="dt__filter">
+        <span class="dt__filter-label">Role</span>
+        <select
+          [ngModel]="list.filters().role"
+          (ngModelChange)="list.setFilter('role', $event)"
+          data-testid="staff-filter-role"
+        >
+          <option value="">Any role</option>
+          <option value="staff">Therapists</option>
+          <option value="manager">Managers</option>
+        </select>
+      </label>
+    </div>
+
+    @if (list.isFiltered()) {
+      <div class="dt__summary">
+        <span>{{ meta()?.count ?? 0 }} shown · {{ summary() }}</span>
+        <button type="button" (click)="list.clear()">Clear filters</button>
+      </div>
+    }
+
+    <div class="dt__row dt__head" role="row">
+      <div class="dt__cell" role="columnheader" [attr.aria-sort]="list.ariaSort('name')">
+        <button
+          type="button"
+          class="dt__sort"
+          [class.dt__sort--on]="list.sort() === 'name'"
+          (click)="list.sortBy('name')"
+        >
+          Name <ui-icon [name]="list.sortIcon('name')" />
+        </button>
+      </div>
+      <div class="dt__cell" role="columnheader" [attr.aria-sort]="list.ariaSort('code')">
+        <button
+          type="button"
+          class="dt__sort"
+          [class.dt__sort--on]="list.sort() === 'code'"
+          (click)="list.sortBy('code')"
+        >
+          Code <ui-icon [name]="list.sortIcon('code')" />
+        </button>
+      </div>
+      <div class="dt__cell" role="columnheader">Role</div>
+      <div class="dt__cell" role="columnheader">Paid</div>
+      <div class="dt__cell" role="columnheader" [attr.aria-sort]="list.ariaSort('hire_date')">
+        <button
+          type="button"
+          class="dt__sort"
+          [class.dt__sort--on]="list.sort() === 'hire_date'"
+          (click)="list.sortBy('hire_date')"
+        >
+          Hired <ui-icon [name]="list.sortIcon('hire_date')" />
+        </button>
+      </div>
+      <div class="dt__cell" role="columnheader">Status</div>
+    </div>
+
+    @if (loading() && !rows().length) {
+      @for (s of skeleton; track $index) {
+        <div class="dt__row" role="row" aria-hidden="true">
+          @for (c of [1, 2, 3, 4, 5, 6]; track c) {
+            <div class="dt__cell"><div class="dt__skeleton"></div></div>
+          }
+        </div>
+      }
+    } @else {
+      @for (m of rows(); track m.id) {
+        <a
+          class="dt__row dt__row--link"
+          role="row"
+          [class.is-stale]="loading()"
+          [routerLink]="['/admin/staff', m.id]"
+          [attr.data-testid]="'staff-row-' + m.id"
+        >
+          <div class="dt__cell dt__cell--stack" role="cell">
+            <strong>{{ m.display_name }}</strong>
+            <small>{{ m.location_name }}</small>
+          </div>
+          <div class="dt__cell dt__cell--wide-only" role="cell">{{ m.employee_code }}</div>
+          <div class="dt__cell" role="cell">{{ roleLabel(m) }}</div>
+          <div class="dt__cell dt__cell--wide-only" role="cell">
+            {{ m.engagement_type === 'manager_flat' ? 'Monthly' : 'Per session' }}
+          </div>
+          <div class="dt__cell dt__cell--wide-only" role="cell">{{ m.hire_date || '—' }}</div>
+          <div class="dt__cell dt__cell--wide-only" role="cell">
+            <ui-chip [tone]="tone(m.status)">{{
+              m.status === 'active' ? 'Working' : humanStatus(m.status)
+            }}</ui-chip>
+          </div>
+        </a>
+      } @empty {
+        <div class="dt__empty">
+          @if (list.isFiltered()) {
+            <ui-empty
+              icon="person_search"
+              title="Nobody matches"
+              hint="Try fewer filters or another spelling."
+            >
+              <ui-button variant="outlined" (click)="list.clear()">Clear filters</ui-button>
+            </ui-empty>
+          } @else {
+            <ui-empty
+              icon="badge"
+              title="No one works here yet"
+              hint="Add a team member to make them schedulable at this location."
+            />
+          }
+        </div>
+      }
+    }
+
+    <ui-paginator
+      class="dt__footer"
+      [meta]="meta()"
+      (pageChange)="list.goTo($event)"
+      (limitChange)="list.setLimit($event)"
+    />
+  </div>
+</ui-page>

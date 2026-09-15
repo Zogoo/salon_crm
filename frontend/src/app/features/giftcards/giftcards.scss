@@ -99,3 +99,15 @@
   @include type-title-sm;
   font-variant-numeric: tabular-nums;
 }
+
+.cards-table {
+  --dt-cols: minmax(11rem, 1.6fr) minmax(8rem, 1fr) 6rem 7rem 7rem 7rem;
+}
+
+.ledger-table {
+  --dt-cols: 7rem minmax(6rem, 1fr) 6rem 6rem;
+}
+
+.is-stale {
+  opacity: 0.55;
+}

@@ -6,11 +6,19 @@ import { filter } from 'rxjs';
 import { groupsFor } from './core/navigation';
 import { AuthService } from './core/services/auth.service';
 import { LocationContextService } from './core/services/location-context.service';
-import { UiButton, UiIcon } from './ui';
+import { UiButton, UiConfirmHost, UiIcon } from './ui';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule, UiIcon, UiButton],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    FormsModule,
+    UiIcon,
+    UiButton,
+    UiConfirmHost,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

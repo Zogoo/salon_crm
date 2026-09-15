@@ -1,20 +1,37 @@
 module Api
   module V1
     class GiftCardsController < ApplicationController
+      include Listable
       # BR-31: Owner and Manager only. Staff cannot view or sell gift cards.
       before_action :require_booking!
       before_action :require_owner!, only: %i[adjust void]
 
+      GC_SORTS = {
+        "sold" => :sold_at, "code" => :code,
+        "balance" => :current_balance_cents, "expires" => :expires_at
+      }.freeze
+
       def index
         scope = GiftCard.includes(:sold_at_location, :buyer_client)
-        scope = scope.where(sold_at_location_id: current_user.accessible_location_ids)
-        scope = scope.where(status: params[:status]) if params[:status].present?
-        if params[:search].present?
-          term = "%#{params[:search].to_s.upcase}%"
-          scope = scope.where("code LIKE ? OR buyer_name LIKE ? OR buyer_phone LIKE ?",
-                              term, "%#{params[:search]}%", "%#{params[:search]}%")
+                        .where(sold_at_location_id: current_user.accessible_location_ids)
+        scope = scope.where(sold_at_location_id: params[:location_id]) if params[:location_id].present?
+        scope =
+          case params[:status]
+          when "active", "depleted", "void" then scope.where(status: params[:status])
+          # BR-30: past its date but still holding the client's money.
+          when "expired" then scope.where(expires_at: ...Time.current).where("current_balance_cents > 0")
+          else scope
+          end
+        query = params[:q].presence || params[:search]
+        if query.present?
+          term = "%#{ActiveRecord::Base.sanitize_sql_like(query.to_s.strip)}%"
+          scope = scope.where("code LIKE :upper OR LOWER(buyer_name) LIKE :lower OR buyer_phone LIKE :term " \
+                              "OR LOWER(recipient_name) LIKE :lower",
+                              upper: term.upcase, lower: term.downcase, term:)
         end
-        render json: { gift_cards: scope.order(sold_at: :desc).limit(100).map { |c| card_json(c) } }
+        scope = list_sort(scope, GC_SORTS, default: "sold", default_dir: "desc")
+        pagy, cards = list_page(scope)
+        render json: { gift_cards: cards.map { |c| card_json(c) }, meta: list_meta(pagy) }
       end
 
       # Barcode scan and manual lookup are the same call (FRS §12).

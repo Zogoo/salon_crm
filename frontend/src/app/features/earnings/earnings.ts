@@ -24,6 +24,7 @@ import {
   humanise,
 } from '../../ui';
 import { todayIn } from '../../core/salon-date';
+import { StaffPicker } from '../../shared/staff-picker';
 
 /**
  * FRS §4 and §8 — the Staff Earnings section.
@@ -35,6 +36,7 @@ import { todayIn } from '../../core/salon-date';
 @Component({
   selector: 'app-earnings',
   imports: [
+    StaffPicker,
     FormsModule,
     DecimalPipe,
     UiPage,
@@ -99,9 +101,6 @@ export class EarningsPage implements OnInit {
       this.to = t;
       this.manual.service_date = salonToday;
       this.adjustment.service_date = salonToday;
-
-      const loc = this.ctx.current();
-      if (loc) this.api.staff(loc.id).subscribe(({ staff }) => this.staff.set(staff));
       this.loadPeriods();
       this.loadManagerPayouts();
     });

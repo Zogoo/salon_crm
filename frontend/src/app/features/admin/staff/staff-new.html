@@ -1,0 +1,79 @@
+<ui-page
+  title="Add team member"
+  [sub]="
+    'Joins ' +
+    (ctx.current()?.name ?? 'this location') +
+    '. Once added, they choose a password with Forgot password on the sign-in screen.'
+  "
+>
+  <div pageActions>
+    <ui-button variant="text" icon="arrow_back" routerLink="/admin/staff">Cancel</ui-button>
+  </div>
+
+  @if (error()) {
+    <ui-banner tone="error" data-testid="staff-new-error">{{ error() }}</ui-banner>
+  }
+
+  <ui-card heading="1 · Who" class="staff-form">
+    <div class="form-grid">
+      <ui-field label="Name" hint="As it should appear on the schedule.">
+        <input [(ngModel)]="form.display_name" data-testid="new-name" />
+      </ui-field>
+      <ui-field label="Email" hint="They sign in with this.">
+        <input type="email" [(ngModel)]="form.email" data-testid="new-email" />
+      </ui-field>
+      <ui-field label="Role">
+        <select [ngModel]="form.role" (ngModelChange)="onRole($event)" data-testid="new-role">
+          <option value="staff">Therapist — paid per session</option>
+          <option value="manager">Manager — paid a flat monthly amount</option>
+        </select>
+      </ui-field>
+      <ui-field label="Employee code" [optional]="true" hint="Generated if left blank.">
+        <input [(ngModel)]="form.employee_code" />
+      </ui-field>
+    </div>
+  </ui-card>
+
+  @if (form.engagement_type === 'contractor_1099') {
+    <ui-card
+      heading="2 · Pay per session"
+      sub="All six lengths are required — a missing rate means pay silently fails on those bookings."
+    >
+      <div class="ladder">
+        @for (d of ladder; track d) {
+          <ui-field [label]="d + ' min session'" hint="Dollars">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              [(ngModel)]="rateForm[d]"
+              [attr.data-testid]="'new-rate-' + d"
+            />
+          </ui-field>
+        }
+      </div>
+      <div class="form-grid">
+        <ui-field label="Rates effective from">
+          <input type="date" [(ngModel)]="form.rates_effective_from" />
+        </ui-field>
+      </div>
+    </ui-card>
+  } @else {
+    <ui-card heading="2 · Pay" sub="Set the monthly amount on their record after adding them." />
+  }
+
+  <ui-card
+    heading="3 · Qualifications"
+    [sub]="
+      'Every service at this location (' +
+      services().length +
+      ') is granted to start with, so they are schedulable straight away. Remove any they cannot perform on their record.'
+    "
+  />
+
+  <div class="row">
+    <ui-button icon="check" (click)="create()" [disabled]="saving()" data-testid="new-save">
+      {{ saving() ? 'Adding…' : 'Add team member' }}
+    </ui-button>
+  </div>
+</ui-page>

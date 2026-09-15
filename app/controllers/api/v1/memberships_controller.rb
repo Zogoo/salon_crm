@@ -1,14 +1,33 @@
 module Api
   module V1
     class MembershipsController < ApplicationController
+      include Listable
       before_action :require_booking!
       before_action :require_owner!, only: :adjust_credits
 
+      MEMBERSHIP_SORTS = {
+        "client" => "clients.last_name", "renews" => :current_period_end,
+        "credits" => :credits_balance, "enrolled" => :enrolled_at
+      }.freeze
+
       def index
-        scope = Membership.includes(:client, :location)
+        scope = Membership.joins(:client).includes(:client, :location)
                           .where(location_id: current_user.accessible_location_ids)
-        scope = scope.where(status: params[:status]) if params[:status].present?
-        render json: { memberships: scope.order(created_at: :desc).map { |m| membership_json(m) } }
+        scope = scope.where(location_id: params[:location_id]) if params[:location_id].present?
+        # "current" is what the desk means by a member: active, or cancelling but not yet ended.
+        scope = params[:status] == "current" ? scope.active : scope
+        scope = scope.where(status: params[:status]) if Membership::STATUSES.include?(params[:status])
+        scope = scope.where(credits_balance: Membership::CREDIT_CAP..) if params[:at_cap] == "true"
+        if params[:q].present?
+          term = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase.strip)}%"
+          digits = params[:q].to_s.gsub(/\D/, "")
+          condition = "clients.search_name LIKE :term"
+          condition += " OR clients.phone LIKE :digits" if digits.present?
+          scope = scope.where(condition, term:, digits: "%#{digits}%")
+        end
+        scope = list_sort(scope, MEMBERSHIP_SORTS, default: "client")
+        pagy, records = list_page(scope)
+        render json: { memberships: records.map { |m| membership_json(m) }, meta: list_meta(pagy) }
       end
 
       def show = render json: membership_json(find_membership, detail: true)
@@ -134,7 +153,8 @@ module Api
           id: m.id, status: m.status, price_cents: m.price_cents,
           credits_balance: m.credits_balance, credits_cap: Membership::CREDIT_CAP,
           at_cap: m.at_cap?,
-          client: { id: m.client_id, full_name: m.client.full_name },
+          client: { id: m.client_id, full_name: m.client.full_name, phone: m.client.phone },
+          enrolled_at: local_iso(m.enrolled_at, m.location),
           # BR-39a: the home location, and the fact it is not portable.
           location: { id: m.location_id, name: m.location.name },
           current_period_end: local_iso(m.current_period_end, m.location),

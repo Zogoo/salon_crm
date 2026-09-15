@@ -1,16 +1,18 @@
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { finalize, Subscription } from 'rxjs';
+import { Subscription, finalize } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
-import { ClientRecord, GiftCard, PaymentMethod } from '../../core/models';
+import { ListState } from '../../core/list-state';
+import { ClientRecord, GiftCard, PageMeta, PaymentMethod } from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 import { AuthService } from '../../core/services/auth.service';
+import { ClientPicker } from '../../shared/client-picker';
 import {
+  ConfirmService,
   Fact,
   UiBanner,
   UiButton,
@@ -21,12 +23,13 @@ import {
   UiField,
   UiIcon,
   UiPage,
-  UiTable,
+  UiPaginator,
+  UiSheet,
   humanise,
-  statusTone,
 } from '../../ui';
 
 type Mode = 'lookup' | 'sell';
+type CardFilters = { status: string; location_id: string };
 
 const EMPTY_FORM = () => ({
   amountDollars: 100,
@@ -38,7 +41,11 @@ const EMPTY_FORM = () => ({
   recipient_name: '',
 });
 
-/** FRS §12, §13 — look up a card (barcode or code), read its history, and sell new ones. */
+/**
+ * FRS §12, §13 — find a card among hundreds (by code, buyer or recipient),
+ * read its history, and sell new ones. Looking up and selling are separate
+ * tabs, because they are separate jobs at the desk.
+ */
 @Component({
   selector: 'app-giftcards',
   imports: [
@@ -51,65 +58,103 @@ const EMPTY_FORM = () => ({
     UiButton,
     UiChip,
     UiEmpty,
-    UiTable,
     UiFacts,
     UiBanner,
     UiIcon,
+    UiPaginator,
+    UiSheet,
+    ClientPicker,
   ],
   templateUrl: './giftcards.html',
-  // Shared list-and-detail layout first, then what is specific here.
-  styleUrls: ['../../ui/layouts.scss', './giftcards.scss'],
+  styleUrls: ['../../ui/layouts.scss', '../../ui/data-table.scss', './giftcards.scss'],
 })
 export class GiftCardsPage implements OnInit {
   private readonly api = inject(MassagelabService);
   private readonly auth = inject(AuthService);
+  private readonly confirm = inject(ConfirmService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
-  private buyerRequest?: Subscription;
   protected readonly ctx = inject(LocationContextService);
 
   /** Looking a card up is the everyday task, so it is where the page opens. */
   protected readonly mode = signal<Mode>('lookup');
-  protected readonly cards = signal<GiftCard[]>([]);
+  protected readonly rows = signal<GiftCard[]>([]);
+  protected readonly meta = signal<PageMeta | null>(null);
+  protected readonly loading = signal(true);
   protected readonly selected = signal<GiftCard | null>(null);
   protected readonly error = signal<string | null>(null);
+  protected readonly notice = signal<string | null>(null);
   protected readonly issued = signal<GiftCard | null>(null);
   protected readonly issuing = signal(false);
-  protected readonly buyers = signal<ClientRecord[]>([]);
-  protected readonly searchingBuyers = signal(false);
   protected readonly linkedBuyer = signal<ClientRecord | null>(null);
-  protected readonly confirmingVoid = signal(false);
   protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
+  protected readonly skeleton = Array.from({ length: 6 });
 
   protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
   protected readonly amountPresets = [50, 100, 150, 200];
   protected form = EMPTY_FORM();
-  protected buyerSearch = '';
-  protected search = '';
-  protected adjustment = { dollars: 0, reason: '' };
+  private request?: Subscription;
 
-  protected humanStatus(value: string) {
-    return humanise(value);
-  }
-  protected statusTone(value: string) {
-    return statusTone(value);
-  }
+  protected readonly list = new ListState<CardFilters>(
+    this.router,
+    this.route,
+    { sort: 'sold', dir: 'desc', filters: { status: '', location_id: '' } },
+    () => this.reload(),
+  );
+
+  protected readonly summary = computed(() => {
+    const f = this.list.filters();
+    const parts: string[] = [];
+    if (f.status) parts.push(this.statusFilterLabel(f.status));
+    if (f.location_id) {
+      parts.push(
+        `sold at ${this.ctx.locations().find((l) => String(l.id) === f.location_id)?.name ?? 'one location'}`,
+      );
+    }
+    if (this.list.q().trim()) parts.push(`matching “${this.list.q().trim()}”`);
+    return parts.join(' · ');
+  });
+
+  protected humanStatus = humanise;
 
   ngOnInit(): void {
     if (this.route.snapshot.queryParamMap.get('mode') === 'sell') this.mode.set('sell');
+    this.list.readFromUrl();
     void this.ctx.load().then(() => this.reload());
   }
 
   protected setMode(mode: Mode): void {
     this.mode.set(mode);
     this.error.set(null);
+    this.notice.set(null);
     // Kept in the address, so Back and a bookmark return to the same task.
     void this.router.navigate([], {
       relativeTo: this.route,
+      queryParamsHandling: 'merge',
       queryParams: { mode: mode === 'sell' ? 'sell' : null },
       replaceUrl: true,
     });
+  }
+
+  protected statusFilterLabel(status: string): string {
+    return (
+      {
+        active: 'active',
+        expired: 'expired with money left',
+        depleted: 'used up',
+        void: 'void',
+      }[status] ?? status
+    );
+  }
+
+  protected statusChip(card: GiftCard): {
+    label: string;
+    tone: 'success' | 'warning' | 'neutral' | 'error';
+  } {
+    if (card.status === 'void') return { label: 'Void', tone: 'error' };
+    if (card.status === 'depleted') return { label: 'Used up', tone: 'neutral' };
+    if (card.expired) return { label: 'Expired', tone: 'warning' };
+    return { label: 'Active', tone: 'success' };
   }
 
   protected cardFacts(card: GiftCard): Fact[] {
@@ -130,51 +175,40 @@ export class GiftCardsPage implements OnInit {
   }
 
   protected reload(): void {
-    this.api.giftCards(this.search).subscribe({
-      next: ({ gift_cards }) => this.cards.set(gift_cards),
-      error: (err) => this.error.set(err?.error?.error ?? 'Could not load gift cards'),
+    this.request?.unsubscribe();
+    this.loading.set(true);
+    this.request = this.api.giftCardList(this.list.query()).subscribe({
+      next: ({ gift_cards, meta }) => {
+        this.rows.set(gift_cards);
+        this.meta.set(meta ?? null);
+        this.loading.set(false);
+        // A scanned or linked code that matches exactly one card opens it straight away.
+        const q = this.list.q().trim().toUpperCase();
+        if (q && gift_cards.length === 1 && gift_cards[0].code === q && !this.selected()) {
+          this.open(gift_cards[0]);
+        }
+      },
+      error: () => {
+        this.error.set('Could not load gift cards. Check the connection and try again.');
+        this.loading.set(false);
+      },
     });
   }
 
   protected open(card: GiftCard): void {
-    this.confirmingVoid.set(false);
-    this.api.giftCard(card.code).subscribe((full) => this.selected.set(full));
+    this.api.giftCard(card.code).subscribe({
+      next: (full) => this.selected.set(full),
+      error: () => this.error.set('Could not open that card.'),
+    });
   }
 
   // --- selling ----------------------------------------------------------
 
-  protected searchBuyers(): void {
-    this.buyerRequest?.unsubscribe();
-    this.buyers.set([]);
-    const term = this.buyerSearch.trim();
-    if (term.length < 2) return;
-    this.searchingBuyers.set(true);
-    this.buyerRequest = this.api
-      .clients(term)
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        finalize(() => this.searchingBuyers.set(false)),
-      )
-      .subscribe({
-        next: ({ clients }) => this.buyers.set(clients),
-        error: () => this.error.set('Could not search clients. Please try again.'),
-      });
-  }
-
-  protected linkBuyer(client: ClientRecord): void {
+  protected linkBuyer(client: ClientRecord | null): void {
     this.linkedBuyer.set(client);
-    this.form.buyer_client_id = client.id;
-    this.form.buyer_name = client.full_name;
-    this.form.buyer_phone = client.phone ?? '';
-    this.buyers.set([]);
-    this.buyerSearch = '';
-  }
-
-  protected unlinkBuyer(): void {
-    this.linkedBuyer.set(null);
-    this.form.buyer_client_id = null;
-    this.form.buyer_name = '';
-    this.form.buyer_phone = '';
+    this.form.buyer_client_id = client?.id ?? null;
+    this.form.buyer_name = client?.full_name ?? '';
+    this.form.buyer_phone = client?.phone ?? '';
   }
 
   protected issue(): void {
@@ -226,23 +260,37 @@ export class GiftCardsPage implements OnInit {
   protected sellAnother(): void {
     this.issued.set(null);
     this.form = EMPTY_FORM();
-    this.unlinkBuyer();
-    this.buyerSearch = '';
-    this.buyers.set([]);
+    this.linkedBuyer.set(null);
   }
 
   // --- Owner corrections ------------------------------------------------
 
-  protected adjust(card: GiftCard): void {
-    const cents = Math.round(this.adjustment.dollars * 100);
-    if (!cents || !this.adjustment.reason.trim()) {
-      this.error.set('Enter an amount and a reason for the correction.');
+  protected async adjust(card: GiftCard): Promise<void> {
+    const { confirmed, values } = await this.confirm.ask({
+      title: `Correct the balance of ${card.code}`,
+      message: `Currently $${(card.current_balance_cents / 100).toFixed(2)}. The correction is added to the history and the audit log with your name.`,
+      confirmLabel: 'Apply correction',
+      fields: [
+        {
+          key: 'amount',
+          label: 'Change in dollars',
+          required: true,
+          placeholder: 'e.g. 25 or -10',
+          hint: 'Use a minus sign to take money off the card.',
+        },
+        { key: 'reason', label: 'Reason', required: true },
+      ],
+    });
+    if (!confirmed) return;
+    const cents = Math.round(Number(values['amount']) * 100);
+    if (!Number.isFinite(cents) || cents === 0) {
+      this.error.set('Enter an amount other than zero, like 25 or -10.');
       return;
     }
-    this.api.adjustGiftCard(card.id, cents, this.adjustment.reason.trim()).subscribe({
+    this.api.adjustGiftCard(card.id, cents, values['reason']).subscribe({
       next: (updated) => {
         this.selected.set(updated);
-        this.adjustment = { dollars: 0, reason: '' };
+        this.notice.set('Balance corrected.');
         this.reload();
       },
       error: (err) =>
@@ -254,16 +302,18 @@ export class GiftCardsPage implements OnInit {
     });
   }
 
-  /** Voiding cannot be undone, so it takes a second, deliberate press. */
-  protected voidCard(card: GiftCard): void {
-    if (!this.confirmingVoid()) {
-      this.confirmingVoid.set(true);
-      return;
-    }
+  protected async voidCard(card: GiftCard): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: `Void gift card ${card.code}?`,
+      message: `The $${(card.current_balance_cents / 100).toFixed(2)} left on it can no longer be spent at any location. The card and its history stay on record.`,
+      confirmLabel: 'Void card',
+      tone: 'danger',
+    });
+    if (!ok) return;
     this.api.voidGiftCard(card.id).subscribe({
       next: (updated) => {
-        this.confirmingVoid.set(false);
         this.selected.set(updated);
+        this.notice.set(`${card.code} is void.`);
         this.reload();
       },
       error: () => this.error.set('Could not void the card.'),

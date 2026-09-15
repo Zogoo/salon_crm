@@ -15,6 +15,18 @@ export interface PageMeta {
   page: number;
   pages: number;
   limit: number;
+  sort?: string;
+  dir?: 'asc' | 'desc';
+}
+
+/** The list contract every large collection follows (see Listable on the API). */
+export interface ListQuery {
+  q?: string;
+  page?: number;
+  limit?: number;
+  sort?: string;
+  dir?: 'asc' | 'desc';
+  [filter: string]: string | number | boolean | null | undefined;
 }
 
 export interface AuditLogRecord {
@@ -117,6 +129,11 @@ export interface ClientRecord {
   email: string | null;
   no_show_count: number;
   late_cancel_count: number;
+  /** List rows only: derived from completed appointments. */
+  last_visit_at?: string | null;
+  visits_count?: number;
+  member?: boolean;
+  preferred_location?: { id: number; name: string } | null;
   date_of_birth?: string | null;
   preference?: {
     attention_areas: string | null;
@@ -233,6 +250,8 @@ export interface StaffMember {
   location_id: number;
   status: string;
   engagement_type: string;
+  role?: 'staff' | 'manager';
+  location_name?: string;
   email?: string;
   hire_date?: string;
   services?: { id: number; name: string }[];
@@ -433,8 +452,9 @@ export interface MembershipRecord {
   credits_balance: number;
   credits_cap: number;
   at_cap: boolean;
-  client: { id: number; full_name: string };
+  client: { id: number; full_name: string; phone?: string };
   location: { id: number; name: string };
+  enrolled_at?: string;
   current_period_end: string;
   cancellation_effective_at: string | null;
   default_service_variant_id?: number | null;
@@ -658,6 +678,17 @@ export interface ManagerPayoutReport {
     status: string;
     paid_at: string | null;
   }[];
+}
+
+/** One row of a client's visit history (paged). */
+export interface ClientVisit {
+  id: number;
+  reference: string;
+  status: string;
+  location: string;
+  starts_at: string;
+  therapists: string[];
+  total_price_cents: number;
 }
 
 export interface ClientRating {

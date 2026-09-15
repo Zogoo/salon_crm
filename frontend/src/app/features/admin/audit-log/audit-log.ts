@@ -1,67 +1,86 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 
+import { ListState } from '../../../core/list-state';
 import { AuditLogRecord, PageMeta } from '../../../core/models';
 import { WallClockPipe } from '../../../core/pipes/wall-clock.pipe';
 import { MassagelabService } from '../../../core/services/massagelab.service';
-import {
-  UiBanner,
-  UiButton,
-  UiCard,
-  UiEmpty,
-  UiField,
-  UiPage,
-  UiTable,
-  humanise,
-} from '../../../ui';
+import { UiBanner, UiEmpty, UiIcon, UiPage, UiPaginator, humanise } from '../../../ui';
 
+type AuditFilters = { auditable_type: string; from: string; to: string };
+
+/** Every sensitive read and business change, newest first — thousands of rows, paged. */
 @Component({
   selector: 'app-audit-log',
-  imports: [
-    FormsModule,
-    WallClockPipe,
-    UiPage,
-    UiCard,
-    UiField,
-    UiButton,
-    UiTable,
-    UiEmpty,
-    UiBanner,
-  ],
+  imports: [FormsModule, WallClockPipe, UiPage, UiIcon, UiEmpty, UiBanner, UiPaginator],
   templateUrl: './audit-log.html',
-  styleUrl: '../../../ui/layouts.scss',
+  styleUrls: ['../../../ui/layouts.scss', '../../../ui/data-table.scss', './audit-log.scss'],
 })
 export class AuditLogPage implements OnInit {
   private readonly api = inject(MassagelabService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly logs = signal<AuditLogRecord[]>([]);
   protected readonly meta = signal<PageMeta | null>(null);
-  protected readonly loading = signal(false);
+  protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected filters = { action: '', auditable_type: '', from: '', to: '', page: 1 };
+  private request?: Subscription;
+
+  /** The records that are audited, by the name the desk knows them by. */
+  protected readonly recordTypes = [
+    ['Appointment', 'Appointments'],
+    ['Order', 'Orders'],
+    ['Payment', 'Payments'],
+    ['Deposit', 'Deposits'],
+    ['GiftCard', 'Gift cards'],
+    ['Membership', 'Memberships'],
+    ['Client', 'Clients'],
+    ['StaffProfile', 'Staff'],
+    ['EarningLine', 'Earnings'],
+    ['StaffRequest', 'Staff requests'],
+  ];
+
+  protected readonly list = new ListState<AuditFilters>(
+    this.router,
+    this.route,
+    { sort: 'occurred', dir: 'desc', limit: 50, filters: { auditable_type: '', from: '', to: '' } },
+    () => this.reload(),
+  );
 
   ngOnInit(): void {
+    this.list.readFromUrl();
     this.reload();
   }
 
-  protected reload(page = 1): void {
-    this.filters.page = page;
+  protected reload(): void {
+    this.request?.unsubscribe();
     this.loading.set(true);
     this.error.set(null);
-    this.api.auditLogs(this.filters).subscribe({
-      next: ({ audit_logs, meta }) => {
-        this.logs.set(audit_logs);
-        this.meta.set(meta);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.error.set('Could not load the audit log.');
-        this.loading.set(false);
-      },
-    });
+    const q = this.list.query();
+    this.request = this.api
+      .auditLogs({
+        action: q.q,
+        auditable_type: this.list.filters().auditable_type,
+        from: this.list.filters().from,
+        to: this.list.filters().to,
+        page: q.page,
+        limit: q.limit,
+      })
+      .subscribe({
+        next: ({ audit_logs, meta }) => {
+          this.logs.set(audit_logs);
+          this.meta.set(meta);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.error.set('Could not load the audit log.');
+          this.loading.set(false);
+        },
+      });
   }
-
-  protected readonly humanise = humanise;
 
   /** "GiftCard" reads as "Gift card". */
   protected recordLabel(type: string): string {

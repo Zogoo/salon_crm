@@ -18,7 +18,11 @@ describe('Gift cards page', () => {
         provideHttpClientTesting(),
         {
           provide: LocationContextService,
-          useValue: { load: () => Promise.resolve(), current: () => ({ id: 1, name: 'Lawrence' }) },
+          useValue: {
+            load: () => Promise.resolve(),
+            current: () => ({ id: 1, name: 'Lawrence' }),
+            locations: () => [],
+          },
         },
       ],
     });
@@ -30,7 +34,9 @@ describe('Gift cards page', () => {
     const fixture = TestBed.createComponent(GiftCardsPage);
     fixture.detectChanges();
     await fixture.whenStable();
-    http.expectOne((r) => r.url.endsWith('/gift_cards')).flush({ gift_cards: [] });
+    http
+      .expectOne((r) => r.url.endsWith('/gift_cards'))
+      .flush({ gift_cards: [], meta: { count: 0, page: 1, pages: 1, limit: 25 } });
     await fixture.whenStable();
     return fixture;
   }

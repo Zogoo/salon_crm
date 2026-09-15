@@ -6,7 +6,17 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Order, PaymentMethod } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
-import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable, humanise } from '../../ui';
+import {
+  ConfirmService,
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiEmpty,
+  UiField,
+  UiPage,
+  UiTable,
+  humanise,
+} from '../../ui';
 
 /**
  * FRS §5, §7, §21 — the checkout.
@@ -36,6 +46,7 @@ export class CheckoutPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly confirm = inject(ConfirmService);
 
   protected readonly order = signal<Order | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -140,12 +151,20 @@ export class CheckoutPage implements OnInit {
    * BR-23: a payment cannot be edited, so a mis-keyed amount is corrected by
    * voiding it and recording the right one. Owner only — the API enforces it.
    */
-  protected voidPayment(paymentId: number): void {
+  protected async voidPayment(paymentId: number): Promise<void> {
     const order = this.order();
-    if (!order) return;
-    const reason = window.prompt('Why is this payment being voided?');
-    if (!reason) return;
-    this.run(this.api.voidPayment(order.id, paymentId, reason));
+    const payment = order?.payments.find((p) => p.id === paymentId);
+    if (!order || !payment) return;
+    const { confirmed, value } = await this.confirm.ask({
+      title: `Void this $${(payment.amount_cents / 100).toFixed(2)} ${humanise(payment.method).toLowerCase()} payment?`,
+      message:
+        'It stays on the record, struck through, and the amount becomes outstanding again. Use this for a payment keyed in by mistake — money actually returned is a refund.',
+      confirmLabel: 'Void payment',
+      tone: 'danger',
+      field: { label: 'Reason', required: true, placeholder: 'e.g. Entered the wrong amount' },
+    });
+    if (!confirmed) return;
+    this.run(this.api.voidPayment(order.id, paymentId, value));
   }
 
   protected discount(): void {
@@ -170,14 +189,43 @@ export class CheckoutPage implements OnInit {
     );
   }
 
-  protected refund(paymentId: number): void {
+  protected async refund(paymentId: number): Promise<void> {
     const order = this.order();
-    if (!order) return;
-    const amount = window.prompt('Refund amount in dollars');
-    const reason = window.prompt('Reason for the refund');
-    const cents = Math.round(Number(amount) * 100);
-    if (!reason || !Number.isFinite(cents) || cents <= 0) return;
-    this.run(this.api.refundPayment(order.id, paymentId, cents, reason));
+    const payment = order?.payments.find((p) => p.id === paymentId);
+    if (!order || !payment) return;
+    const max = payment.amount_cents / 100;
+    const { confirmed, values } = await this.confirm.ask({
+      title: 'Refund a payment',
+      message: `Record money given back from this ${humanise(payment.method).toLowerCase()} payment of $${max.toFixed(2)}. The payment itself is never edited.`,
+      confirmLabel: 'Record refund',
+      tone: 'danger',
+      fields: [
+        {
+          key: 'amount',
+          label: 'Amount to refund',
+          type: 'number',
+          required: true,
+          max,
+          initial: max.toFixed(2),
+          hint: `Up to $${max.toFixed(2)}.`,
+        },
+        {
+          key: 'reason',
+          label: 'Reason',
+          required: true,
+          placeholder: 'e.g. Client unhappy with the service',
+        },
+      ],
+    });
+    if (!confirmed) return;
+    this.run(
+      this.api.refundPayment(
+        order.id,
+        paymentId,
+        Math.round(Number(values['amount']) * 100),
+        values['reason'],
+      ),
+    );
   }
 
   protected receipt(): void {

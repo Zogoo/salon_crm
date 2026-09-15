@@ -56,11 +56,27 @@
   }
 }
 
+// Labels and lines are positioned by the component with the same percentage
+// the blocks use — never spread with flexbox, which drifts from the time scale.
 .grid__hours {
-  display: flex;
-  justify-content: space-between;
+  position: relative;
+  height: 1.5rem;
   @include type-label-md;
   color: var(--md-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.grid__hour {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.grid__hour--start {
+  transform: none;
+}
+.grid__hour--end {
+  transform: translateX(-100%);
 }
 
 .grid__lane {
@@ -71,7 +87,8 @@
   overflow: hidden;
 }
 
-.grid__lane:has(.appt:active) {
+// The room the dragged appointment would land in.
+.grid__lane--target {
   outline: 2px dashed var(--md-primary);
   outline-offset: 2px;
 }
@@ -82,12 +99,9 @@
   bottom: 0;
   width: 1px;
   background: var(--md-outline-variant);
-
-  @for $i from 1 through 14 {
-    &:nth-child(#{$i}) {
-      left: calc(100% / 14 * #{$i - 1});
-    }
-  }
+}
+.grid__tick--half {
+  opacity: 0.45;
 }
 
 .appt {
@@ -124,12 +138,29 @@
   }
 }
 
-.appt[draggable='true'] {
-  cursor: grab;
+// Where the appointment lands, with the exact time, before the pointer is released.
+.drop-preview {
+  position: absolute;
+  z-index: 5;
+  top: var(--sp-1);
+  bottom: var(--sp-1);
+  display: flex;
+  align-items: center;
+  border: 2px dashed var(--md-primary);
+  border-radius: var(--md-shape-xs);
+  background: color-mix(in srgb, var(--md-primary) 14%, transparent);
+  pointer-events: none;
 }
 
-.appt[draggable='true']:active {
-  cursor: grabbing;
+.drop-preview__time {
+  margin-left: 2px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--md-shape-xs);
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  @include type-label-md;
 }
 
 // Status colours match the chips used everywhere else, so a colour means the

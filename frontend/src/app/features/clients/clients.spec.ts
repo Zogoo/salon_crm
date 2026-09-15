@@ -1,8 +1,13 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
 import { AuthService } from '../../core/services/auth.service';
+import { LocationContextService } from '../../core/services/location-context.service';
+import { ClientDetailPage } from './client-detail';
 import { ClientsPage } from './clients';
 
 const client = {
@@ -14,114 +19,172 @@ const client = {
   email: null,
   no_show_count: 0,
   late_cancel_count: 0,
+  last_visit_at: '2026-09-01T10:00:00-05:00',
+  visits_count: 4,
+  member: true,
+  preferred_location: { id: 7, name: 'Luma' },
 };
 
-describe('Client history improvements', () => {
+const meta = { count: 2008, page: 1, pages: 81, limit: 25, sort: 'name', dir: 'asc' };
+
+describe('Clients directory', () => {
   let http: HttpTestingController;
-  let role = 'owner';
+
   beforeEach(() => {
-    role = 'owner';
     localStorage.clear();
     TestBed.configureTestingModule({
       imports: [ClientsPage],
       providers: [
+        provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { user: () => ({ role }) } },
+        {
+          provide: LocationContextService,
+          useValue: { load: () => Promise.resolve(), locations: () => [] },
+        },
       ],
     });
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify());
 
-  it('renders ratings beside their visits and purchased gift-card balances', async () => {
+  it('asks the server for one page, and says where in the whole list it is', async () => {
     const fixture = TestBed.createComponent(ClientsPage);
     fixture.detectChanges();
-    http.expectOne((r) => r.url.endsWith('/clients')).flush({ clients: [client] });
+
+    const request = http.expectOne((r) => r.url.endsWith('/clients'));
+    expect(request.request.params.get('page')).toBe('1');
+    expect(request.request.params.get('limit')).toBe('25');
+    expect(request.request.params.get('sort')).toBe('name');
+    request.flush({ clients: [client], meta });
     await fixture.whenStable();
-    fixture.nativeElement.querySelector('[data-testid="client-1"]').click();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-testid="pager-range"]')?.textContent).toContain('1–25 of 2,008');
+    const row = el.querySelector('[data-testid="client-row-1"]');
+    expect(row?.textContent).toContain('Test Client');
+    expect(row?.textContent).toContain('Member');
+    expect(row?.getAttribute('href')).toBe('/clients/1');
+  });
+
+  it('sends filters to the server and resets to the first page', async () => {
+    const fixture = TestBed.createComponent(ClientsPage);
+    fixture.detectChanges();
+    http.expectOne((r) => r.url.endsWith('/clients')).flush({ clients: [client], meta });
+    await fixture.whenStable();
+
+    (
+      fixture.nativeElement.querySelector('[data-testid="filter-no-shows"]') as HTMLButtonElement
+    ).click();
+    const filtered = http.expectOne((r) => r.url.endsWith('/clients'));
+    expect(filtered.request.params.get('no_shows')).toBe('true');
+    expect(filtered.request.params.get('page')).toBe('1');
+    filtered.flush({ clients: [], meta: { ...meta, count: 0, pages: 1 } });
+    await fixture.whenStable();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-testid="clients-summary"]')?.textContent).toContain(
+      'with no-shows',
+    );
+    expect(el.textContent).toContain('No clients match');
+  });
+});
+
+describe('Client record', () => {
+  let http: HttpTestingController;
+  let role = 'owner';
+
+  function setup() {
+    TestBed.configureTestingModule({
+      imports: [ClientDetailPage],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: { user: () => ({ role }) } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: of(convertToParamMap({ id: '1' })),
+            snapshot: { queryParamMap: convertToParamMap({}) },
+          },
+        },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+  }
+
+  afterEach(() => http.verify());
+
+  it('pages the visit history and shows each visit’s rating beside it', async () => {
+    role = 'owner';
+    setup();
+    const fixture = TestBed.createComponent(ClientDetailPage);
+    fixture.detectChanges();
+
+    http.expectOne((r) => r.url.endsWith('/clients/1')).flush({ ...client, appointments: [] });
     http
-      .expectOne((r) => r.url.endsWith('/clients/1'))
+      .expectOne((r) => r.url.endsWith('/clients/1/history_summary'))
       .flush({
-        ...client,
-        appointments: [
-          {
-            id: 11,
-            reference: 'APT-11',
-            starts_at: '2026-09-14T10:00:00-05:00',
-            location: 'Lawrence',
-            therapists: ['Therapist'],
-            status: 'completed',
-          },
-          {
-            id: 12,
-            reference: 'APT-12',
-            starts_at: '2026-09-15T10:00:00-05:00',
-            location: 'Lawrence',
-            therapists: ['Therapist'],
-            status: 'scheduled',
-          },
-        ],
+        visits: 14,
+        lifetime_spend_cents: 120000,
+        last_visit: '2026-09-01T10:00:00-05:00',
+        days_since_last_visit: 14,
+        favourite_service: 'Deep Tissue',
+        favourite_therapist: 'Anna',
       });
+    const visits = http.expectOne((r) => r.url.endsWith('/clients/1/appointments'));
+    expect(visits.request.params.get('limit')).toBe('10');
+    visits.flush({
+      appointments: [
+        {
+          id: 11,
+          reference: 'APT-11',
+          status: 'completed',
+          location: 'Lawrence',
+          starts_at: '2026-09-01T10:00:00-05:00',
+          therapists: ['Anna'],
+          total_price_cents: 8000,
+        },
+      ],
+      meta: { count: 14, page: 1, pages: 2, limit: 10 },
+    });
     http
       .expectOne((r) => r.url.endsWith('/clients/1/ratings'))
       .flush({
         ratings: [
-          {
-            id: 3,
-            appointment_id: 11,
-            score: 9,
-            comment: 'Good',
-            therapist: 'Therapist',
-            created_at: '2026-09-14T11:00:00-05:00',
-          },
+          { id: 3, appointment_id: 11, score: 9, comment: null, therapist: 'Anna', created_at: '' },
         ],
-      });
-    http
-      .expectOne((r) => r.url.endsWith('/clients/1/gift_cards'))
-      .flush({
-        gift_cards: [
-          {
-            id: 4,
-            code: '00123',
-            initial_value_cents: 10000,
-            balance_cents: 6500,
-            status: 'active',
-            sold_at: '2026-09-14T10:00:00-05:00',
-            sold_at_location: 'Lawrence',
-          },
-        ],
-      });
-    http.expectOne((r) => r.url.endsWith('/clients/1/orders')).flush({ orders: [] });
-    http
-      .expectOne((r) => r.url.endsWith('/clients/1/preferences/versions'))
-      .flush({ versions: [] });
-    http
-      .expectOne((r) => r.url.endsWith('/clients/1/history_summary'))
-      .flush({
-        lifetime_spend_cents: 0,
-        favourite_service: null,
-        favourite_therapist: null,
       });
     await fixture.whenStable();
-    const rows = fixture.nativeElement.querySelectorAll('[data-testid="client-visits"] tbody tr');
-    expect(rows[0].textContent).toContain('9 / 10');
-    expect(rows[1].textContent).not.toContain('9 / 10');
-    const cards = fixture.nativeElement.querySelector('[data-testid="client-gift-cards"]');
-    expect(cards.textContent).toContain('00123');
-    expect(cards.textContent).toContain('$65.00');
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-testid="visit-11"]')?.textContent).toContain('9 / 10');
+    expect(el.querySelector('[data-testid="pager-range"]')?.textContent).toContain('1–10 of 14');
+    expect(el.textContent).toContain('$1200.00');
+    // One place for every action on the record.
+    expect(
+      el.querySelector('[data-testid="client-actions"] [data-testid="client-book"]'),
+    ).not.toBeNull();
+    expect(el.querySelector('[data-testid="client-merge"]')).not.toBeNull();
   });
 
-  it('does not request protected financial or ratings history for staff', async () => {
-    role = 'staff';
-    const fixture = TestBed.createComponent(ClientsPage);
+  it('keeps money and the Owner-only merge away from a Manager’s view where appropriate', async () => {
+    role = 'manager';
+    setup();
+    const fixture = TestBed.createComponent(ClientDetailPage);
     fixture.detectChanges();
-    http.expectOne((r) => r.url.endsWith('/clients')).flush({ clients: [client] });
-    await fixture.whenStable();
-    fixture.nativeElement.querySelector('[data-testid="client-1"]').click();
     http.expectOne((r) => r.url.endsWith('/clients/1')).flush({ ...client, appointments: [] });
-    http.expectNone((r) => /\/(ratings|gift_cards)$/.test(r.url));
+    http
+      .expectOne((r) => r.url.endsWith('/history_summary'))
+      .flush({ visits: 0, lifetime_spend_cents: 0 });
+    http
+      .expectOne((r) => r.url.endsWith('/appointments'))
+      .flush({ appointments: [], meta: { count: 0, page: 1, pages: 1, limit: 10 } });
+    http.expectOne((r) => r.url.endsWith('/ratings')).flush({ ratings: [] });
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('[data-testid="client-gift-cards"]')).toBeNull();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="client-merge"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="tab-orders"]')).not.toBeNull();
   });
 });

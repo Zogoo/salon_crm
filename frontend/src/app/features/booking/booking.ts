@@ -1,3 +1,4 @@
+import { PhonePipe } from '../../core/phone';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -24,6 +25,7 @@ import { todayIn } from '../../core/salon-date';
 @Component({
   selector: 'app-booking',
   imports: [
+    PhonePipe,
     FormsModule,
     DecimalPipe,
     WallClockPipe,
@@ -164,8 +166,36 @@ export class BookingPage implements OnInit {
         this.selectedVariantId.set(this.rebookVariantId);
       }
     });
-    this.api.staff(loc.id).subscribe(({ staff }) => this.staff.set(staff));
+    this.loadTherapists();
     this.searchClients();
+  }
+
+  /**
+   * Only therapists rostered that day can be asked for by name, so the list is
+   * short and every name on it is actually bookable.
+   */
+  protected loadTherapists(): void {
+    const loc = this.ctx.current();
+    if (!loc || !this.date) return;
+    this.api.shifts(loc.id, this.date).subscribe({
+      next: ({ working }) => {
+        const onShift = new Map<number, StaffMember>();
+        for (const w of working) {
+          if (!onShift.has(w.staff_profile_id)) {
+            onShift.set(w.staff_profile_id, {
+              id: w.staff_profile_id,
+              display_name: w.display_name,
+            } as StaffMember);
+          }
+        }
+        this.staff.set(
+          [...onShift.values()].sort((a, b) => a.display_name.localeCompare(b.display_name)),
+        );
+        if (this.requestedStaffId && !onShift.has(this.requestedStaffId))
+          this.requestedStaffId = null;
+      },
+      error: () => this.staff.set([]),
+    });
   }
 
   protected onLocationChange(id: number): void {

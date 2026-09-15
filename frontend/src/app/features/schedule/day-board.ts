@@ -12,6 +12,7 @@ import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
 import {
   Fact,
+  ConfirmService,
   UiBanner,
   UiButton,
   UiCard,
@@ -37,7 +38,28 @@ interface DragState {
   appointment: Appointment;
   startX: number;
   startY: number;
+  /** Pixels in the whole open day, so a pointer distance converts to minutes. */
+  laneWidth: number;
   moved: boolean;
+}
+
+/** Where a dragged block would land if it were released now. */
+interface DropPreview {
+  roomId: number;
+  roomName: string;
+  start: number;
+  leftPct: number;
+  widthPct: number;
+  label: string;
+  changed: boolean;
+}
+
+/** A line on the timeline, at the same scale the blocks are drawn on. */
+interface RulerMark {
+  minutes: number;
+  pct: number;
+  hour: boolean;
+  label: string;
 }
 
 /** What the desk is told when the API refuses, keyed by the error code. */
@@ -86,6 +108,7 @@ type PanelSection = 'service' | 'deposit' | 'discount' | 'reschedule' | 'repeat'
 export class DayBoardPage implements OnInit {
   private readonly api = inject(MassagelabService);
   private readonly router = inject(Router);
+  private readonly confirm = inject(ConfirmService);
   protected readonly ctx = inject(LocationContextService);
   protected readonly auth = inject(AuthService);
 
@@ -97,7 +120,9 @@ export class DayBoardPage implements OnInit {
   protected readonly services = signal<Service[]>([]);
   protected readonly staff = signal<StaffMember[]>([]);
   protected readonly checkoutPrompt = signal(false);
-  protected readonly dragging = signal<{ id: number; dx: number; dy: number } | null>(null);
+  /** The appointment being dragged, drawn faded where it still is. */
+  protected readonly dragging = signal<number | null>(null);
+  protected readonly preview = signal<DropPreview | null>(null);
   /** Which edit section of the panel is unfolded — one at a time. */
   protected readonly openSection = signal<PanelSection | null>(null);
   protected newCareNote = '';
@@ -123,7 +148,6 @@ export class DayBoardPage implements OnInit {
 
   private drag: DragState | null = null;
   private suppressClick = false;
-
   /** Names the location, so a board is never read against the wrong salon. */
   protected readonly subtitle = computed(
     () =>
@@ -203,7 +227,12 @@ export class DayBoardPage implements OnInit {
     const who = appt.assignment_pending
       ? 'No preference'
       : appt.therapists.map((t) => t.display_name).join(', ') || 'Unassigned';
-    return `${appt.client.full_name} · ${this.clock(appt.starts_at)}–${this.clock(appt.service_ends_at)} · ${who} · ${humanise(appt.status)}`;
+    return `${appt.client.full_name} · ${this.timeRange(appt)} · ${who} · ${humanise(appt.status)}`;
+  }
+
+  /** "13:00–14:00": the block says exactly when, so its position is never read as a guess. */
+  protected timeRange(appt: Appointment): string {
+    return `${this.clock(appt.starts_at)}–${this.clock(appt.service_ends_at)}`;
   }
 
   /** Changes are allowed before the visit is under way. */
@@ -254,12 +283,25 @@ export class DayBoardPage implements OnInit {
     return iso.slice(11, 16);
   }
 
-  protected readonly hours = computed(() => {
+  /**
+   * Hour and half-hour lines as a percentage of the open day — the same
+   * arithmetic `placed()` uses, so a 13:00 block starts on the 13:00 line.
+   */
+  protected readonly ruler = computed<RulerMark[]>(() => {
     const b = this.board();
     if (!b) return [];
-    const open = Number(b.opens_at.slice(0, 2));
-    const close = Number(b.closes_at.slice(0, 2));
-    return Array.from({ length: close - open + 1 }, (_, i) => open + i);
+    const open = this.toMinutes(b.opens_at);
+    const close = this.toMinutes(b.closes_at);
+    const marks: RulerMark[] = [];
+    for (let m = Math.ceil(open / 30) * 30; m <= close; m += 30) {
+      marks.push({
+        minutes: m,
+        pct: ((m - open) / (close - open)) * 100,
+        hour: m % 60 === 0,
+        label: this.hhmm(m),
+      });
+    }
+    return marks;
   });
 
   ngOnInit(): void {
@@ -275,6 +317,7 @@ export class DayBoardPage implements OnInit {
     if (!loc) return;
     this.loading.set(true);
     this.error.set(null);
+    this.loadOnShift();
     this.api.dayBoard(loc.id, this.date).subscribe({
       next: (board) => {
         this.board.set(board);
@@ -456,11 +499,15 @@ export class DayBoardPage implements OnInit {
       });
   }
 
-  protected refundDeposit(appointment: Appointment): void {
-    if (!this.confirmingDepositRefund) {
-      this.confirmingDepositRefund = true;
-      return;
-    }
+  protected async refundDeposit(appointment: Appointment): Promise<void> {
+    const amount = ((appointment.deposit?.amount_cents ?? 0) / 100).toFixed(2);
+    const ok = await this.confirm.confirm({
+      title: `Record $${amount} deposit as given back?`,
+      message: `Do this once the money has actually been returned to ${appointment.client.full_name}. The deposit will no longer come off the bill at checkout.`,
+      confirmLabel: 'Deposit given back',
+      tone: 'danger',
+    });
+    if (!ok) return;
     this.api.refundDeposit(appointment.id).subscribe({
       next: (updated) => {
         this.prepareSelection(updated);
@@ -519,61 +566,101 @@ export class DayBoardPage implements OnInit {
 
   protected pointerDown(event: PointerEvent, appointment: Appointment): void {
     if (!this.canMove(appointment) || event.button > 0) return;
-    this.drag = { appointment, startX: event.clientX, startY: event.clientY, moved: false };
+    const lane = (event.currentTarget as HTMLElement).closest<HTMLElement>('[data-lane-room]');
+    this.drag = {
+      appointment,
+      startX: event.clientX,
+      startY: event.clientY,
+      laneWidth: lane?.getBoundingClientRect().width ?? 0,
+      moved: false,
+    };
   }
 
   @HostListener('document:pointermove', ['$event'])
   protected pointerMove(event: PointerEvent): void {
     const drag = this.drag;
     if (!drag) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
     // A small wobble is still a tap.
-    if (!drag.moved && Math.hypot(dx, dy) < 8) return;
+    if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 8) {
+      return;
+    }
     drag.moved = true;
-    this.dragging.set({ id: drag.appointment.id, dx, dy });
+    this.dragging.set(drag.appointment.id);
+    this.preview.set(this.previewAt(drag, event));
   }
 
   @HostListener('document:pointerup', ['$event'])
   protected pointerUp(event: PointerEvent): void {
     const drag = this.drag;
-    this.drag = null;
-    this.dragging.set(null);
-    if (!drag?.moved) return;
+    if (!drag) {
+      // Released after Escape cancelled the drag: that release is not a click either.
+      if (this.suppressClick) setTimeout(() => (this.suppressClick = false));
+      return;
+    }
+    const preview = drag.moved ? this.previewAt(drag, event) : null;
+    this.endDrag();
+    if (!drag.moved) return;
 
     this.suppressClick = true;
     setTimeout(() => (this.suppressClick = false));
-    const lane = (document.elementsFromPoint?.(event.clientX, event.clientY) ?? []).find(
-      (el): el is HTMLElement => el instanceof HTMLElement && !!el.dataset['laneRoom'],
+    // Released outside the rooms, or back where it started: nothing moves.
+    if (!preview?.changed) return;
+    this.moveAppointment(
+      drag.appointment,
+      this.localIso(drag.appointment, this.date, this.hhmm(preview.start)),
+      preview.roomId,
     );
-    const room = this.board()?.rooms.find((r) => String(r.id) === lane?.dataset['laneRoom']);
-    if (lane && room) this.dropAt(drag.appointment, room, lane, event.clientX);
   }
 
   @HostListener('document:pointercancel')
   protected pointerCancel(): void {
+    this.endDrag();
+  }
+
+  @HostListener('document:keydown.escape')
+  protected cancelDrag(): void {
+    if (!this.drag?.moved) return;
+    this.endDrag();
+    this.suppressClick = true;
+  }
+
+  private endDrag(): void {
     this.drag = null;
     this.dragging.set(null);
+    this.preview.set(null);
   }
 
-  protected dragTransform(id: number): string | null {
-    const d = this.dragging();
-    return d?.id === id ? `translate(${d.dx}px, ${d.dy}px)` : null;
-  }
-
-  /** Snaps the drop point to the 15-minute grid, inside opening hours. */
-  protected dropAt(appointment: Appointment, room: Room, lane: HTMLElement, clientX: number): void {
+  /**
+   * Where the block lands if released now. Its left edge follows the pointer
+   * (so grabbing the middle of a block does not shift it), snapped to 15
+   * minutes and kept inside opening hours, in the room under the pointer.
+   */
+  private previewAt(drag: DragState, event: PointerEvent): DropPreview | null {
     const board = this.board();
-    if (!board) return;
-    const rect = lane.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const lane = (document.elementsFromPoint?.(event.clientX, event.clientY) ?? []).find(
+      (el): el is HTMLElement => el instanceof HTMLElement && !!el.dataset['laneRoom'],
+    );
+    const room = board?.rooms.find((r) => String(r.id) === lane?.dataset['laneRoom']);
+    if (!board || !room || !drag.laneWidth) return null;
+
+    const appt = drag.appointment;
     const open = this.toMinutes(board.opens_at);
     const close = this.toMinutes(board.closes_at);
-    const minutes = Math.round((open + ratio * (close - open)) / 15) * 15;
-    const latest = close - appointment.duration_minutes - 15;
-    const safe = Math.max(open, Math.min(minutes, latest));
-    const time = `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`;
-    this.moveAppointment(appointment, this.localIso(appointment, this.date, time), room.id);
+    const span = close - open;
+    const from = this.minutesOfDay(appt.starts_at);
+    const length = this.minutesOfDay(appt.service_ends_at) - from;
+    const raw = from + ((event.clientX - drag.startX) / drag.laneWidth) * span;
+    const latest = close - length - 15;
+    const start = Math.max(open, Math.min(Math.round(raw / 15) * 15, latest));
+    return {
+      roomId: room.id,
+      roomName: room.name,
+      start,
+      leftPct: ((start - open) / span) * 100,
+      widthPct: (length / span) * 100,
+      label: `${this.hhmm(start)}–${this.hhmm(start + length)}`,
+      changed: start !== from || room.id !== appt.room.id,
+    };
   }
 
   /** BR-44: append-only. A correction is a new note, never an edit. */
@@ -765,17 +852,41 @@ export class DayBoardPage implements OnInit {
     return `${date}T${time}:00${offset}`;
   }
 
+  /** Therapists rostered on the board's day — the only people an appointment can be given to. */
+  private loadOnShift(): void {
+    const loc = this.ctx.current();
+    if (!loc || !this.date) return;
+    this.api.shifts(loc.id, this.date).subscribe({
+      next: ({ working }) => {
+        const onShift = new Map<number, StaffMember>();
+        for (const w of working) {
+          onShift.set(w.staff_profile_id, {
+            id: w.staff_profile_id,
+            display_name: w.display_name,
+          } as StaffMember);
+        }
+        this.staff.set(
+          [...onShift.values()].sort((a, b) => a.display_name.localeCompare(b.display_name)),
+        );
+      },
+      error: () => this.staff.set([]),
+    });
+  }
+
   private loadEditors(): void {
     const loc = this.ctx.current();
     if (!loc) return;
     this.api.services(loc.id).subscribe(({ services }) => this.services.set(services));
-    this.api.staff(loc.id).subscribe(({ staff }) => this.staff.set(staff));
   }
 
   private apiMessage(err: any, fallback: string): string {
     const body = err?.error?.error;
     if (typeof body === 'string') return MESSAGES[body] ?? body;
     return (body?.code && MESSAGES[body.code]) || body?.message || body?.code || fallback;
+  }
+
+  private hhmm(minutes: number): string {
+    return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
   }
 
   private toMinutes(hhmm: string): number {

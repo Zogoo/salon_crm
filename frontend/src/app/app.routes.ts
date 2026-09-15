@@ -43,6 +43,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/clients/clients').then((m) => m.ClientsPage),
   },
   {
+    path: 'clients/:id',
+    canActivate: [authGuard, bookingRoleGuard],
+    loadComponent: () => import('./features/clients/client-detail').then((m) => m.ClientDetailPage),
+  },
+  {
     path: 'approvals',
     canActivate: [authGuard, bookingRoleGuard],
     loadComponent: () => import('./features/approvals/approvals').then((m) => m.ApprovalsPage),
@@ -88,7 +93,18 @@ export const routes: Routes = [
     // Doc 01 §3.1 / doc 05 §6 — onboarding, qualifications and pay rates.
     path: 'admin/staff',
     canActivate: [authGuard, ownerGuard],
-    loadComponent: () => import('./features/admin/staff/staff-admin').then((m) => m.StaffAdminPage),
+    loadComponent: () => import('./features/admin/staff/staff-list').then((m) => m.StaffListPage),
+  },
+  {
+    path: 'admin/staff/new',
+    canActivate: [authGuard, ownerGuard],
+    loadComponent: () => import('./features/admin/staff/staff-new').then((m) => m.StaffNewPage),
+  },
+  {
+    path: 'admin/staff/:id',
+    canActivate: [authGuard, ownerGuard],
+    loadComponent: () =>
+      import('./features/admin/staff/staff-detail').then((m) => m.StaffDetailPage),
   },
   {
     // BR-05: staff never self-edit shifts, so the roster is Manager-and-above.

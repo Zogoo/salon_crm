@@ -99,7 +99,7 @@
                 >
                   <span class="picker__main">
                     <strong>{{ c.full_name }}</strong>
-                    <small>{{ c.phone }}</small>
+                    <small>{{ c.phone | phone }}</small>
                   </span>
                   @if (c.no_show_count) {
                     <ui-chip tone="warning">{{ c.no_show_count }} no-show</ui-chip>
@@ -201,11 +201,16 @@
       <ui-card heading="3 · When">
         <div class="form-grid">
           <ui-field label="Date">
-            <input type="date" [(ngModel)]="date" data-testid="booking-date" />
+            <input
+              type="date"
+              [(ngModel)]="date"
+              (ngModelChange)="loadTherapists()"
+              data-testid="booking-date"
+            />
           </ui-field>
           <ui-field
             label="Therapist"
-            hint="Asking for someone by name holds the slot and needs approval."
+            hint="Only therapists on shift that day are listed. Asking for someone by name holds the slot and needs approval."
           >
             <select [(ngModel)]="requestedStaffId" data-testid="therapist-select">
               <option [ngValue]="null">No preference (assign later)</option>

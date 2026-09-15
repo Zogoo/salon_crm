@@ -5,32 +5,34 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   Appointment,
-  AuditLogRecord,
   ApprovalRequest,
+  AuditLogRecord,
   Availability,
   BusinessHour,
   CareNote,
   CatalogueService,
   CatalogueVariant,
-  ClientLogRow,
-  ClientRecord,
-  ClientRating,
   ClientGiftCard,
   ClientHistorySummary,
+  ClientLogRow,
   ClientOrderHistory,
+  ClientRating,
+  ClientRecord,
+  ClientVisit,
   Closure,
   DailyRevenue,
   Dashboard,
   DayBoard,
-  EarningPeriod,
   EarningLine,
+  EarningPeriod,
   EarningsReport,
   GiftCard,
   GiftCardLiability,
+  ListQuery,
   Location,
+  ManagerPayoutReport,
   MembershipRecord,
   MembershipReport,
-  ManagerPayoutReport,
   MonthlyRate,
   NoShowReport,
   Order,
@@ -38,9 +40,9 @@ import {
   PaymentMethod,
   PreferenceVersion,
   Qualification,
-  RetentionReport,
   RatingAlertsReport,
   RatingsReport,
+  RetentionReport,
   Room,
   RoomBlock,
   RosterShift,
@@ -66,6 +68,7 @@ export class MassagelabService {
     from?: string;
     to?: string;
     page?: number;
+    limit?: number;
   }): Observable<{ audit_logs: AuditLogRecord[]; meta: PageMeta }> {
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, value]) => {
@@ -216,6 +219,63 @@ export class MassagelabService {
 
   removeAppointmentItem(id: number, itemId: number): Observable<Appointment> {
     return this.http.delete<Appointment>(`${this.base}/appointments/${id}/items/${itemId}`);
+  }
+
+  /** Paged, filtered, sorted client directory. */
+  clientList(query: ListQuery): Observable<{ clients: ClientRecord[]; meta: PageMeta }> {
+    return this.http.get<{ clients: ClientRecord[]; meta: PageMeta }>(`${this.base}/clients`, {
+      params: this.listParams(query),
+    });
+  }
+
+  staffList(query: ListQuery): Observable<{ staff: StaffMember[]; meta: PageMeta }> {
+    return this.http.get<{ staff: StaffMember[]; meta: PageMeta }>(`${this.base}/staff`, {
+      params: this.listParams(query),
+    });
+  }
+
+  giftCardList(query: ListQuery): Observable<{ gift_cards: GiftCard[]; meta: PageMeta }> {
+    return this.http.get<{ gift_cards: GiftCard[]; meta: PageMeta }>(`${this.base}/gift_cards`, {
+      params: this.listParams(query),
+    });
+  }
+
+  membershipList(
+    query: ListQuery,
+  ): Observable<{ memberships: MembershipRecord[]; meta: PageMeta }> {
+    return this.http.get<{ memberships: MembershipRecord[]; meta: PageMeta }>(
+      `${this.base}/memberships`,
+      { params: this.listParams(query) },
+    );
+  }
+
+  clientVisits(
+    id: number,
+    query: ListQuery,
+  ): Observable<{ appointments: ClientVisit[]; meta: PageMeta }> {
+    return this.http.get<{ appointments: ClientVisit[]; meta: PageMeta }>(
+      `${this.base}/clients/${id}/appointments`,
+      { params: this.listParams(query) },
+    );
+  }
+
+  clientOrderPage(
+    id: number,
+    query: ListQuery,
+  ): Observable<{ orders: ClientOrderHistory[]; meta: PageMeta }> {
+    return this.http.get<{ orders: ClientOrderHistory[]; meta: PageMeta }>(
+      `${this.base}/clients/${id}/orders`,
+      { params: this.listParams(query) },
+    );
+  }
+
+  private listParams(query: ListQuery): HttpParams {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === '' || value === false) continue;
+      params = params.set(key, String(value));
+    }
+    return params;
   }
 
   clients(search = ''): Observable<{ clients: ClientRecord[] }> {

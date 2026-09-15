@@ -1,14 +1,29 @@
 module Api
   module V1
     class ClientsController < ApplicationController
-      include Pagy::Method
+      include Listable
 
       before_action :require_booking!, only: %i[create update]
 
+      SORTS = {
+        "name" => %i[last_name first_name],
+        "last_visit" => ClientsQuery::LAST_VISIT_SQL,
+        "no_shows" => :no_show_count,
+        "created" => :created_at
+      }.freeze
+
+      # Built for thousands of clients: searched, filtered, sorted and paged on
+      # the server. `search` is still accepted for the booking screen's lookup.
       def index
-        scope = Client.kept.search(params[:search]).order(:first_name, :last_name)
-        pagy, records = pagy(scope, limit: (params[:limit] || 25).to_i)
-        render json: { clients: records.map { |c| client_json(c) }, meta: pagy.data_hash }
+        scope = ClientsQuery.new(
+          Client.kept.includes(:preferred_location),
+          q: params[:q].presence || params[:search], no_shows: params[:no_shows],
+          membership: params[:membership], visited: params[:visited],
+          location_id: params[:location_id]
+        ).call
+        scope = list_sort(scope, SORTS, default: "name")
+        pagy, records = list_page(scope)
+        render json: { clients: list_rows(records), meta: list_meta(pagy) }
       end
 
       def show
@@ -85,6 +100,26 @@ module Api
       end
 
       private
+
+      # Last visit, visit count and membership for a page of clients, in three
+      # grouped queries rather than three per row.
+      def list_rows(records)
+        ids = records.map(&:id)
+        completed = Appointment.where(client_id: ids, status: "completed")
+        last_visits = completed.group(:client_id).maximum(:starts_at)
+        visits = completed.group(:client_id).count
+        members = Membership.active.where(client_id: ids).pluck(:client_id).to_set
+        zone = Location.find_by(id: current_user.accessible_location_ids.first)
+
+        records.map do |c|
+          client_json(c).merge(
+            last_visit_at: local_iso(last_visits[c.id], zone),
+            visits_count: visits.fetch(c.id, 0),
+            member: members.include?(c.id),
+            preferred_location: c.preferred_location && { id: c.preferred_location_id, name: c.preferred_location.name }
+          )
+        end
+      end
 
       # Doc 05: a therapist may read the form only for a client they are
       # actually seeing.

@@ -1,15 +1,33 @@
 module Api
   module V1
     class StaffController < ApplicationController
+      include Listable
       include StaffScoped
 
+      STAFF_SORTS = {
+        "name" => :display_name, "code" => :employee_code,
+        "hire_date" => :hire_date, "status" => :status
+      }.freeze
+
+      # Paged and searchable: a thousand people cannot be one dropdown. Pickers
+      # ask for `q` and a small `limit`; the Staff screen pages through them.
       def index
         profiles = StaffProfile.where(location_id: scoped_location_ids)
-                               .includes(:user, :staff_session_rates).order(:display_name)
+                               .includes(:user, :location, :staff_session_rates)
         # The working roster by default; ?status=all reaches offboarded people.
         profiles = profiles.where(status: status_filter) unless status_filter == "all"
+        if params[:q].present?
+          term = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase.strip)}%"
+          profiles = profiles.joins(:user).where(
+            "LOWER(staff_profiles.display_name) LIKE :term OR LOWER(staff_profiles.employee_code) LIKE :term " \
+            "OR LOWER(users.email) LIKE :term", term:
+          )
+        end
+        profiles = profiles.joins(:user).where(users: { role: params[:role] }) if %w[staff manager].include?(params[:role])
 
-        render json: { staff: profiles.map { |p| staff_json(p) } }
+        profiles = list_sort(profiles, STAFF_SORTS, default: "name")
+        pagy, records = list_page(profiles)
+        render json: { staff: records.map { |p| staff_json(p) }, meta: list_meta(pagy) }
       end
 
       def show

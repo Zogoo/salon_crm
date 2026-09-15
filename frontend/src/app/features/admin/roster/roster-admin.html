@@ -22,11 +22,12 @@
   <ui-card heading="Draft a shift" data-testid="roster-new">
     <div class="form-grid">
       <ui-field label="Therapist">
-        <select [(ngModel)]="newShift.staff_profile_id" data-testid="new-shift-staff">
-          @for (s of staff(); track s.id) {
-            <option [ngValue]="s.id">{{ s.display_name }}</option>
-          }
-        </select>
+        <app-staff-picker
+          [locationId]="ctx.current()?.id ?? null"
+          label="Therapist"
+          (picked)="newShift.staff_profile_id = $event?.id ?? 0"
+          data-testid="new-shift-staff"
+        />
       </ui-field>
       <ui-field label="Date">
         <input type="date" [(ngModel)]="newShift.work_date" data-testid="new-shift-date" />

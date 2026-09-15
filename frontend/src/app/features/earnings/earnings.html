@@ -56,12 +56,12 @@
       <ui-card heading="One therapist" sub="What they earned over a date range.">
         <div class="form-grid">
           <ui-field label="Therapist">
-            <select [(ngModel)]="staffId" data-testid="earn-staff">
-              <option [ngValue]="null">Choose…</option>
-              @for (s of staff(); track s.id) {
-                <option [ngValue]="s.id">{{ s.display_name }}</option>
-              }
-            </select>
+            <app-staff-picker
+              [locationId]="ctx.current()?.id ?? null"
+              label="Therapist"
+              (picked)="staffId = $event?.id ?? null"
+              data-testid="earn-staff"
+            />
           </ui-field>
           <ui-field label="From"
             ><input type="date" [(ngModel)]="from" data-testid="earn-from"

@@ -1,0 +1,281 @@
+@use '../../styles/tokens' as *;
+
+// Data tables for large collections, built from CSS grid rather than <table>:
+// every row is a link or button in its own right (keyboard and screen reader
+// friendly, one click target), columns are declared once per screen through
+// `--dt-cols`, and on a phone each row folds into a two-line card instead of
+// scrolling sideways. ARIA roles (table / row / columnheader / cell) keep the
+// semantics a table would have had.
+//
+//   <div class="dt" role="table" style="--dt-cols: 2fr 1fr 1fr 6rem">
+//     <div class="dt__toolbar">search · filters · actions</div>
+//     <div class="dt__row dt__head" role="row">…columnheader cells…</div>
+//     <a class="dt__row dt__row--link" role="row">…cells…</a>
+//     <ui-paginator class="dt__footer" />
+//   </div>
+
+.dt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-md);
+  background: var(--md-surface-container-lowest);
+  overflow: hidden;
+}
+
+// Search, filters and the actions that apply to the whole list, in one place.
+.dt__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+
+.dt__search {
+  display: flex;
+  // A row of its own, so the filters always line up together beneath it
+  // instead of wrapping one stray control onto a line by itself.
+  flex: 1 1 100%;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 3rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--md-outline);
+  border-radius: 999px;
+  background: var(--md-surface);
+  color: var(--md-on-surface-variant);
+
+  &:focus-within {
+    border-color: var(--md-primary);
+    box-shadow: inset 0 0 0 1px var(--md-primary);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--md-on-surface);
+    font: inherit;
+  }
+}
+
+.dt__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+
+  select {
+    min-height: 2.5rem;
+    padding: 0 var(--sp-3);
+    border: 1px solid var(--md-outline);
+    border-radius: var(--md-shape-sm);
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    font: inherit;
+  }
+}
+
+.dt__filter-label {
+  @include type-label-md;
+  color: var(--md-on-surface-variant);
+}
+
+// Toggle chips for yes/no filters ("Has no-shows", "Members").
+.dt__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 2.5rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  cursor: pointer;
+  font: inherit;
+  @include type-label-lg;
+
+  &[aria-pressed='true'] {
+    border-color: transparent;
+    background: var(--md-primary-container);
+  }
+}
+
+.dt__toolbar-actions {
+  display: inline-flex;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+// What the list currently shows, said in words ("Members with no-shows, matching
+// “kim”") with one way to clear it — so an empty result never looks like data loss.
+.dt__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--md-outline-variant);
+  background: var(--md-surface-container-low);
+  @include type-body-sm;
+  color: var(--md-on-surface-variant);
+
+  button {
+    border: 0;
+    background: transparent;
+    color: var(--md-primary);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+  }
+}
+
+.dt__row {
+  display: grid;
+  grid-template-columns: var(--dt-cols, 1fr);
+  align-items: center;
+  column-gap: var(--sp-3);
+  min-height: 3.5rem;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--md-outline-variant);
+  color: var(--md-on-surface);
+  text-align: left;
+  text-decoration: none;
+  @include type-body-md;
+}
+
+.dt__head {
+  min-height: 2.75rem;
+  background: var(--md-surface-container-low);
+  color: var(--md-on-surface-variant);
+  @include type-label-md;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+// Sortable header: the whole label is the button; the arrow says which way.
+.dt__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+
+  &:hover {
+    color: var(--md-on-surface);
+  }
+}
+
+.dt__sort--on {
+  color: var(--md-primary);
+}
+
+.dt__row--link {
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+
+  &:hover {
+    background: var(--md-surface-container);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--md-primary);
+    outline-offset: -2px;
+  }
+}
+
+.dt__row--on {
+  background: var(--md-primary-container);
+}
+
+.dt__cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// A primary line and a quieter second line in one cell (name over email).
+.dt__cell--stack {
+  display: flex;
+  flex-direction: column;
+
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--md-on-surface-variant);
+    @include type-body-sm;
+  }
+}
+
+.dt__cell--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dt__cell--muted {
+  color: var(--md-on-surface-variant);
+}
+
+.dt__empty {
+  padding: var(--sp-6) var(--sp-4);
+}
+
+// Placeholder rows while a page loads, so the layout does not jump.
+.dt__skeleton {
+  height: 0.875rem;
+  border-radius: var(--md-shape-xs);
+  background: linear-gradient(
+    90deg,
+    var(--md-surface-container) 0%,
+    var(--md-surface-container-high) 50%,
+    var(--md-surface-container) 100%
+  );
+  background-size: 200% 100%;
+  animation: dt-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes dt-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.dt__footer {
+  display: block;
+}
+
+@include compact-only {
+  .dt__head {
+    display: none;
+  }
+
+  .dt__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: var(--sp-1);
+    padding: var(--sp-3) var(--sp-4);
+  }
+
+  .dt__cell--wide-only {
+    display: none;
+  }
+}
