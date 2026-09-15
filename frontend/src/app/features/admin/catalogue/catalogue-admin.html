@@ -88,6 +88,42 @@
             A service that has been booked is taken off the menu rather than deleted — removing it
             would rewrite what past clients were actually sold.
           </p>
+          @if (editingService) {
+            <div class="form-grid" data-testid="service-edit-form">
+              <ui-field label="Name">
+                <input [(ngModel)]="serviceForm.name" data-testid="service-edit-name" />
+              </ui-field>
+              <ui-field label="Kind">
+                <select [(ngModel)]="serviceForm.kind">
+                  <option value="standard">Standard service</option>
+                  <option value="add_on">Add-on</option>
+                  <option value="enhancement">Enhancement</option>
+                </select>
+              </ui-field>
+              <ui-field label="Category">
+                <select [(ngModel)]="serviceForm.service_category_id">
+                  @for (c of categories(); track c.id) {
+                    <option [ngValue]="c.id">{{ c.name }}</option>
+                  }
+                </select>
+              </ui-field>
+            </div>
+            <div class="row">
+              <ui-button icon="save" (click)="saveService(service)" data-testid="service-edit-save">
+                Save details
+              </ui-button>
+              <ui-button variant="text" (click)="editingService = false">Cancel</ui-button>
+            </div>
+          } @else {
+            <ui-button
+              variant="outlined"
+              icon="edit"
+              (click)="editingService = true"
+              data-testid="service-edit"
+            >
+              Edit details
+            </ui-button>
+          }
           <ui-button
             variant="tonal"
             [icon]="service.active ? 'visibility_off' : 'visibility'"
@@ -95,6 +131,14 @@
             data-testid="cat-toggle"
           >
             {{ service.active ? 'Take off the menu' : 'Put back on the menu' }}
+          </ui-button>
+          <ui-button
+            variant="danger"
+            icon="delete"
+            (click)="deleteService(service)"
+            data-testid="service-delete"
+          >
+            Delete if unused
           </ui-button>
         </ui-card>
 
@@ -113,17 +157,64 @@
                 <tbody>
                   @for (v of service.variants; track v.id) {
                     <tr>
-                      <td>{{ v.duration_minutes }} min</td>
-                      <td>{{ v.therapist_count }}</td>
-                      <td>{{ v.required_client_capacity }}</td>
+                      @if (editingVariantId === v.id) {
+                        <td>
+                          <select
+                            [(ngModel)]="variantForm.duration_minutes"
+                            data-testid="variant-edit-minutes"
+                          >
+                            @for (d of ladder; track d) {
+                              <option [ngValue]="d">{{ d }} min</option>
+                            }
+                          </select>
+                        </td>
+                        <td>
+                          <select [(ngModel)]="variantForm.therapist_count">
+                            <option [ngValue]="1">1</option>
+                            <option [ngValue]="2">2</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select [(ngModel)]="variantForm.required_client_capacity">
+                            <option [ngValue]="1">1</option>
+                            <option [ngValue]="2">2</option>
+                            <option [ngValue]="3">3</option>
+                          </select>
+                          <label class="toggle"
+                            ><input type="checkbox" [(ngModel)]="variantForm.active" />
+                            Active</label
+                          >
+                        </td>
+                      } @else {
+                        <td>{{ v.duration_minutes }} min</td>
+                        <td>{{ v.therapist_count }}</td>
+                        <td>{{ v.required_client_capacity }}</td>
+                      }
                       <td class="num">
-                        <ui-button
-                          variant="text"
-                          icon="sell"
-                          (click)="showPrices(v)"
-                          [attr.data-testid]="'prices-' + v.id"
-                          >Prices</ui-button
-                        >
+                        @if (editingVariantId === v.id) {
+                          <ui-button
+                            variant="text"
+                            icon="save"
+                            (click)="saveVariant(service, v)"
+                            [attr.data-testid]="'variant-save-' + v.id"
+                            >Save</ui-button
+                          >
+                        } @else {
+                          <ui-button
+                            variant="text"
+                            icon="edit"
+                            (click)="editVariant(v)"
+                            [attr.data-testid]="'variant-edit-' + v.id"
+                            >Edit</ui-button
+                          >
+                          <ui-button
+                            variant="text"
+                            icon="sell"
+                            (click)="showPrices(v)"
+                            [attr.data-testid]="'prices-' + v.id"
+                            >Prices</ui-button
+                          >
+                        }
                       </td>
                     </tr>
                   }

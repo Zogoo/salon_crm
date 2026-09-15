@@ -7,6 +7,10 @@ class ApplicationController < ActionController::API
 
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
   rescue_from ActiveRecord::RecordInvalid, with: :render_unprocessable
+  rescue_from Sales::OrderLocked do |e|
+    render json: { error: { code: e.message, message: I18n.t("orders.#{e.message}", default: e.message) } },
+           status: :unprocessable_content
+  end
 
   private
 
@@ -34,6 +38,7 @@ class ApplicationController < ActionController::API
       location_id: user.location_id,
       accessible_location_ids: user.accessible_location_ids,
       staff_profile_id: user.staff_profile&.id,
+      otp_enabled: user.otp_enabled_at.present?,
       avatar_url: avatar_url(user)
     }
   end

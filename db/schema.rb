@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_100000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -126,6 +126,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_130000) do
     t.integer "rescheduled_from_id"
     t.integer "room_id", null: false
     t.datetime "service_ends_at", null: false
+    t.boolean "staff_assignment_confirmed", default: true, null: false
     t.datetime "starts_at", null: false
     t.string "status", default: "scheduled", null: false
     t.integer "total_price_cents", default: 0, null: false
@@ -249,6 +250,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_130000) do
     t.index ["preferred_location_id"], name: "index_clients_on_preferred_location_id"
     t.index ["search_name"], name: "index_clients_on_search_name"
     t.index ["user_id"], name: "index_clients_on_user_id"
+  end
+
+  create_table "deposits", force: :cascade do |t|
+    t.integer "amount_cents", null: false
+    t.integer "applied_order_id"
+    t.integer "appointment_id", null: false
+    t.integer "client_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "fee_cents", default: 0, null: false
+    t.integer "location_id", null: false
+    t.string "method", null: false
+    t.string "note"
+    t.datetime "received_at", null: false
+    t.integer "received_by_user_id"
+    t.string "reference"
+    t.integer "refunded_cents", default: 0, null: false
+    t.datetime "resolved_at"
+    t.integer "resolved_by_user_id"
+    t.string "status", default: "held", null: false
+    t.datetime "updated_at", null: false
+    t.index ["applied_order_id"], name: "index_deposits_on_applied_order_id"
+    t.index ["appointment_id"], name: "index_deposits_on_appointment_id", unique: true
+    t.index ["client_id"], name: "index_deposits_on_client_id"
+    t.index ["location_id", "status"], name: "index_deposits_on_location_id_and_status"
+    t.index ["location_id"], name: "index_deposits_on_location_id"
+    t.index ["received_by_user_id"], name: "index_deposits_on_received_by_user_id"
+    t.index ["resolved_by_user_id"], name: "index_deposits_on_resolved_by_user_id"
   end
 
   create_table "earning_adjustments", force: :cascade do |t|
@@ -418,6 +446,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_130000) do
     t.integer "gift_card_expiry_months", default: 12, null: false
     t.integer "late_cancel_fee_percent", default: 20, null: false
     t.integer "low_rating_alert_below", default: 6, null: false
+    t.integer "manager_discount_limit_percent", default: 20, null: false
     t.string "name", null: false
     t.integer "no_show_fee_percent", default: 20, null: false
     t.time "opens_at", null: false
@@ -674,6 +703,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_130000) do
 
   create_table "services", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.string "code"
     t.boolean "complimentary_with_membership", default: false, null: false
     t.datetime "created_at", null: false
     t.text "description"
@@ -682,6 +712,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_130000) do
     t.integer "position", default: 0, null: false
     t.integer "service_category_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_services_on_code", unique: true
     t.index ["kind", "active"], name: "index_services_on_kind_and_active"
     t.index ["service_category_id"], name: "index_services_on_service_category_id"
   end
@@ -857,6 +888,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_130000) do
   add_foreign_key "clients", "clients", column: "merged_into_client_id"
   add_foreign_key "clients", "locations", column: "preferred_location_id"
   add_foreign_key "clients", "users"
+  add_foreign_key "deposits", "appointments"
+  add_foreign_key "deposits", "clients"
+  add_foreign_key "deposits", "locations"
+  add_foreign_key "deposits", "orders", column: "applied_order_id"
+  add_foreign_key "deposits", "users", column: "received_by_user_id"
+  add_foreign_key "deposits", "users", column: "resolved_by_user_id"
   add_foreign_key "earning_adjustments", "earning_statements"
   add_foreign_key "earning_adjustments", "users", column: "created_by_user_id"
   add_foreign_key "earning_lines", "appointments"

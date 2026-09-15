@@ -48,6 +48,13 @@ export const NAV_GROUPS: NavGroup[] = [
         description: 'Every room and therapist, hour by hour.',
         roles: ALL,
       },
+      {
+        path: '/notes',
+        label: 'My notes',
+        icon: 'note_alt',
+        description: 'Private working notes for your own account.',
+        roles: ALL,
+      },
     ],
   },
   {
@@ -99,6 +106,13 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: DESK,
       },
       {
+        path: '/staff-requests',
+        label: 'Staff requests',
+        icon: 'swap_horiz',
+        description: 'Request or review shift and location changes.',
+        roles: ALL,
+      },
+      {
         path: '/admin/staff',
         label: 'Staff',
         icon: 'badge',
@@ -136,6 +150,13 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Location',
         icon: 'store',
         description: 'Opening hours, holidays, rooms, and rooms taken out of service.',
+        roles: OWNER,
+      },
+      {
+        path: '/admin/audit-log',
+        label: 'Audit log',
+        icon: 'history',
+        description: 'Who changed or viewed sensitive business records, and when.',
         roles: OWNER,
       },
     ],

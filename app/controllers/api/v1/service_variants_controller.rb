@@ -13,9 +13,23 @@ module Api
         render_invalid(e.record.errors.full_messages.join(", "))
       end
 
+      # A variant's shape — length, therapists, seats, room — is read again by
+      # assignment, moves and add-ons on bookings already made, and a
+      # membership's included massage points at one. Changing the shape under
+      # them would change what those bookings and memberships mean, so it is
+      # refused while any depend on it; create a new length and retire the old.
+      SHAPE = %w[duration_minutes therapist_count required_client_capacity requires_room_type].freeze
+
       def update
         variant = ServiceVariant.find(params[:id])
-        variant.update!(variant_params)
+        variant.assign_attributes(variant_params)
+        if variant.changed.intersect?(SHAPE) && in_use?(variant)
+          return render_invalid(
+            "This length is used by upcoming bookings or a membership. Add a new length and retire this one instead.",
+            code: "variant_in_use"
+          )
+        end
+        variant.save!
         render json: variant_json(variant.reload)
       rescue ActiveRecord::RecordInvalid => e
         render_invalid(e.record.errors.full_messages.join(", "))
@@ -47,6 +61,14 @@ module Api
       end
 
       private
+
+      def in_use?(variant)
+        AppointmentItem.joins(:appointment)
+                       .where(service_variant_id: variant.id,
+                              appointments: { status: %w[pending_approval scheduled checked_in in_progress] })
+                       .exists? ||
+          Membership.active.exists?(default_service_variant_id: variant.id)
+      end
 
       def variant_params
         params.require(:service_variant).permit(:duration_minutes, :therapist_count,

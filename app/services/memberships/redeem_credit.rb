@@ -29,6 +29,7 @@ module Memberships
           raise Invalid, "membership_wrong_location" unless @approver
         end
 
+        @order.reload.recalculate!
         credit_cents = entitlement_value
         raise Invalid, "nothing_to_credit" unless credit_cents.positive?
 
@@ -58,8 +59,12 @@ module Memberships
     # this location today, plus the enhancements that come free with it.
     # The member pays whatever the chosen service costs above that.
     def entitlement_value
-      # Never credit more than the order is worth.
-      [ included_massage_value + complimentary_value, @order.subtotal_cents ].min
+      # Never credit more than is left on the order after other discounts, nor
+      # below what has already been paid — either would push the total negative
+      # or turn a payment into an overpayment (BR-22).
+      [ included_massage_value + complimentary_value,
+        @order.subtotal_cents - @order.discount_cents,
+        @order.outstanding_cents ].min
     end
 
     def included_massage_value

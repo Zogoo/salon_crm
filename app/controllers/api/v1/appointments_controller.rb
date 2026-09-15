@@ -4,6 +4,8 @@ module Api
       # BR-14: only Owner and Manager create appointments. Staff never.
       before_action :require_booking!, only: %i[create transition]
 
+      CALENDAR_STATUSES = (Appointment::ACTIVE_STATUSES + %w[no_show]).freeze
+
       def index
         location = scoped_location!(params.require(:location_id))
         date = params[:date].present? ? Date.parse(params[:date]) : location.today
@@ -21,8 +23,12 @@ module Api
       def calendar
         location = scoped_location!(params.require(:location_id))
         date = params[:date].present? ? Date.parse(params[:date]) : location.today
+        # Cancelled and late-cancelled visits leave the board (feedback 1.1). A
+        # no-show stays, drawn faded, so the desk can see who did not come — it
+        # holds no room or therapist, so it never blocks a new booking.
         appts = visible_to_current_user(
-          Appointment.active.on_date(location, date).includes(:client, :room, staff_profiles: [])
+          Appointment.where(status: CALENDAR_STATUSES).on_date(location, date)
+                     .includes(:client, :room, staff_profiles: [])
         ).order(:starts_at)
 
         render json: {
@@ -88,6 +94,57 @@ module Api
         render json: { error: e.message }, status: :unprocessable_content
       end
 
+      def assign_staff
+        require_booking!
+        appt = find_appointment
+        Scheduling::AssignAppointmentStaff.call(
+          appointment: appt, staff_profile_ids: params.require(:staff_profile_ids), actor: current_user
+        )
+        render json: appointment_json(appt.reload, detail: true)
+      rescue Scheduling::AssignAppointmentStaff::Invalid => e
+        render_invalid(e.message)
+      rescue Scheduling::AssignAppointmentStaff::Conflict => e
+        render json: { error: { code: e.message } }, status: :conflict
+      end
+
+      def repeat
+        require_booking!
+        appt = find_appointment
+        repeats = Scheduling::RepeatAppointment.call(
+          appointment: appt, interval_weeks: params.require(:interval_weeks),
+          count: params.require(:count), actor: current_user
+        )
+        render json: { appointments: repeats.map { |repeat| appointment_json(repeat, detail: true) } },
+               status: :created
+      rescue Scheduling::RepeatAppointment::Unavailable => e
+        render json: { error: { code: e.message, message: repeat_message(e.dates),
+                                details: { dates: e.dates } } }, status: :conflict
+      rescue Scheduling::RepeatAppointment::Invalid => e
+        render_invalid(e.message)
+      rescue Scheduling::BookAppointment::Conflict => e
+        render json: { error: { code: e.message, message: conflict_message(e.message) } },
+               status: :conflict
+      rescue Scheduling::BookAppointment::Invalid => e
+        render_invalid(e.message)
+      end
+
+      def replace_service
+        require_booking!
+        appt = find_appointment
+        fresh = Scheduling::RescheduleAppointment.call(
+          appointment: appt, start_at: appt.starts_at, actor: current_user,
+          staff_profile_ids: appt.staff_assignment_confirmed? ? appt.staff_profiles.map(&:id) : nil,
+          room_id: appt.room_id,
+          variant_ids: params.require(:service_variant_ids)
+        )
+        render json: appointment_json(fresh, detail: true), status: :created
+      rescue Scheduling::BookAppointment::Conflict => e
+        render json: { error: { code: e.message, message: conflict_message(e.message) } },
+               status: :conflict
+      rescue Scheduling::BookAppointment::Invalid, ArgumentError => e
+        render_invalid(e.message)
+      end
+
       # Doc 05: notes and internal fields only. Times move through reschedule,
       # which releases the old slot properly; status moves through transition.
       def update
@@ -109,6 +166,44 @@ module Api
         render json: appointment_json(appt.reload, detail: true)
       rescue Scheduling::TransitionStatus::Invalid => e
         render_invalid(e.message)
+      end
+
+      # Feedback 3.3: one Checkout button. Moves the visit to completed in one
+      # transaction and opens its order.
+      def complete_for_checkout
+        require_booking!
+        appt = find_appointment
+        order = Scheduling::CompleteForCheckout.call(appointment: appt, actor: current_user)
+        render json: { appointment: appointment_json(appt.reload, detail: true), order_id: order.id }
+      rescue Scheduling::TransitionStatus::Invalid => e
+        render_invalid(e.message, code: e.message)
+      end
+
+      # Feedback 3.2: a deposit taken before the visit, held until checkout.
+      def deposit
+        require_booking!
+        appt = find_appointment
+        Sales::RecordDeposit.call(
+          appointment: appt, amount_cents: params.require(:amount_cents),
+          method: params.require(:method), actor: current_user,
+          reference: params[:reference], note: params[:note]
+        )
+        render json: appointment_json(appt.reload, detail: true), status: :created
+      rescue Sales::RecordDeposit::Invalid => e
+        render_invalid(e.message, code: e.message)
+      end
+
+      # Hands a held deposit back while the visit still stands — the client
+      # asked for it back, or it was keyed against the wrong booking.
+      def refund_deposit
+        require_booking!
+        appt = find_appointment
+        deposit = Deposit.held.find_by(appointment_id: appt.id)
+        return render_invalid("no_held_deposit", code: "no_held_deposit") unless deposit
+
+        Sales::ReleaseDeposit.call(appointment: appt, actor: current_user,
+                                   reason: params[:reason].presence || "refunded at the desk")
+        render json: appointment_json(appt.reload, detail: true)
       end
 
       def add_items
@@ -159,15 +254,25 @@ module Api
 
       # Staff see only appointments they are on — including as the second
       # therapist on a couples booking, which is why this joins the join table.
+      #
+      # A therapist only provisionally holding a no-preference booking does not
+      # see it: they may never be the one who does it.
       def visible_to_current_user(scope)
         return scope unless current_user.staff?
         scope.joins(:appointment_staff)
              .where(appointment_staff: { staff_profile_id: current_user.staff_profile&.id })
+             .where(staff_assignment_confirmed: true)
       end
 
       def visible?(appt)
         return true unless current_user.staff?
-        appt.appointment_staff.exists?(staff_profile_id: current_user.staff_profile&.id)
+        appt.staff_assignment_confirmed? &&
+          appt.appointment_staff.exists?(staff_profile_id: current_user.staff_profile&.id)
+      end
+
+      def repeat_message(dates)
+        list = dates.map { |d| "#{d[:starts_at].to_s[0, 10]} (#{conflict_message(d[:code])})" }
+        "No repeats were booked. These dates are unavailable: #{list.join('; ')}."
       end
 
       def conflict_message(code)
@@ -176,7 +281,10 @@ module Api
           "insufficient_therapists" => "This service needs two therapists and only one is free.",
           "no_suitable_room" => "No room of the required type or capacity is free.",
           "therapist_not_on_shift" => "That therapist is not on shift for the whole appointment.",
-          "therapist_on_break" => "That therapist is on a break at that time."
+          "therapist_on_break" => "That therapist is on a break at that time.",
+          "requested_therapist_unavailable" => "That therapist is not free at that time.",
+          "outside_business_hours" => "That time is outside opening hours.",
+          "location_closed" => "The location is closed that day."
         }.fetch(code, code)
       end
 
@@ -208,7 +316,10 @@ module Api
           duration_minutes: appt.duration_minutes,
           room: { id: appt.room_id, name: appt.room.name },
           client: { id: appt.client_id, full_name: appt.client.full_name, phone: appt.client.phone },
-          therapists: appt.staff_profiles.map { |sp| { id: sp.id, display_name: sp.display_name } },
+          therapists: visible_therapists(appt),
+          assignment_pending: !appt.staff_assignment_confirmed?,
+          therapists_required: appt.appointment_items.includes(:service_variant)
+                                     .map { |item| item.service_variant.therapist_count }.max || 1,
           total_price_cents: appt.total_price_cents,
           client_note: appt.client_note
         }
@@ -216,8 +327,14 @@ module Api
           json[:location] = { id: appt.location_id, name: appt.location.name }
           json[:appointment_note] = appt.appointment_note
           json[:fee_charged_cents] = appt.fee_charged_cents
+          json[:deposit] = appt.deposit&.then { |d|
+            { id: d.id, amount_cents: d.amount_cents, method: d.method, status: d.status,
+              reference: d.reference, fee_cents: d.fee_cents, refunded_cents: d.refunded_cents,
+              received_at: local_iso(d.received_at, loc) }
+          }
           json[:items] = appt.appointment_items.order(:position).map { |i|
-            { id: i.id, name: i.service_variant.name, kind: i.kind,
+            { id: i.id, service_variant_id: i.service_variant_id,
+              name: i.service_variant.name, kind: i.kind,
               duration_minutes: i.duration_minutes, price_cents: i.price_cents }
           }
           json[:preference] = appt.client.client_preference&.then { |p|
@@ -226,6 +343,12 @@ module Api
           }
         end
         json
+      end
+
+      def visible_therapists(appt)
+        return [] unless appt.staff_assignment_confirmed? || current_user.staff?
+
+        appt.staff_profiles.map { |sp| { id: sp.id, display_name: sp.display_name } }
       end
     end
   end

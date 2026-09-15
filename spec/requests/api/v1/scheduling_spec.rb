@@ -44,7 +44,9 @@ RSpec.describe "Scheduling API", type: :request do
       post "/api/v1/appointments", params: payload, headers: auth(manager), as: :json
       expect(response).to have_http_status(:created)
       expect(json["reference"]).to be_present
-      expect(json["therapists"].size).to eq(1)
+      expect(json["assignment_pending"]).to be(true)
+      expect(json["therapists"]).to be_empty
+      expect(Appointment.last.staff_profiles.size).to eq(1)
     end
 
     # BR-14 — the rule the FRS states twice.
@@ -153,8 +155,25 @@ RSpec.describe "Scheduling API", type: :request do
     let!(:appt) do
       Scheduling::BookAppointment.call(
         location: world[:location], client: world[:client],
-        variant_ids: [ world[:variant].id ], start_at: world[:at]
+        variant_ids: [ world[:variant].id ], start_at: world[:at],
+        staff_profile_ids: [ world[:staff].first.id ]
       )
+    end
+
+    it "refuses to complete a no-preference booking before a therapist is assigned" do
+      provisional = Scheduling::BookAppointment.call(
+        location: world[:location], client: world[:client],
+        variant_ids: [ world[:variant].id ], start_at: world[:at] + 3.hours
+      )
+      %w[checked_in in_progress].each do |to|
+        post "/api/v1/appointments/#{provisional.id}/transition", params: { to: }, headers: auth(manager), as: :json
+      end
+      post "/api/v1/appointments/#{provisional.id}/transition",
+           params: { to: "completed" }, headers: auth(manager), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(provisional.reload.status).to eq("in_progress")
+      expect(EarningLine.where(appointment: provisional)).to be_empty
     end
 
     it "runs through to completed and frees nothing early" do

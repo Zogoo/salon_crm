@@ -25,6 +25,8 @@ module GiftCards
       raise Invalid, "unknown payment method" unless Payment::METHODS.include?(@payment_method)
 
       ImmediateTransaction.call do
+        raise Invalid, "code_taken" if @code && GiftCard.exists?(code: @code.to_s.strip.upcase)
+
         card = GiftCard.create!(
           code: @code || GiftCard.generate_code,
           origin: "physical",                       # digital purchase is Release 2

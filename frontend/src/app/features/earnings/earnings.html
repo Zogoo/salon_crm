@@ -6,6 +6,43 @@
     <ui-banner tone="error" data-testid="earn-error">{{ error() }}</ui-banner>
   }
 
+  @if (managerPayouts(); as managers) {
+    <ui-card
+      [heading]="'Manager pay · ' + managers.month"
+      sub="Flat monthly pay stays separate from therapist session earnings."
+      data-testid="manager-payouts"
+    >
+      <ui-table label="Manager payouts"
+        ><table>
+          <thead>
+            <tr>
+              <th>Manager</th>
+              <th>Location</th>
+              <th>Status</th>
+              <th class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (payout of managers.payouts; track payout.id) {
+              <tr>
+                <td>{{ payout.display_name }}</td>
+                <td>{{ payout.location }}</td>
+                <td>{{ humanStatus(payout.status) }}</td>
+                <td class="num">${{ payout.amount_cents / 100 | number: '1.2-2' }}</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3">Total</td>
+              <td class="num">${{ managers.total_cents / 100 | number: '1.2-2' }}</td>
+            </tr>
+          </tfoot>
+        </table></ui-table
+      >
+    </ui-card>
+  }
+
   <div class="split split--even">
     <div class="detail">
       <ui-card heading="One therapist" sub="What they earned over a date range.">
@@ -73,27 +110,31 @@
           </div>
 
           <div>
-            <h3 class="sub-head">Add a session or tip by hand</h3>
+            <h3 class="sub-head">Add earnings directly</h3>
             <p class="sub-hint">
-              For anything the system could not record itself. The reason is kept.
+              Enter the amount directly for off-system work or a correction. The reason is kept.
             </p>
             <div class="form-grid">
               <ui-field label="Date">
                 <input type="date" [(ngModel)]="manual.service_date" data-testid="manual-date" />
               </ui-field>
-              <ui-field label="Length">
+              <ui-field
+                label="Session length"
+                hint="Leave as amount only unless a session was worked."
+              >
                 <select [(ngModel)]="manual.duration_minutes" data-testid="manual-duration">
+                  <option [ngValue]="null">Amount only (not a session)</option>
                   @for (d of ladder; track d) {
                     <option [ngValue]="d">{{ d }} min</option>
                   }
                 </select>
               </ui-field>
-              <ui-field label="Quantity">
+              <ui-field label="Earnings amount">
                 <input
                   type="number"
-                  min="1"
-                  [(ngModel)]="manual.quantity"
-                  data-testid="manual-qty"
+                  step="0.01"
+                  [(ngModel)]="manual.dollars"
+                  data-testid="manual-amount"
                 />
               </ui-field>
               <ui-field label="Reason">
@@ -104,6 +145,69 @@
               Add line
             </ui-button>
           </div>
+
+          @if (lines().length) {
+            <div>
+              <h3 class="sub-head">Earning lines</h3>
+              <p class="sub-hint">
+                Manual lines can be corrected until their pay period is locked. Appointment and tip
+                lines remain derived from their source records.
+              </p>
+              <ui-table label="Detailed earning lines">
+                <table data-testid="earning-lines">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Source</th>
+                      <th>Length</th>
+                      <th class="num">Amount</th>
+                      <th>Reason</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (line of lines(); track line.id) {
+                      <tr>
+                        <td>{{ line.service_date }}</td>
+                        <td>{{ humanStatus(line.source) }}</td>
+                        <td>{{ line.duration_minutes ? line.duration_minutes + ' min' : '—' }}</td>
+                        <td class="num">
+                          @if (line.source === 'manual') {
+                            <input
+                              type="number"
+                              step="0.01"
+                              [(ngModel)]="lineAmounts[line.id]"
+                              [attr.data-testid]="'line-amount-' + line.id"
+                            />
+                          } @else {
+                            ${{ line.amount_cents / 100 | number: '1.2-2' }}
+                          }
+                        </td>
+                        <td>
+                          @if (line.source === 'manual') {
+                            <input [(ngModel)]="lineNotes[line.id]" />
+                          } @else {
+                            {{ line.note || '—' }}
+                          }
+                        </td>
+                        <td>
+                          @if (line.source === 'manual') {
+                            <ui-button
+                              variant="text"
+                              icon="save"
+                              (click)="saveLine(line)"
+                              [attr.data-testid]="'line-save-' + line.id"
+                              >Save</ui-button
+                            >
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </ui-table>
+            </div>
+          }
         }
       </ui-card>
     </div>
@@ -178,6 +282,7 @@
                     <th class="num">Service</th>
                     <th class="num">Tips</th>
                     <th class="num">Gross</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -188,6 +293,15 @@
                       <td class="num">${{ s.service_earnings_cents / 100 | number: '1.2-2' }}</td>
                       <td class="num">${{ s.tips_cents / 100 | number: '1.2-2' }}</td>
                       <td class="num">${{ s.gross_amount_cents / 100 | number: '1.2-2' }}</td>
+                      <td>
+                        <ui-button
+                          variant="text"
+                          icon="open_in_new"
+                          (click)="openStatement(s)"
+                          [attr.data-testid]="'statement-' + s.id"
+                          >Details</ui-button
+                        >
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -199,6 +313,65 @@
               title="No statements yet"
               hint="Rebuild to generate them from the sessions in this period."
             />
+          }
+        </ui-card>
+      }
+
+      @if (selectedStatement(); as statement) {
+        <ui-card
+          [heading]="statement.display_name + ' statement'"
+          [sub]="(statement.period?.from ?? '') + ' → ' + (statement.period?.to ?? '')"
+          data-testid="statement-detail"
+        >
+          <div class="row">
+            <ui-button
+              variant="outlined"
+              icon="picture_as_pdf"
+              (click)="statementPdf(statement)"
+              data-testid="statement-pdf"
+              >Open PDF</ui-button
+            >
+          </div>
+          @if (statement.adjustments?.length) {
+            <ui-table label="Adjustments"
+              ><table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Reason</th>
+                    <th class="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (entry of statement.adjustments; track entry.id) {
+                    <tr>
+                      <td>{{ entry.service_date }}</td>
+                      <td>{{ entry.reason }}</td>
+                      <td class="num">${{ entry.amount_cents / 100 | number: '1.2-2' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table></ui-table
+            >
+          }
+          @if (!statement.locked) {
+            <h3 class="sub-head">Add adjustment</h3>
+            <div class="form-grid">
+              <ui-field label="Date"
+                ><input type="date" [(ngModel)]="adjustment.service_date"
+              /></ui-field>
+              <ui-field label="Amount"
+                ><input type="number" step="0.01" [(ngModel)]="adjustment.dollars"
+              /></ui-field>
+              <ui-field label="Reason"><input [(ngModel)]="adjustment.reason" /></ui-field>
+            </div>
+            <ui-button
+              variant="tonal"
+              icon="add"
+              (click)="addAdjustment(statement)"
+              data-testid="statement-adjust"
+              >Add adjustment</ui-button
+            >
           }
         </ui-card>
       }

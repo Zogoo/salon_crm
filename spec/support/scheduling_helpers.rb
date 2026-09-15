@@ -36,13 +36,19 @@ module SchedulingHelpers
     { location:, service:, variant:, staff:, client:, date:, at: }
   end
 
-  def book(world, **overrides)
-    Scheduling::BookAppointment.call(
+  # A booking with no named therapist holds a *provisional* one until the desk
+  # confirms it (feedback 2.2), and a provisional booking cannot be completed.
+  # Most specs are about what happens after assignment, so the helper confirms
+  # by default; pass `provisional: true` to test the unassigned state itself.
+  def book(world, provisional: false, **overrides)
+    appt = Scheduling::BookAppointment.call(
       location: world[:location], client: world[:client],
       variant_ids: overrides.delete(:variant_ids) || [ world[:variant].id ],
       start_at: overrides.delete(:start_at) || world[:at],
       **overrides
     )
+    appt.update!(staff_assignment_confirmed: true) unless provisional || appt.staff_assignment_confirmed?
+    appt
   end
 end
 

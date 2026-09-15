@@ -64,6 +64,16 @@ module Api
         render json: { error: { code: e.message } }, status: :unprocessable_content
       end
 
+      def update_line
+        line = EarningLine.find(params[:id])
+        Earnings::UpdateManualLine.call(
+          line:, amount_cents: params.require(:amount_cents), note: params[:note], actor: current_user
+        )
+        render json: line_json(line.reload)
+      rescue Earnings::UpdateManualLine::Invalid => e
+        render json: { error: { code: e.message } }, status: :unprocessable_content
+      end
+
       def create_adjustment
         st = EarningStatement.find(params[:id])
         return render json: { error: { code: "period_locked" } }, status: :unprocessable_content if st.earning_period.locked?

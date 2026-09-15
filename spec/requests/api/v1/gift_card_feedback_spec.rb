@@ -27,7 +27,7 @@ RSpec.describe "Gift-card issuance feedback", type: :request do
     counts = [ GiftCard.count, Order.count, Payment.count, GiftCardTransaction.count ]
     post "/api/v1/gift_cards", params: payload, headers: auth_headers(owner), as: :json
     expect(response).to have_http_status(:unprocessable_content)
-    expect(JSON.parse(response.body).fetch("error").join).to include("Code has already been taken")
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("code_taken")
     expect([ GiftCard.count, Order.count, Payment.count, GiftCardTransaction.count ]).to eq(counts)
   end
 

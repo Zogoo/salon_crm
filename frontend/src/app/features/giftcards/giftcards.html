@@ -190,6 +190,43 @@
           </ui-table>
         </div>
       }
+
+      @if (isOwner()) {
+        <div data-testid="gift-card-owner-tools">
+          <h3 class="sub-head">Owner correction</h3>
+          <p class="sub-hint">
+            Use a negative amount to reduce the balance. Every correction remains in the ledger and
+            audit log.
+          </p>
+          <div class="form-grid">
+            <ui-field label="Adjustment">
+              <input
+                type="number"
+                step="0.01"
+                [(ngModel)]="adjustment.dollars"
+                data-testid="gc-adjust-amount"
+              />
+            </ui-field>
+            <ui-field label="Reason">
+              <input [(ngModel)]="adjustment.reason" data-testid="gc-adjust-reason" />
+            </ui-field>
+          </div>
+          <div class="row">
+            <ui-button variant="tonal" icon="tune" (click)="adjust(card)" data-testid="gc-adjust"
+              >Adjust balance</ui-button
+            >
+            @if (card.status !== 'void') {
+              <ui-button
+                variant="danger"
+                icon="block"
+                (click)="voidCard(card)"
+                data-testid="gc-void"
+                >Void card</ui-button
+              >
+            }
+          </div>
+        </div>
+      }
     </ui-card>
   }
 </ui-page>

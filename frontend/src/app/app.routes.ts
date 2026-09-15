@@ -10,9 +10,27 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/sign-in').then((m) => m.SignIn),
   },
   {
+    path: 'reset-password/:token',
+    loadComponent: () => import('./features/auth/reset-password').then((m) => m.ResetPasswordPage),
+  },
+  {
+    path: 'rate/:token',
+    loadComponent: () => import('./features/rating/rating').then((m) => m.PublicRatingPage),
+  },
+  {
     path: 'dashboard',
     canActivate: [authGuard],
     loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.DashboardPage),
+  },
+  {
+    path: 'profile',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/profile').then((m) => m.ProfilePage),
+  },
+  {
+    path: 'notes',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/notes/notes').then((m) => m.Notes),
   },
   {
     path: 'schedule',
@@ -33,6 +51,12 @@ export const routes: Routes = [
     path: 'approvals',
     canActivate: [authGuard, bookingRoleGuard],
     loadComponent: () => import('./features/approvals/approvals').then((m) => m.ApprovalsPage),
+  },
+  {
+    path: 'staff-requests',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/staff-requests/staff-requests').then((m) => m.StaffRequestsPage),
   },
   {
     path: 'checkout/:appointmentId',
@@ -59,6 +83,11 @@ export const routes: Routes = [
     path: 'reports',
     canActivate: [authGuard, ownerGuard],
     loadComponent: () => import('./features/reports/reports').then((m) => m.ReportsPage),
+  },
+  {
+    path: 'admin/audit-log',
+    canActivate: [authGuard, ownerGuard],
+    loadComponent: () => import('./features/admin/audit-log/audit-log').then((m) => m.AuditLogPage),
   },
   {
     // Doc 01 §3.1 / doc 05 §6 — onboarding, qualifications and pay rates.

@@ -22,6 +22,8 @@ class Location < ApplicationRecord
   validates :code, uniqueness: true
   validates :buffer_minutes, :slot_granularity_minutes,
             numericality: { greater_than: 0 }
+  validates :manager_discount_limit_percent, :no_show_fee_percent, :late_cancel_fee_percent,
+            numericality: { only_integer: true, in: 0..100 }
 
   scope :active, -> { where(status: "active") }
 

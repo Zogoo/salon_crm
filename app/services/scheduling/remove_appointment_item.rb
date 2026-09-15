@@ -29,8 +29,12 @@ module Scheduling
           @appt.appointment_staff.update_all(ends_at: @appt.ends_at) # rubocop:disable Rails/SkipsModelValidations
         end
         @appt.update!(total_price_cents: @appt.total_price_cents - price)
+        deposit = Deposit.held.find_by(appointment_id: @appt.id)
+        raise Invalid, "price_below_deposit" if deposit && @appt.total_price_cents < deposit.amount_cents
+
         AuditLog.record!(auditable: @appt, action: "appointment.item_removed", actor: @actor,
                          changes: { item_id: @item_id })
+        Sales::SyncOrder.call(appointment: @appt.reload)
         @appt.reload
       end
     end

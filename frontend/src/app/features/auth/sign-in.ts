@@ -48,6 +48,9 @@ import { UiBanner, UiButton, UiField } from '../../ui';
         <ui-button type="submit" [full]="true" [disabled]="form.invalid || loading()">
           {{ loading() ? 'Signing in…' : 'Sign in' }}
         </ui-button>
+        <ui-button type="button" variant="text" [full]="true" (click)="forgotPassword()">
+          Forgot password
+        </ui-button>
       </form>
     </main>
   `,
@@ -126,6 +129,20 @@ export class SignIn {
           this.error.set('That email and password did not match an account.');
         }
       },
+    });
+  }
+
+  protected forgotPassword(): void {
+    const email = this.form.controls.email.value;
+    if (!email) {
+      this.error.set('Enter your email address first.');
+      return;
+    }
+    this.auth.requestPasswordReset(email).subscribe({
+      next: () => {
+        this.error.set('If that account exists, a password reset link has been sent.');
+      },
+      error: () => this.error.set('Could not request a password reset.'),
     });
   }
 }

@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# End-to-end QA gate. Builds the production Docker image, boots it exactly as
+# Fly would (production env, fresh SQLite database, seeds via db:prepare), and
+# runs the Playwright suite in e2e/ against it.
+#
+# The same script runs locally and in CI, so a green run here means the same
+# thing as a green run on GitHub. Extra arguments go to `playwright test`:
+#
+#   bin/e2e                      # build + run everything
+#   E2E_SKIP_BUILD=1 bin/e2e -g checkout
+#
+# Only throwaway secrets are generated here; nothing from production is used.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+IMAGE="${E2E_IMAGE:-massagelab:e2e}"
+NET="massagelab-e2e"
+APP="massagelab-e2e-app"
+PW_VERSION="$(sed -n 's/.*"@playwright\/test": "\([0-9.]*\)".*/\1/p' e2e/package.json)"
+
+cleanup() {
+  docker logs "$APP" >e2e/app.log 2>&1 || true
+  docker rm -f "$APP" >/dev/null 2>&1 || true
+  docker network rm "$NET" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+cleanup
+
+if [ "${E2E_SKIP_BUILD:-}" != "1" ]; then
+  docker build -t "$IMAGE" .
+fi
+
+secret() { openssl rand -hex "$1"; }
+
+docker network create "$NET" >/dev/null
+docker run -d --name "$APP" --network "$NET" \
+  -e RAILS_ENV=production \
+  -e RAILS_FORCE_SSL=false \
+  -e RAILS_ASSUME_SSL=false \
+  -e RAILS_LOG_TO_STDOUT=true \
+  -e DATABASE_PATH=/app/tmp/e2e.sqlite3 \
+  -e SECRET_KEY_BASE="$(secret 64)" \
+  -e JWT_SECRET="$(secret 32)" \
+  -e AR_ENCRYPTION_PRIMARY_KEY="$(secret 32)" \
+  -e AR_ENCRYPTION_DETERMINISTIC_KEY="$(secret 32)" \
+  -e AR_ENCRYPTION_KEY_DERIVATION_SALT="$(secret 32)" \
+  -e APP_HOST=localhost \
+  "$IMAGE" >/dev/null
+
+echo "Waiting for the app to boot and seed..."
+for _ in $(seq 1 90); do
+  if docker exec "$APP" curl -fsS http://localhost:3000/up >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  if [ "$(docker inspect -f '{{.State.Running}}' "$APP")" != "true" ]; then
+    echo "The app container exited during boot:" >&2
+    docker logs "$APP" >&2
+    exit 1
+  fi
+  sleep 2
+done
+if [ "${ready:-}" != "1" ]; then
+  echo "The app did not become healthy in time:" >&2
+  docker logs "$APP" | tail -50 >&2
+  exit 1
+fi
+
+docker run --rm --network "$NET" --ipc=host \
+  -e CI="${CI:-}" \
+  -e E2E_BASE_URL="http://$APP:3000" \
+  -v "$PWD/e2e:/e2e" -v /e2e/node_modules \
+  -w /e2e \
+  "mcr.microsoft.com/playwright:v${PW_VERSION}-noble" \
+  bash -c 'npm ci --no-audit --no-fund >/dev/null && npx playwright test "$@"' _ "$@"

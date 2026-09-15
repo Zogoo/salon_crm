@@ -8,7 +8,14 @@ import { DestroyRef } from '@angular/core';
 import { AuthService } from '../../core/services/auth.service';
 import { FormsModule } from '@angular/forms';
 
-import { ClientRecord, ClientGiftCard, ClientRating } from '../../core/models';
+import {
+  ClientGiftCard,
+  ClientHistorySummary,
+  ClientOrderHistory,
+  ClientRating,
+  ClientRecord,
+  PreferenceVersion,
+} from '../../core/models';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import {
   Fact,
@@ -49,12 +56,15 @@ import {
 })
 export class ClientsPage implements OnInit {
   private readonly api = inject(MassagelabService);
-  private readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
   private readonly i18n = inject(TranslateService);
   private readonly destroyRef = inject(DestroyRef);
   private detailRequest?: Subscription;
   protected readonly giftCards = signal<ClientGiftCard[]>([]);
   protected readonly ratings = signal<Record<number, ClientRating>>({});
+  protected readonly orders = signal<ClientOrderHistory[]>([]);
+  protected readonly preferenceVersions = signal<PreferenceVersion[]>([]);
+  protected readonly historySummary = signal<ClientHistorySummary | null>(null);
   protected readonly error = signal<string | null>(null);
 
   protected canReadHistory(): boolean {
@@ -64,6 +74,8 @@ export class ClientsPage implements OnInit {
   protected readonly clients = signal<ClientRecord[]>([]);
   protected readonly selected = signal<ClientRecord | null>(null);
   protected readonly saved = signal(false);
+  protected edit = { first_name: '', last_name: '', phone: '', email: '', date_of_birth: '' };
+  protected mergeTargetId: number | null = null;
 
   protected tone(status: string) {
     return statusTone(status);
@@ -105,17 +117,35 @@ export class ClientsPage implements OnInit {
     this.selected.set(null);
     this.giftCards.set([]);
     this.ratings.set({});
+    this.orders.set([]);
+    this.preferenceVersions.set([]);
+    this.historySummary.set(null);
     this.detailRequest = forkJoin({
       client: this.api.client(client.id),
       ratings: this.canReadHistory() ? this.api.clientRatings(client.id) : of({ ratings: [] }),
       cards: this.canReadHistory() ? this.api.clientGiftCards(client.id) : of({ gift_cards: [] }),
+      orders: this.canReadHistory() ? this.api.clientOrders(client.id) : of({ orders: [] }),
+      versions: this.canReadHistory()
+        ? this.api.clientPreferenceVersions(client.id)
+        : of({ versions: [] }),
+      summary: this.canReadHistory() ? this.api.clientHistorySummary(client.id) : of(null),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ client: full, ratings, cards }) => {
+        next: ({ client: full, ratings, cards, orders, versions, summary }) => {
           this.selected.set(full);
           this.ratings.set(Object.fromEntries(ratings.ratings.map((r) => [r.appointment_id, r])));
           this.giftCards.set(cards.gift_cards);
+          this.orders.set(orders.orders);
+          this.preferenceVersions.set(versions.versions);
+          this.historySummary.set(summary);
+          this.edit = {
+            first_name: full.first_name,
+            last_name: full.last_name,
+            phone: full.phone,
+            email: full.email ?? '',
+            date_of_birth: full.date_of_birth ?? '',
+          };
           this.pref = {
             attention_areas: full.preference?.attention_areas ?? '',
             avoid_areas: full.preference?.avoid_areas ?? '',
@@ -125,6 +155,31 @@ export class ClientsPage implements OnInit {
         },
         error: () => this.error.set(this.i18n.instant('client_history.load_error')),
       });
+  }
+
+  protected saveClient(): void {
+    const client = this.selected();
+    if (!client) return;
+    this.api.updateClient(client.id, this.edit).subscribe({
+      next: (updated) => {
+        this.selected.set({ ...client, ...updated });
+        this.saved.set(true);
+        this.reload();
+      },
+      error: () => this.error.set('Could not save the client'),
+    });
+  }
+
+  protected mergeClient(client: ClientRecord): void {
+    if (!this.mergeTargetId || this.mergeTargetId === client.id) return;
+    this.api.mergeClient(client.id, this.mergeTargetId).subscribe({
+      next: (target) => {
+        this.mergeTargetId = null;
+        this.reload();
+        this.open(target);
+      },
+      error: (err) => this.error.set(err?.error?.error?.code ?? 'Could not merge the clients'),
+    });
   }
 
   protected savePreferences(): void {

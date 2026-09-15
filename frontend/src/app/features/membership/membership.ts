@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -20,6 +20,7 @@ import {
   statusTone,
 } from '../../ui';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
+import { AuthService } from '../../core/services/auth.service';
 
 /**
  * FRS §23 — $80/month, one 60-minute massage, rollover capped at 3, 15 days'
@@ -50,6 +51,7 @@ import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 })
 export class MembershipPage implements OnInit {
   private readonly api = inject(MassagelabService);
+  private readonly auth = inject(AuthService);
   protected readonly ctx = inject(LocationContextService);
 
   protected readonly memberships = signal<MembershipRecord[]>([]);
@@ -57,6 +59,7 @@ export class MembershipPage implements OnInit {
   protected readonly clients = signal<ClientRecord[]>([]);
   protected readonly included = signal<{ id: number; label: string }[]>([]);
   protected readonly error = signal<string | null>(null);
+  protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
 
   protected newClientId: number | null = null;
   protected newVariantId: number | null = null;
@@ -77,6 +80,8 @@ export class MembershipPage implements OnInit {
   }
 
   protected payMethod: PaymentMethod = 'card';
+  protected editVariantId: number | null = null;
+  protected creditAdjustment = { amount: 0, reason: '' };
 
   ngOnInit(): void {
     void this.ctx.load().then(() => {
@@ -110,7 +115,10 @@ export class MembershipPage implements OnInit {
   }
 
   protected open(m: MembershipRecord): void {
-    this.api.membership(m.id).subscribe((full) => this.selected.set(full));
+    this.api.membership(m.id).subscribe((full) => {
+      this.selected.set(full);
+      this.editVariantId = full.default_service_variant_id ?? null;
+    });
   }
 
   protected enrol(): void {
@@ -151,6 +159,32 @@ export class MembershipPage implements OnInit {
       },
       error: (err) => this.error.set(this.message(err)),
     });
+  }
+
+  protected updateIncluded(m: MembershipRecord): void {
+    if (!this.editVariantId) return;
+    this.api.updateMembership(m.id, this.editVariantId).subscribe({
+      next: (updated) => this.selected.set(updated),
+      error: (err) => this.error.set(this.message(err)),
+    });
+  }
+
+  protected adjustCredits(m: MembershipRecord): void {
+    if (!this.creditAdjustment.amount || !this.creditAdjustment.reason.trim()) return;
+    this.api
+      .adjustMembershipCredits(
+        m.id,
+        this.creditAdjustment.amount,
+        this.creditAdjustment.reason.trim(),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.selected.set(updated);
+          this.creditAdjustment = { amount: 0, reason: '' };
+          this.reload();
+        },
+        error: (err) => this.error.set(this.message(err)),
+      });
   }
 
   private message(err: unknown): string {

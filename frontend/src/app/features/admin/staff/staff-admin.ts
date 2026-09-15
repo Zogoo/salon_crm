@@ -2,7 +2,13 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { Qualification, Service, SessionRate, StaffMember } from '../../../core/models';
+import {
+  MonthlyRate,
+  Qualification,
+  Service,
+  SessionRate,
+  StaffMember,
+} from '../../../core/models';
 import {
   UiBanner,
   UiButton,
@@ -54,6 +60,7 @@ export class StaffAdminPage implements OnInit {
   protected readonly selected = signal<StaffMember | null>(null);
   protected readonly quals = signal<Qualification[]>([]);
   protected readonly rates = signal<SessionRate[]>([]);
+  protected readonly monthlyRates = signal<MonthlyRate[]>([]);
   protected readonly services = signal<Service[]>([]);
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
@@ -77,6 +84,14 @@ export class StaffAdminPage implements OnInit {
   protected rateForm: Record<number, number> = {};
   protected rateEffectiveFrom = '';
   protected rateNote = '';
+  protected staffForm = {
+    display_name: '',
+    email: '',
+    employee_code: '',
+    hire_date: '',
+    can_edit_service_menu: false,
+  };
+  protected monthlyForm = { dollars: 0, effective_from: '', note: '' };
 
   protected creating = false;
   protected newStaff = {
@@ -94,6 +109,7 @@ export class StaffAdminPage implements OnInit {
   ngOnInit(): void {
     void this.ctx.load().then(() => {
       this.rateEffectiveFrom = todayIn(this.ctx.current()?.timezone);
+      this.monthlyForm.effective_from = this.rateEffectiveFrom;
       // Seed before anyone is selected: onboarding writes this same ladder,
       // and an unseeded form would silently create a therapist on zero pay.
       this.seedRateForm([]);
@@ -130,6 +146,14 @@ export class StaffAdminPage implements OnInit {
       next: (full) => {
         this.selected.set(full);
         this.seedRateForm(full.session_rates ?? []);
+        this.staffForm = {
+          display_name: full.display_name,
+          email: full.email ?? '',
+          employee_code: full.employee_code,
+          hire_date: full.hire_date ?? '',
+          can_edit_service_menu: full.can_edit_service_menu ?? false,
+        };
+        if (full.engagement_type === 'manager_flat') this.loadMonthlyRate(full.id);
       },
       error: (err) => this.error.set(this.message(err, 'Could not load that therapist')),
     });
@@ -142,6 +166,35 @@ export class StaffAdminPage implements OnInit {
       // A Manager is never given rates at all, so an error here is expected.
       error: () => this.rates.set([]),
     });
+  }
+
+  protected saveStaff(member: StaffMember): void {
+    this.api.updateStaff(member.id, this.staffForm).subscribe({
+      next: (updated) => {
+        this.selected.set(updated);
+        this.notice.set('Staff profile saved.');
+        this.reload();
+      },
+      error: (err) => this.error.set(this.message(err, 'Could not save the staff profile')),
+    });
+  }
+
+  protected saveMonthlyRate(member: StaffMember): void {
+    this.api
+      .setMonthlyRate(
+        member.id,
+        Math.round(this.monthlyForm.dollars * 100),
+        this.monthlyForm.effective_from,
+        this.monthlyForm.note,
+      )
+      .subscribe({
+        next: ({ monthly_rates }) => {
+          this.monthlyRates.set(monthly_rates);
+          this.monthlyForm.note = '';
+          this.notice.set('Monthly rate saved. Earlier periods are unchanged.');
+        },
+        error: (err) => this.error.set(this.message(err, 'Could not save the monthly rate')),
+      });
   }
 
   // --- onboarding ---
@@ -284,6 +337,17 @@ export class StaffAdminPage implements OnInit {
     this.api.services(loc.id).subscribe({
       next: ({ services }) => this.services.set(services),
       error: () => this.services.set([]),
+    });
+  }
+
+  private loadMonthlyRate(id: number): void {
+    this.api.monthlyRate(id).subscribe({
+      next: ({ monthly_rates }) => {
+        this.monthlyRates.set(monthly_rates);
+        const current = monthly_rates.find((rate) => !rate.effective_to);
+        this.monthlyForm.dollars = (current?.amount_cents ?? 0) / 100;
+      },
+      error: () => this.monthlyRates.set([]),
     });
   }
 

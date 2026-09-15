@@ -94,6 +94,17 @@ describe('Client history improvements', () => {
           },
         ],
       });
+    http.expectOne((r) => r.url.endsWith('/clients/1/orders')).flush({ orders: [] });
+    http
+      .expectOne((r) => r.url.endsWith('/clients/1/preferences/versions'))
+      .flush({ versions: [] });
+    http
+      .expectOne((r) => r.url.endsWith('/clients/1/history_summary'))
+      .flush({
+        lifetime_spend_cents: 0,
+        favourite_service: null,
+        favourite_therapist: null,
+      });
     await fixture.whenStable();
     const rows = fixture.nativeElement.querySelectorAll('[data-testid="client-visits"] tbody tr');
     expect(rows[0].textContent).toContain('9 / 10');

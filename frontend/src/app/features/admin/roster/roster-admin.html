@@ -95,6 +95,13 @@
                 <td class="num">
                   <ui-button
                     variant="text"
+                    icon="coffee"
+                    (click)="openBreaks(s)"
+                    [attr.data-testid]="'breaks-' + s.id"
+                    ariaLabel="Manage breaks"
+                  />
+                  <ui-button
+                    variant="text"
                     icon="edit"
                     (click)="startEdit(s)"
                     [attr.data-testid]="'edit-' + s.id"
@@ -146,6 +153,41 @@
         <ui-button icon="save" (click)="saveEdit()" data-testid="edit-save">Save</ui-button>
         <ui-button variant="outlined" (click)="editing = null">Cancel</ui-button>
       </div>
+    </ui-sheet>
+  }
+
+  @if (breakShift; as shift) {
+    <ui-sheet
+      heading="Shift breaks"
+      [sub]="nameFor(shift) + ' · ' + shift.work_date"
+      (closed)="breakShift = null"
+      data-testid="shift-breaks"
+    >
+      @if (breaks().length) {
+        <ul class="rows">
+          @for (brk of breaks(); track brk.id) {
+            <li>
+              <span class="rows__main"
+                ><strong>{{ wallClock(brk.starts_at) }}–{{ wallClock(brk.ends_at) }}</strong
+                ><small>{{ brk.reason || 'Break' }}</small></span
+              ><ui-button
+                variant="text"
+                icon="delete"
+                (click)="removeBreak(brk)"
+                ariaLabel="Remove break"
+              />
+            </li>
+          }
+        </ul>
+      }
+      <div class="form-grid">
+        <ui-field label="Starts"><input type="time" [(ngModel)]="newBreak.starts_at" /></ui-field>
+        <ui-field label="Ends"><input type="time" [(ngModel)]="newBreak.ends_at" /></ui-field>
+        <ui-field label="Reason" [optional]="true"
+          ><input [(ngModel)]="newBreak.reason"
+        /></ui-field>
+      </div>
+      <ui-button icon="coffee" (click)="addBreak()" data-testid="break-add">Add break</ui-button>
     </ui-sheet>
   }
 </ui-page>

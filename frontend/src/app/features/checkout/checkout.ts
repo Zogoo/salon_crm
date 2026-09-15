@@ -51,6 +51,14 @@ export class CheckoutPage implements OnInit {
   protected giftCardCode = '';
   protected giftCardDollars = 0;
   protected tipDollars = 0;
+  protected discountDollars = 0;
+  protected discountReason = '';
+  protected manualLine = {
+    description: '',
+    category: 'service',
+    quantity: 1,
+    dollars: 0,
+  };
 
   // FRS §21: the terminal prompts 20 / 25 / 30 or a custom amount.
   protected readonly tipPresets = [20, 25, 30];
@@ -60,6 +68,14 @@ export class CheckoutPage implements OnInit {
   );
   protected readonly settled = computed(() => this.order()?.status === 'paid');
   protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
+
+  /** Owner without limit; a Manager up to the location's share of the services. */
+  protected readonly discountSub = computed(() => {
+    const o = this.order();
+    if (this.isOwner() || !o) return 'Recorded in the order ledger with your name and the reason.';
+    const left = Math.max(0, o.manager_discount_limit_cents - o.manual_discount_cents);
+    return `You can discount up to $${(left / 100).toFixed(2)} more on this order. Above that, ask the Owner.`;
+  });
 
   ngOnInit(): void {
     const appointmentId = Number(this.route.snapshot.paramMap.get('appointmentId'));
@@ -114,6 +130,12 @@ export class CheckoutPage implements OnInit {
     this.run(this.api.applyMembershipCredit(order.id));
   }
 
+  protected applyMembershipOverride(): void {
+    const order = this.order();
+    if (!order) return;
+    this.run(this.api.applyMembershipCredit(order.id, true));
+  }
+
   /**
    * BR-23: a payment cannot be edited, so a mis-keyed amount is corrected by
    * voiding it and recording the right one. Owner only — the API enforces it.
@@ -124,6 +146,51 @@ export class CheckoutPage implements OnInit {
     const reason = window.prompt('Why is this payment being voided?');
     if (!reason) return;
     this.run(this.api.voidPayment(order.id, paymentId, reason));
+  }
+
+  protected discount(): void {
+    const order = this.order();
+    const cents = Math.round(this.discountDollars * 100);
+    if (!order || cents <= 0 || !this.discountReason.trim()) return;
+    this.run(this.api.applyDiscount(order.id, cents, this.discountReason.trim()));
+  }
+
+  protected addLine(): void {
+    const order = this.order();
+    const cents = Math.round(this.manualLine.dollars * 100);
+    if (!order || !this.manualLine.description.trim() || cents < 0) return;
+    this.run(
+      this.api.addOrderLine(
+        order.id,
+        this.manualLine.description.trim(),
+        this.manualLine.category,
+        cents,
+        this.manualLine.quantity,
+      ),
+    );
+  }
+
+  protected refund(paymentId: number): void {
+    const order = this.order();
+    if (!order) return;
+    const amount = window.prompt('Refund amount in dollars');
+    const reason = window.prompt('Reason for the refund');
+    const cents = Math.round(Number(amount) * 100);
+    if (!reason || !Number.isFinite(cents) || cents <= 0) return;
+    this.run(this.api.refundPayment(order.id, paymentId, cents, reason));
+  }
+
+  protected receipt(): void {
+    const order = this.order();
+    if (!order) return;
+    this.api.orderReceipt(order.id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      error: () => this.error.set('Could not open the receipt'),
+    });
   }
 
   protected settle(): void {
@@ -176,6 +243,16 @@ export class CheckoutPage implements OnInit {
       membership_wrong_location:
         'That membership belongs to another location and needs an override.',
       unsettled: 'Still outstanding — take the remainder before settling.',
+      discount_above_manager_limit:
+        'That is more than a Manager can discount on this order. Ask the Owner to apply it.',
+      discount_exceeds_remaining: 'The discount is larger than what is left to pay.',
+      discount_not_permitted: 'Only the Owner or a Manager can give a discount.',
+      reason_required: 'Give a reason for the discount.',
+      order_not_open: 'This order is already closed.',
+      appointment_not_completed: 'Complete the appointment before settling.',
+      appointment_not_active: 'This appointment was cancelled, so there is nothing to check out.',
+      therapist_assignment_required: 'Assign the therapist on the schedule before checkout.',
+      nothing_to_credit: 'Nothing is left on this order for the membership to cover.',
     };
     return code ? (map[code] ?? code) : 'Something went wrong';
   }

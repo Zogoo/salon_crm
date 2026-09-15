@@ -45,8 +45,11 @@ module Api
       def find_appointment!
         appt = Appointment.includes(:appointment_staff).find(params.require(:appointment_id))
         raise ActiveRecord::RecordNotFound unless current_user.can_access_location?(appt.location_id)
+        # A provisional (unconfirmed) therapist is not "the therapist on that
+        # appointment" for BR-44 purposes.
         if current_user.staff? &&
-           !appt.appointment_staff.exists?(staff_profile_id: current_user.staff_profile&.id)
+           (!appt.staff_assignment_confirmed? ||
+            !appt.appointment_staff.exists?(staff_profile_id: current_user.staff_profile&.id))
           raise ActiveRecord::RecordNotFound
         end
         appt
@@ -54,6 +57,7 @@ module Api
 
       def note_json(note, location)
         { id: note.id, body: note.body,
+          staff_profile_id: note.staff_profile_id,
           created_at: local_iso(note.created_at, location),
           author: note.staff_profile.display_name,
           supersedes_note_id: note.supersedes_note_id }

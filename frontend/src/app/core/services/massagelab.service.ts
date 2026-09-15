@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   Appointment,
+  AuditLogRecord,
   ApprovalRequest,
   Availability,
   BusinessHour,
@@ -15,29 +16,40 @@ import {
   ClientRecord,
   ClientRating,
   ClientGiftCard,
+  ClientHistorySummary,
+  ClientOrderHistory,
   Closure,
   DailyRevenue,
   Dashboard,
   DayBoard,
   EarningPeriod,
+  EarningLine,
   EarningsReport,
   GiftCard,
   GiftCardLiability,
   Location,
   MembershipRecord,
+  MembershipReport,
+  ManagerPayoutReport,
   MonthlyRate,
   NoShowReport,
   Order,
+  PageMeta,
   PaymentMethod,
+  PreferenceVersion,
   Qualification,
   RetentionReport,
+  RatingAlertsReport,
+  RatingsReport,
   Room,
   RoomBlock,
   RosterShift,
   Service,
   SessionRate,
   ShiftBoard,
+  ShiftBreak,
   StaffMember,
+  StaffRequestRecord,
   UtilizationReport,
   VariantPrice,
 } from '../models';
@@ -47,6 +59,25 @@ import {
 export class MassagelabService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiUrl;
+
+  auditLogs(filters: {
+    action?: string;
+    auditable_type?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+  }): Observable<{ audit_logs: AuditLogRecord[]; meta: PageMeta }> {
+    let params = new HttpParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        params = params.set(key === 'action' ? 'audit_action' : key, value);
+      }
+    });
+    return this.http.get<{ audit_logs: AuditLogRecord[]; meta: PageMeta }>(
+      `${this.base}/audit_logs`,
+      { params },
+    );
+  }
 
   locations(): Observable<{ locations: Location[] }> {
     return this.http.get<{ locations: Location[] }>(`${this.base}/locations`);
@@ -100,6 +131,86 @@ export class MassagelabService {
     });
   }
 
+  updateAppointment(id: number, appointment: Record<string, unknown>): Observable<Appointment> {
+    return this.http.patch<Appointment>(`${this.base}/appointments/${id}`, { appointment });
+  }
+
+  rescheduleAppointment(
+    id: number,
+    startAt: string,
+    roomId?: number,
+    staffProfileIds?: number[],
+  ): Observable<Appointment> {
+    return this.http.post<Appointment>(`${this.base}/appointments/${id}/reschedule`, {
+      start_at: startAt,
+      room_id: roomId,
+      staff_profile_ids: staffProfileIds,
+    });
+  }
+
+  /** Feedback 3.3: check in, start and complete in one server transaction. */
+  completeForCheckout(id: number): Observable<{ appointment: Appointment; order_id: number }> {
+    return this.http.post<{ appointment: Appointment; order_id: number }>(
+      `${this.base}/appointments/${id}/complete_for_checkout`,
+      {},
+    );
+  }
+
+  recordDeposit(
+    id: number,
+    amountCents: number,
+    method: string,
+    reference?: string,
+  ): Observable<Appointment> {
+    return this.http.post<Appointment>(`${this.base}/appointments/${id}/deposit`, {
+      amount_cents: amountCents,
+      method,
+      reference: reference || undefined,
+    });
+  }
+
+  refundDeposit(id: number, reason?: string): Observable<Appointment> {
+    return this.http.post<Appointment>(`${this.base}/appointments/${id}/deposit/refund`, {
+      reason,
+    });
+  }
+
+  assignAppointmentStaff(id: number, staffProfileIds: number[]): Observable<Appointment> {
+    return this.http.post<Appointment>(`${this.base}/appointments/${id}/assign_staff`, {
+      staff_profile_ids: staffProfileIds,
+    });
+  }
+
+  repeatAppointment(
+    id: number,
+    intervalWeeks: number,
+    count: number,
+  ): Observable<{ appointments: Appointment[] }> {
+    return this.http.post<{ appointments: Appointment[] }>(
+      `${this.base}/appointments/${id}/repeat`,
+      {
+        interval_weeks: intervalWeeks,
+        count,
+      },
+    );
+  }
+
+  replaceAppointmentService(id: number, variantIds: number[]): Observable<Appointment> {
+    return this.http.post<Appointment>(`${this.base}/appointments/${id}/replace_service`, {
+      service_variant_ids: variantIds,
+    });
+  }
+
+  addAppointmentItems(id: number, variantIds: number[]): Observable<Appointment> {
+    return this.http.post<Appointment>(`${this.base}/appointments/${id}/items`, {
+      service_variant_ids: variantIds,
+    });
+  }
+
+  removeAppointmentItem(id: number, itemId: number): Observable<Appointment> {
+    return this.http.delete<Appointment>(`${this.base}/appointments/${id}/items/${itemId}`);
+  }
+
   clients(search = ''): Observable<{ clients: ClientRecord[] }> {
     const params = new HttpParams().set('search', search);
     return this.http.get<{ clients: ClientRecord[] }>(`${this.base}/clients`, { params });
@@ -119,6 +230,30 @@ export class MassagelabService {
 
   createClient(client: Partial<ClientRecord>): Observable<ClientRecord> {
     return this.http.post<ClientRecord>(`${this.base}/clients`, { client });
+  }
+
+  updateClient(id: number, client: Partial<ClientRecord>): Observable<ClientRecord> {
+    return this.http.patch<ClientRecord>(`${this.base}/clients/${id}`, { client });
+  }
+
+  mergeClient(id: number, intoClientId: number): Observable<ClientRecord> {
+    return this.http.post<ClientRecord>(`${this.base}/clients/${id}/merge`, {
+      into_client_id: intoClientId,
+    });
+  }
+
+  clientPreferenceVersions(id: number): Observable<{ versions: PreferenceVersion[] }> {
+    return this.http.get<{ versions: PreferenceVersion[] }>(
+      `${this.base}/clients/${id}/preferences/versions`,
+    );
+  }
+
+  clientOrders(id: number): Observable<{ orders: ClientOrderHistory[] }> {
+    return this.http.get<{ orders: ClientOrderHistory[] }>(`${this.base}/clients/${id}/orders`);
+  }
+
+  clientHistorySummary(id: number): Observable<ClientHistorySummary> {
+    return this.http.get<ClientHistorySummary>(`${this.base}/clients/${id}/history_summary`);
   }
 
   savePreferences(id: number, preference: Record<string, unknown>): Observable<ClientRecord> {
@@ -151,6 +286,34 @@ export class MassagelabService {
     return this.http.post<ApprovalRequest>(`${this.base}/approval_requests/${id}/${decision}`, {});
   }
 
+  staffRequests(status = ''): Observable<{ staff_requests: StaffRequestRecord[] }> {
+    let params = new HttpParams();
+    if (status) params = params.set('status', status);
+    return this.http.get<{ staff_requests: StaffRequestRecord[] }>(`${this.base}/staff_requests`, {
+      params,
+    });
+  }
+
+  createStaffRequest(payload: Record<string, unknown>): Observable<StaffRequestRecord> {
+    return this.http.post<StaffRequestRecord>(`${this.base}/staff_requests`, {
+      staff_request: payload,
+    });
+  }
+
+  decideStaffRequest(
+    id: number,
+    decision: 'approve' | 'reject',
+    reviewNote: string,
+  ): Observable<StaffRequestRecord> {
+    return this.http.post<StaffRequestRecord>(`${this.base}/staff_requests/${id}/${decision}`, {
+      review_note: reviewNote,
+    });
+  }
+
+  withdrawStaffRequest(id: number): Observable<StaffRequestRecord> {
+    return this.http.post<StaffRequestRecord>(`${this.base}/staff_requests/${id}/withdraw`, {});
+  }
+
   // --- Checkout ---
 
   openOrder(appointmentId: number): Observable<Order> {
@@ -161,6 +324,45 @@ export class MassagelabService {
 
   order(id: number): Observable<Order> {
     return this.http.get<Order>(`${this.base}/orders/${id}`);
+  }
+
+  orderReceipt(id: number): Observable<Blob> {
+    return this.http.get(`${this.base}/orders/${id}/receipt`, { responseType: 'blob' });
+  }
+
+  applyDiscount(id: number, amountCents: number, reason: string): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/discounts`, {
+      amount_cents: amountCents,
+      reason,
+    });
+  }
+
+  addOrderLine(
+    id: number,
+    description: string,
+    revenueCategory: string,
+    unitPriceCents: number,
+    quantity = 1,
+  ): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/line_items`, {
+      description,
+      revenue_category: revenueCategory,
+      unit_price_cents: unitPriceCents,
+      quantity,
+    });
+  }
+
+  refundPayment(
+    id: number,
+    paymentId: number,
+    amountCents: number,
+    reason: string,
+  ): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/refunds`, {
+      payment_id: paymentId,
+      amount_cents: amountCents,
+      reason,
+    });
   }
 
   addPayment(id: number, method: PaymentMethod, amountCents: number, reference?: string) {
@@ -216,6 +418,17 @@ export class MassagelabService {
     return this.http.post<GiftCard>(`${this.base}/gift_cards`, { gift_card: payload });
   }
 
+  adjustGiftCard(id: number, amountCents: number, reason: string): Observable<GiftCard> {
+    return this.http.post<GiftCard>(`${this.base}/gift_cards/${id}/adjust`, {
+      amount_cents: amountCents,
+      reason,
+    });
+  }
+
+  voidGiftCard(id: number): Observable<GiftCard> {
+    return this.http.post<GiftCard>(`${this.base}/gift_cards/${id}/void`, {});
+  }
+
   // --- Membership ---
 
   memberships(): Observable<{ memberships: MembershipRecord[] }> {
@@ -243,6 +456,23 @@ export class MassagelabService {
     );
   }
 
+  updateMembership(id: number, defaultServiceVariantId: number): Observable<MembershipRecord> {
+    return this.http.patch<MembershipRecord>(`${this.base}/memberships/${id}`, {
+      membership: { default_service_variant_id: defaultServiceVariantId },
+    });
+  }
+
+  adjustMembershipCredits(
+    id: number,
+    amount: number,
+    reason: string,
+  ): Observable<MembershipRecord> {
+    return this.http.post<MembershipRecord>(`${this.base}/memberships/${id}/adjust_credits`, {
+      amount,
+      reason,
+    });
+  }
+
   // --- Earnings ---
 
   earningPeriods(): Observable<{ periods: EarningPeriod[] }> {
@@ -261,6 +491,30 @@ export class MassagelabService {
     return this.http.get<EarningPeriod>(`${this.base}/earning_periods/${id}/statements`);
   }
 
+  earningStatement(id: number): Observable<import('../models').EarningStatement> {
+    return this.http.get<import('../models').EarningStatement>(
+      `${this.base}/earning_statements/${id}`,
+    );
+  }
+
+  adjustEarningStatement(
+    id: number,
+    serviceDate: string,
+    amountCents: number,
+    reason: string,
+  ): Observable<import('../models').EarningStatement> {
+    return this.http.post<import('../models').EarningStatement>(
+      `${this.base}/earning_statements/${id}/adjustments`,
+      { service_date: serviceDate, amount_cents: amountCents, reason },
+    );
+  }
+
+  earningStatementPdf(id: number): Observable<Blob> {
+    return this.http.get(`${this.base}/earning_statements/${id}/pdf`, {
+      responseType: 'blob',
+    });
+  }
+
   staffEarnings(staffProfileId: number, from: string, to: string): Observable<EarningsReport> {
     const params = new HttpParams()
       .set('staff_profile_id', staffProfileId)
@@ -271,6 +525,25 @@ export class MassagelabService {
 
   addEarningLine(payload: Record<string, unknown>) {
     return this.http.post(`${this.base}/earning_lines`, payload);
+  }
+
+  earningLines(
+    staffProfileId: number,
+    from: string,
+    to: string,
+  ): Observable<{ lines: EarningLine[] }> {
+    const params = new HttpParams()
+      .set('staff_profile_id', staffProfileId)
+      .set('from', from)
+      .set('to', to);
+    return this.http.get<{ lines: EarningLine[] }>(`${this.base}/earning_lines`, { params });
+  }
+
+  updateEarningLine(id: number, amountCents: number, note: string) {
+    return this.http.patch<EarningLine>(`${this.base}/earning_lines/${id}`, {
+      amount_cents: amountCents,
+      note,
+    });
   }
 
   // --- Administration (doc 05 §§4-6) ---
@@ -364,6 +637,22 @@ export class MassagelabService {
     });
   }
 
+  shiftBreaks(id: number): Observable<{ breaks: ShiftBreak[] }> {
+    return this.http.get<{ breaks: ShiftBreak[] }>(`${this.base}/shifts/${id}/breaks`);
+  }
+
+  createShiftBreak(id: number, startsAt: string, endsAt: string, reason: string) {
+    return this.http.post<ShiftBreak>(`${this.base}/shifts/${id}/breaks`, {
+      starts_at: startsAt,
+      ends_at: endsAt,
+      reason,
+    });
+  }
+
+  deleteShiftBreak(id: number, breakId: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/shifts/${id}/breaks/${breakId}`);
+  }
+
   // --- Catalogue ---
 
   catalogue(): Observable<{ service_categories: { id: number; name: string }[] }> {
@@ -384,6 +673,10 @@ export class MassagelabService {
     return this.http.patch<CatalogueService>(`${this.base}/services/${id}`, { service });
   }
 
+  deleteService(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/services/${id}`);
+  }
+
   setServiceActive(id: number, active: boolean): Observable<CatalogueService> {
     const action = active ? 'activate' : 'deactivate';
     return this.http.post<CatalogueService>(`${this.base}/services/${id}/${action}`, {});
@@ -391,6 +684,12 @@ export class MassagelabService {
 
   createVariant(serviceId: number, variant: Record<string, unknown>): Observable<CatalogueVariant> {
     return this.http.post<CatalogueVariant>(`${this.base}/services/${serviceId}/service_variants`, {
+      service_variant: variant,
+    });
+  }
+
+  updateVariant(id: number, variant: Record<string, unknown>): Observable<CatalogueVariant> {
+    return this.http.patch<CatalogueVariant>(`${this.base}/service_variants/${id}`, {
       service_variant: variant,
     });
   }
@@ -520,6 +819,21 @@ export class MassagelabService {
     return this.http.get<RetentionReport>(`${this.base}/reports/client_retention`, { params });
   }
 
+  ratingsReport(locationId: number, from: string, to: string): Observable<RatingsReport> {
+    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+    return this.http.get<RatingsReport>(`${this.base}/reports/ratings`, { params });
+  }
+
+  ratingAlerts(locationId: number, from: string, to: string): Observable<RatingAlertsReport> {
+    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+    return this.http.get<RatingAlertsReport>(`${this.base}/reports/ratings/alerts`, { params });
+  }
+
+  membershipReport(locationId: number, from: string, to: string): Observable<MembershipReport> {
+    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+    return this.http.get<MembershipReport>(`${this.base}/reports/membership`, { params });
+  }
+
   // --- Care notes and ratings ---
 
   careNotes(appointmentId: number): Observable<{ care_notes: CareNote[] }> {
@@ -532,6 +846,15 @@ export class MassagelabService {
       appointment_id: appointmentId,
       body,
     });
+  }
+
+  supersedeCareNote(id: number, body: string): Observable<CareNote> {
+    return this.http.post<CareNote>(`${this.base}/care_notes/${id}/supersede`, { body });
+  }
+
+  managerPayouts(month: string): Observable<ManagerPayoutReport> {
+    const params = new HttpParams().set('month', month);
+    return this.http.get<ManagerPayoutReport>(`${this.base}/manager_payouts`, { params });
   }
 
   kioskQueue(locationId: number) {
@@ -549,5 +872,19 @@ export class MassagelabService {
 
   submitRating(payload: Record<string, unknown>) {
     return this.http.post(`${this.base}/ratings`, payload);
+  }
+
+  publicRating(token: string) {
+    return this.http.get<{
+      reference: string;
+      therapist: string | null;
+      location: string;
+      starts_at: string;
+      already_rated: boolean;
+    }>(`${this.base}/public/ratings/${encodeURIComponent(token)}`);
+  }
+
+  submitPublicRating(token: string, payload: Record<string, unknown>) {
+    return this.http.post(`${this.base}/public/ratings/${encodeURIComponent(token)}`, payload);
   }
 }

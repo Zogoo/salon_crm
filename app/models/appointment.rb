@@ -19,6 +19,7 @@ class Appointment < ApplicationRecord
   has_many :appointment_status_events, dependent: :destroy
   has_one  :approval_request, dependent: :destroy
   has_one  :order, dependent: :nullify
+  has_one  :deposit, dependent: :restrict_with_error
   has_one  :appointment_rating, dependent: :destroy
   has_many :care_notes, dependent: :destroy
   has_many :tip_allocations, dependent: :nullify

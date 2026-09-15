@@ -12,3 +12,4 @@ frontend/dist
 .rubocop.yml
 spec/
 docs/
+e2e/

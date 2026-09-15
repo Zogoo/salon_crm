@@ -1,0 +1,70 @@
+<ui-page
+  title="Staff requests"
+  sub="Therapists request shift or location changes here. Managers review shift changes; location changes require the Owner."
+>
+  @if (error()) {
+    <ui-banner tone="error">{{ error() }}</ui-banner>
+  }
+  @if (notice()) {
+    <ui-banner tone="success">{{ notice() }}</ui-banner>
+  }
+
+  @if (isStaff()) {
+    <ui-card heading="New request">
+      <div class="form-grid">
+        <ui-field label="Request type"
+          ><select [(ngModel)]="form.kind">
+            <option value="shift_change">Shift change</option>
+            <option value="location_change">Location change</option>
+          </select></ui-field
+        >
+        @if (form.kind === 'shift_change') {
+          <ui-field label="Shift ID"><input type="number" [(ngModel)]="form.shift_id" /></ui-field>
+          <ui-field label="New start"><input type="time" [(ngModel)]="form.starts_at" /></ui-field>
+          <ui-field label="New end"><input type="time" [(ngModel)]="form.ends_at" /></ui-field>
+        } @else {
+          <ui-field label="New location ID"
+            ><input type="number" [(ngModel)]="form.location_id"
+          /></ui-field>
+        }
+        <ui-field label="Note"><textarea rows="2" [(ngModel)]="form.note"></textarea></ui-field>
+      </div>
+      <ui-button icon="send" (click)="submit()" data-testid="staff-request-submit"
+        >Submit request</ui-button
+      >
+    </ui-card>
+  }
+
+  <ui-card heading="Requests">
+    @if (requests().length) {
+      <ul class="picker" data-testid="staff-request-list">
+        @for (request of requests(); track request.id) {
+          <li class="picker__item">
+            <span class="picker__main"
+              ><strong>{{ request.display_name }} · {{ humanStatus(request.kind) }}</strong
+              ><small
+                >{{ request.note || 'No note' }} ·
+                {{ request.created_at | wallClock: 'date' }}</small
+              ></span
+            >
+            <ui-chip [tone]="tone(request.status)">{{ humanStatus(request.status) }}</ui-chip>
+            @if (!isStaff() && request.status === 'submitted') {
+              <input [(ngModel)]="reviewNotes[request.id]" placeholder="Review note" />
+              <ui-button variant="tonal" icon="check" (click)="decide(request, 'approve')"
+                >Approve</ui-button
+              >
+              <ui-button variant="danger" icon="close" (click)="decide(request, 'reject')"
+                >Reject</ui-button
+              >
+            }
+            @if (isStaff() && request.status === 'submitted') {
+              <ui-button variant="text" (click)="withdraw(request)">Withdraw</ui-button>
+            }
+          </li>
+        }
+      </ul>
+    } @else {
+      <ui-empty icon="inbox" title="No staff requests" />
+    }
+  </ui-card>
+</ui-page>

@@ -54,6 +54,54 @@ export class AuthService {
     this.currentUser.set(null);
   }
 
+  updateProfile(name: string, avatar?: File): Observable<User> {
+    const body = new FormData();
+    body.append('name', name);
+    if (avatar) body.append('avatar', avatar);
+    return this.http
+      .patch<User>(`${environment.apiUrl}/profile`, body)
+      .pipe(tap((user) => this.currentUser.set(user)));
+  }
+
+  removeAvatar(): Observable<User> {
+    return this.http
+      .delete<User>(`${environment.apiUrl}/profile/avatar`)
+      .pipe(tap((user) => this.currentUser.set(user)));
+  }
+
+  enrolOtp(): Observable<{ secret: string; otpauth_url: string }> {
+    return this.http.post<{ secret: string; otpauth_url: string }>(
+      `${environment.apiUrl}/me/otp`,
+      {},
+    );
+  }
+
+  confirmOtp(otpCode: string): Observable<{ otp_enabled: boolean }> {
+    return this.http
+      .post<{ otp_enabled: boolean }>(`${environment.apiUrl}/me/otp/confirm`, {
+        otp_code: otpCode,
+      })
+      .pipe(
+        tap(() => {
+          const current = this.currentUser();
+          if (current) this.currentUser.set({ ...current, otp_enabled: true });
+        }),
+      );
+  }
+
+  requestPasswordReset(email: string): Observable<void> {
+    return this.http.post<void>(`${environment.apiUrl}/password_resets`, { email });
+  }
+
+  resetPassword(token: string, password: string): Observable<void> {
+    return this.http.put<void>(
+      `${environment.apiUrl}/password_resets/${encodeURIComponent(token)}`,
+      {
+        password,
+      },
+    );
+  }
+
   private accept(res: AuthResponse): void {
     localStorage.setItem(TOKEN_KEY, res.token);
     this.currentUser.set(res.user);

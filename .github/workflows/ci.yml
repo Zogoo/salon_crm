@@ -1,9 +1,13 @@
 name: CI
 
+# Pull requests and feature branches run this directly. `main` runs it through
+# Fly Deploy (workflow_call), so a push to main is tested exactly once and the
+# deploy job can depend on every job here — including the end-to-end gate.
 on:
   pull_request:
   push:
-    branches: [ main ]
+    branches-ignore: [ main ]
+  workflow_call:
 
 jobs:
   scan_ruby:
@@ -58,5 +62,27 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Prettier
+        run: npm run lint
       - name: Vitest
         run: npm run test:ci
+
+  # The QA gate: the production image, booted as Fly boots it with a freshly
+  # seeded database, driven through the browser by Playwright. See bin/e2e.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the production image and run the end-to-end suite
+        run: bin/e2e
+      - name: Upload the Playwright report and app log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            e2e/app.log
+          retention-days: 14

@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { RosterShift, StaffMember } from '../../../core/models';
+import { RosterShift, ShiftBreak, StaffMember } from '../../../core/models';
 import {
   UiBanner,
   UiButton,
@@ -54,6 +54,7 @@ export class RosterAdminPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
   protected readonly selectedIds = signal<number[]>([]);
+  protected readonly breaks = signal<ShiftBreak[]>([]);
 
   protected tone(status: string) {
     return statusTone(status);
@@ -67,6 +68,8 @@ export class RosterAdminPage implements OnInit {
   protected newShift = { staff_profile_id: 0, work_date: '', starts_at: '09:00', ends_at: '22:00' };
   protected editing: RosterShift | null = null;
   protected edit = { work_date: '', starts_at: '', ends_at: '' };
+  protected breakShift: RosterShift | null = null;
+  protected newBreak = { starts_at: '13:00', ends_at: '13:30', reason: '' };
 
   ngOnInit(): void {
     void this.ctx.load().then(() => {
@@ -168,6 +171,37 @@ export class RosterAdminPage implements OnInit {
         this.reload();
       },
       error: (err) => this.error.set(this.orphanMessage(err, 'Could not remove that shift')),
+    });
+  }
+
+  protected openBreaks(shift: RosterShift): void {
+    this.breakShift = shift;
+    this.api.shiftBreaks(shift.id).subscribe({
+      next: ({ breaks }) => this.breaks.set(breaks),
+      error: () => this.breaks.set([]),
+    });
+  }
+
+  protected addBreak(): void {
+    if (!this.breakShift) return;
+    this.api
+      .createShiftBreak(
+        this.breakShift.id,
+        this.newBreak.starts_at,
+        this.newBreak.ends_at,
+        this.newBreak.reason,
+      )
+      .subscribe({
+        next: () => this.openBreaks(this.breakShift!),
+        error: (err) => this.error.set(this.orphanMessage(err, 'Could not add that break')),
+      });
+  }
+
+  protected removeBreak(brk: ShiftBreak): void {
+    if (!this.breakShift) return;
+    this.api.deleteShiftBreak(this.breakShift.id, brk.id).subscribe({
+      next: () => this.openBreaks(this.breakShift!),
+      error: () => this.error.set('Could not remove that break'),
     });
   }
 

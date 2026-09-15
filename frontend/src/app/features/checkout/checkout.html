@@ -6,6 +6,11 @@
     <ui-button variant="outlined" icon="arrow_back" (click)="backToBoard()"
       >Back to schedule</ui-button
     >
+    @if (order()) {
+      <ui-button variant="outlined" icon="receipt_long" (click)="receipt()" data-testid="receipt">
+        Receipt
+      </ui-button>
+    }
   </div>
 
   @if (error()) {
@@ -49,10 +54,18 @@
                   ${{ o.total_cents / 100 | number: '1.2-2' }}
                 </td>
               </tr>
+              @if (o.deposit_cents) {
+                <tr>
+                  <td>Deposit held <small>(taken before the visit)</small></td>
+                  <td class="num" data-testid="order-deposit">
+                    ${{ o.deposit_cents / 100 | number: '1.2-2' }}
+                  </td>
+                </tr>
+              }
               <tr>
                 <td>Taken</td>
                 <td class="num">
-                  ${{ (o.paid_cents + o.redeemed_cents) / 100 | number: '1.2-2' }}
+                  ${{ (o.paid_cents + o.redeemed_cents + o.deposit_cents) / 100 | number: '1.2-2' }}
                 </td>
               </tr>
               <tr>
@@ -90,6 +103,13 @@
                       [attr.data-testid]="'void-' + p.id"
                       >Void</ui-button
                     >
+                    <ui-button
+                      variant="text"
+                      icon="currency_exchange"
+                      (click)="refund(p.id)"
+                      [attr.data-testid]="'refund-' + p.id"
+                      >Refund</ui-button
+                    >
                   }
                 </li>
               }
@@ -121,6 +141,65 @@
         </ui-card>
       } @else {
         <div class="checkout__take">
+          @if (auth.user()?.role !== 'staff') {
+            <ui-card heading="Discount" [sub]="discountSub()">
+              <div class="row">
+                <ui-field label="Amount">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    [(ngModel)]="discountDollars"
+                    data-testid="discount-amount"
+                  />
+                </ui-field>
+                <ui-field label="Reason">
+                  <input [(ngModel)]="discountReason" data-testid="discount-reason" />
+                </ui-field>
+                <ui-button
+                  variant="tonal"
+                  icon="percent"
+                  (click)="discount()"
+                  data-testid="discount-apply"
+                >
+                  Apply discount
+                </ui-button>
+              </div>
+            </ui-card>
+          }
+
+          <ui-card
+            heading="Add sale item"
+            sub="Add a service, add-on, or enhancement sold at the desk."
+          >
+            <div class="form-grid">
+              <ui-field label="Description">
+                <input [(ngModel)]="manualLine.description" data-testid="line-description" />
+              </ui-field>
+              <ui-field label="Category">
+                <select [(ngModel)]="manualLine.category" data-testid="line-category">
+                  <option value="service">Service</option>
+                  <option value="add_on">Add-on</option>
+                  <option value="enhancement">Enhancement</option>
+                </select>
+              </ui-field>
+              <ui-field label="Quantity">
+                <input type="number" min="1" [(ngModel)]="manualLine.quantity" />
+              </ui-field>
+              <ui-field label="Unit price">
+                <input type="number" min="0" step="0.01" [(ngModel)]="manualLine.dollars" />
+              </ui-field>
+            </div>
+            <ui-button
+              variant="tonal"
+              icon="add_shopping_cart"
+              (click)="addLine()"
+              data-testid="line-add"
+            >
+              Add item
+            </ui-button>
+          </ui-card>
+
           <ui-card heading="Tip" sub="Goes to the therapist in full — the salon keeps none of it.">
             <div class="row">
               @for (p of tipPresets; track p) {
@@ -185,6 +264,17 @@
             >
               Apply membership credit
             </ui-button>
+            @if (isOwner()) {
+              <ui-button
+                variant="outlined"
+                icon="verified_user"
+                (click)="applyMembershipOverride()"
+                [disabled]="busy()"
+                data-testid="apply-membership-override"
+              >
+                Approve cross-location use
+              </ui-button>
+            }
           </ui-card>
 
           <ui-card

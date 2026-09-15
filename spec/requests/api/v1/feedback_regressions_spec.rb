@@ -7,7 +7,7 @@ RSpec.describe "Feedback regressions", type: :request do
 
   def json = JSON.parse(response.body)
 
-  %w[cancelled late_cancelled no_show].each do |status|
+  %w[cancelled late_cancelled].each do |status|
     it "hides #{status} from the calendar while preserving client history" do
       old = book(world)
       old.update!(status: status)
@@ -18,6 +18,16 @@ RSpec.describe "Feedback regressions", type: :request do
       get "/api/v1/clients/#{world[:client].id}/appointments", headers: headers
       expect(json.fetch("appointments").pluck("id")).to include(old.id, replacement.id)
     end
+  end
+
+  it "keeps a no-show on the calendar, where it does not block the slot" do
+    no_show = book(world)
+    no_show.update!(status: "no_show")
+    no_show.appointment_staff.update_all(status: "no_show")
+    replacement = book(world, room_id: no_show.room_id)
+    get "/api/v1/appointments/calendar", params: { location_id: world[:location].id, date: world[:date] }, headers: headers
+    expect(json.fetch("appointments").map { |a| [ a["id"], a["status"] ] })
+      .to contain_exactly([ no_show.id, "no_show" ], [ replacement.id, "scheduled" ])
   end
 
   it "generates session earnings at completion, and settlement does not duplicate them" do

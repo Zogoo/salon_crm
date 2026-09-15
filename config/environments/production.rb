@@ -22,10 +22,13 @@ Rails.application.configure do
   config.active_storage.service = :local
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
-  config.assume_ssl = true
+  # Fly terminates TLS and sets RAILS_ASSUME_SSL / RAILS_FORCE_SSL in fly.toml.
+  # They are read here (defaulting on) so the same image can be exercised over
+  # plain http by the CI end-to-end job, which has no TLS proxy in front of it.
+  config.assume_ssl = ENV.fetch("RAILS_ASSUME_SSL", "true") == "true"
 
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  config.force_ssl = true
+  config.force_ssl = ENV.fetch("RAILS_FORCE_SSL", "true") == "true"
 
   # Skip http-to-https redirect for the default health check endpoint.
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }

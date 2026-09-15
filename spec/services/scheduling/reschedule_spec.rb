@@ -27,6 +27,31 @@ RSpec.describe Scheduling::RescheduleAppointment do
       .to eq(original.appointment_items.map(&:service_variant_id))
   end
 
+  it "keeps a no-preference appointment pending assignment" do
+    original = book(world, provisional: true)
+    moved = described_class.call(appointment: original, start_at: world[:at] + 4.hours, actor: owner)
+
+    expect(moved.staff_assignment_confirmed?).to be(false)
+    expect(moved.staff_profiles).to be_present
+  end
+
+  it "can replace the service snapshot while preserving the time and assignment" do
+    original = book(world, staff_profile_ids: [ world[:staff].first.id ])
+    replacement_service = create(:service)
+    replacement = create(:service_variant, service: replacement_service, duration_minutes: 45)
+    StaffQualification.create!(staff_profile: world[:staff].first, service: replacement_service)
+
+    changed = described_class.call(
+      appointment: original, start_at: original.starts_at, actor: owner,
+      staff_profile_ids: [ world[:staff].first.id ], room_id: original.room_id,
+      variant_ids: [ replacement.id ]
+    )
+
+    expect(changed.appointment_items.pluck(:service_variant_id)).to eq([ replacement.id ])
+    expect(changed.duration_minutes).to eq(45)
+    expect(original.reload.status).to eq("cancelled")
+  end
+
   # The reason it releases before booking: an overlapping move would otherwise
   # collide with itself.
   it "can move an appointment onto a time that overlaps its own old slot" do

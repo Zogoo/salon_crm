@@ -132,6 +132,32 @@
           }}</ui-chip>
         </ui-card>
 
+        <ui-card heading="Profile" sub="Contact, staff code, hire date, and menu-edit permission.">
+          <div class="form-grid">
+            <ui-field label="Name"
+              ><input [(ngModel)]="staffForm.display_name" data-testid="staff-edit-name"
+            /></ui-field>
+            <ui-field label="Email"><input type="email" [(ngModel)]="staffForm.email" /></ui-field>
+            <ui-field label="Employee code"
+              ><input [(ngModel)]="staffForm.employee_code"
+            /></ui-field>
+            <ui-field label="Hire date"
+              ><input type="date" [(ngModel)]="staffForm.hire_date"
+            /></ui-field>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" [(ngModel)]="staffForm.can_edit_service_menu" />
+            Can edit the service menu
+          </label>
+          <ui-button
+            variant="tonal"
+            icon="save"
+            (click)="saveStaff(member)"
+            data-testid="staff-edit-save"
+            >Save profile</ui-button
+          >
+        </ui-card>
+
         <ui-card
           heading="Qualifications"
           sub="Granted per service — every length of that service comes with it. A therapist with none drops out of every search."
@@ -154,11 +180,52 @@
         </ui-card>
 
         @if (isManagerEngagement()) {
-          <ui-card heading="Pay">
+          <ui-card heading="Monthly pay" sub="Effective-dated so prior payroll does not change.">
             <ui-banner tone="info">
               Managers are paid a flat monthly rate and never earn per session, so there is no
               ladder here.
             </ui-banner>
+            <div class="form-grid">
+              <ui-field label="Monthly amount"
+                ><input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  [(ngModel)]="monthlyForm.dollars"
+                  data-testid="monthly-rate-amount"
+              /></ui-field>
+              <ui-field label="Effective from"
+                ><input type="date" [(ngModel)]="monthlyForm.effective_from"
+              /></ui-field>
+              <ui-field label="Note" [optional]="true"
+                ><input [(ngModel)]="monthlyForm.note"
+              /></ui-field>
+            </div>
+            <ui-button icon="save" (click)="saveMonthlyRate(member)" data-testid="monthly-rate-save"
+              >Save monthly rate</ui-button
+            >
+            @if (monthlyRates().length) {
+              <ui-table label="Monthly rate history">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>From</th>
+                      <th>To</th>
+                      <th class="num">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (rate of monthlyRates(); track rate.effective_from) {
+                      <tr>
+                        <td>{{ rate.effective_from }}</td>
+                        <td>{{ rate.effective_to || 'Current' }}</td>
+                        <td class="num">${{ rate.amount_cents / 100 | number: '1.2-2' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </ui-table>
+            }
           </ui-card>
         } @else {
           <ui-card

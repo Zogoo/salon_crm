@@ -41,9 +41,29 @@ class Order < ApplicationRecord
   end
 
   def paid_cents = payments.where(status: "captured").sum(:amount_cents)
-  def covered_cents = paid_cents + redeemed_cents
+  def covered_cents = paid_cents + redeemed_cents + deposit_cents
   def outstanding_cents = total_cents - covered_cents
   def refunded_cents = refunds.sum(:amount_cents)
+
+  # A deposit still held against this order's appointment. It covers part of
+  # the bill already, but stays the client's money until settlement turns it
+  # into a payment (Sales::SettleOrder).
+  def held_deposit
+    return nil unless kind == "service" && appointment_id
+
+    Deposit.held.find_by(appointment_id:)
+  end
+
+  def deposit_cents = held_deposit&.amount_cents.to_i
+
+  # Once money has been taken against an order, the lines it was taken against
+  # must stop moving: changing them would silently re-price a bill someone has
+  # already paid part of (BR-22, BR-23).
+  def money_taken?
+    status != "open" || payments.captured.exists? ||
+      gift_card_transactions.where(kind: "redeem").exists? ||
+      order_discounts.where(kind: "membership_upgrade_credit").exists?
+  end
 
   def recalculate!
     # Callers create and destroy these through the class, not the association,

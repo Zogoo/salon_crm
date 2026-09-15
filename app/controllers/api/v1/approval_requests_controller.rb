@@ -6,7 +6,8 @@ module Api
       def index
         scope = ApprovalRequest.pending
                                .joins(:appointment)
-                               .where(appointments: { location_id: current_user.accessible_location_ids })
+                               .where(appointments: { location_id: current_user.accessible_location_ids,
+                                                      status: "pending_approval" })
                                .includes(:requested_staff_profile, appointment: %i[client location])
         render json: { approval_requests: scope.order(:created_at).map { |r| request_json(r) } }
       end

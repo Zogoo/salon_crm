@@ -6,7 +6,10 @@ import {
   ClientLogRow,
   DailyRevenue,
   GiftCardLiability,
+  MembershipReport,
   NoShowReport,
+  RatingAlertsReport,
+  RatingsReport,
   RetentionReport,
   UtilizationReport,
 } from '../../core/models';
@@ -54,6 +57,9 @@ export class ReportsPage implements OnInit {
   protected readonly noShows = signal<NoShowReport | null>(null);
   protected readonly utilization = signal<UtilizationReport | null>(null);
   protected readonly retention = signal<RetentionReport | null>(null);
+  protected readonly ratings = signal<RatingsReport | null>(null);
+  protected readonly ratingAlerts = signal<RatingAlertsReport | null>(null);
+  protected readonly membership = signal<MembershipReport | null>(null);
   protected readonly error = signal<string | null>(null);
 
   /** Names the location and range, so a figure is never read out of context. */
@@ -114,6 +120,18 @@ export class ReportsPage implements OnInit {
     this.api.clientRetention(loc.id, this.from, this.to).subscribe({
       next: (r) => this.retention.set(r),
       error: () => this.retention.set(null),
+    });
+    this.api.ratingsReport(loc.id, this.from, this.to).subscribe({
+      next: (report) => this.ratings.set(report),
+      error: () => this.ratings.set(null),
+    });
+    this.api.ratingAlerts(loc.id, this.from, this.to).subscribe({
+      next: (report) => this.ratingAlerts.set(report),
+      error: () => this.ratingAlerts.set(null),
+    });
+    this.api.membershipReport(loc.id, this.from, this.to).subscribe({
+      next: (report) => this.membership.set(report),
+      error: () => this.membership.set(null),
     });
   }
 

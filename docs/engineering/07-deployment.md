@@ -1,17 +1,54 @@
 # Deployment
 
 ```
-push to main ──> CI (Brakeman, bundler-audit, RuboCop, RSpec, Vitest)
-                  └─ green ──> Fly Deploy ──> flyctl deploy --remote-only
+push to main ──> Fly Deploy workflow
+                  ├─ CI (reusable ci.yml)
+                  │   ├─ Brakeman + bundler-audit
+                  │   ├─ RuboCop
+                  │   ├─ RSpec
+                  │   ├─ Prettier + Vitest
+                  │   └─ E2E: production image + Playwright   (bin/e2e)
+                  └─ all green ──> deploy ──> flyctl deploy --remote-only
 ```
 
-`.github/workflows/fly-deploy.yml` runs on `workflow_run` after CI completes on
-`main`, and only when CI concluded `success`. It checks out
-`workflow_run.head_sha`, so the commit that went green is the commit that ships,
-even if `main` has moved on. A red CI run deploys nothing.
+`.github/workflows/fly-deploy.yml` runs on every push to `main` and on the
+manual **Run workflow** button. It calls the CI workflow as a job, and `deploy`
+`needs` it, so a commit ships only if every CI job passed **in that same run**,
+including the end-to-end suite. There is no path that skips the tests: the
+manual button runs them too, and a manual run from any branch other than
+`main` tests but never deploys.
 
-`workflow_dispatch` on the same workflow gives a manual deploy button, which is
-also the way to re-deploy the current `main` after a rollback.
+Pull requests and other branches run `ci.yml` directly, so the same checks show
+on the PR before merge. To make them required, add them under **Settings →
+Branches → Branch protection rules → main → Require status checks** (the job
+names are `scan_ruby`, `lint`, `test`, `test_frontend` and `e2e`).
+
+## The end-to-end gate
+
+`bin/e2e` is the QA gate, and it is the same script locally and in CI:
+
+1. builds the production `Dockerfile` (Angular build + Rails, exactly what Fly
+   runs);
+2. boots it with `RAILS_ENV=production`, a fresh SQLite file and throwaway
+   secrets. `bin/docker-entrypoint` runs `db:prepare`, which also seeds, as on
+   a first Fly boot. `RAILS_FORCE_SSL=false`/`RAILS_ASSUME_SSL=false` let it
+   serve plain http without a TLS proxy (Fly sets both to `true`);
+3. runs the Playwright suite in `e2e/` from the official Playwright image,
+   against that container.
+
+The suite covers sign-in and role boundaries, booking with no preference and
+assignment, deposit, Manager discount (and its limit), rating (and declining to
+rate), one-step checkout, payment and settlement, cancelling, no-shows,
+drag-and-drop moves, the discount limit setting, gift card codes, the audit
+log, the revenue report and amount-only earnings entries.
+
+```bash
+bin/e2e                        # build the image and run everything
+E2E_SKIP_BUILD=1 bin/e2e -g checkout   # reuse the image, run matching tests
+```
+
+A failed CI run uploads `e2e-report` (Playwright HTML report with traces,
+screenshots and video, plus the app log).
 
 Everything below is one-time setup. Once it is done, no manual step is needed to
 release.

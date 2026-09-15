@@ -41,7 +41,11 @@
                   <strong>{{ room.name }}</strong>
                   <small>{{ room.room_type }} · seats {{ room.client_capacity }}</small>
                 </div>
-                <div class="grid__lane">
+                <div
+                  class="grid__lane"
+                  [attr.data-lane-room]="room.id"
+                  [attr.data-testid]="'lane-' + room.id"
+                >
                   @for (h of hours(); track h) {
                     <span class="grid__tick"></span>
                   }
@@ -49,15 +53,24 @@
                     <button
                       type="button"
                       [class]="'appt appt--' + p.appointment.status"
+                      [class.appt--movable]="canMove(p.appointment)"
+                      [class.appt--dragging]="dragging()?.id === p.appointment.id"
                       [style.left.%]="p.leftPct"
                       [style.width.%]="p.widthPct"
+                      [style.transform]="dragTransform(p.appointment.id)"
+                      (pointerdown)="pointerDown($event, p.appointment)"
                       (click)="select(p.appointment)"
                       [attr.data-testid]="'appt-' + p.appointment.id"
+                      [attr.data-status]="p.appointment.status"
                     >
                       <span class="appt__client">{{ p.appointment.client.full_name }}</span>
                       <span class="appt__meta">
                         {{ p.appointment.starts_at | wallClock }} ·
-                        {{ p.appointment.therapists[0]?.display_name }}
+                        {{
+                          p.appointment.assignment_pending
+                            ? 'No preference'
+                            : p.appointment.therapists[0]?.display_name
+                        }}
                       </span>
                     </button>
                     <span
@@ -92,7 +105,12 @@
                 <span class="agenda__who">
                   <strong>{{ a.client.full_name }}</strong>
                   <small
-                    >{{ a.room.name }} · {{ a.therapists[0]?.display_name ?? 'Unassigned' }}</small
+                    >{{ a.room.name }} ·
+                    {{
+                      a.assignment_pending
+                        ? 'No preference'
+                        : (a.therapists[0]?.display_name ?? 'Unassigned')
+                    }}</small
                   >
                 </span>
                 <ui-chip [tone]="tone(a.status)">{{ humanStatus(a.status) }}</ui-chip>
@@ -141,9 +159,267 @@
                   item.duration_minutes ? item.duration_minutes + ' min' : 'no extra time'
                 }}</small>
                 <span class="num">${{ item.price_cents / 100 | number: '1.2-2' }}</span>
+                @if (
+                  canBook() &&
+                  item.kind !== 'service' &&
+                  ['scheduled', 'checked_in'].includes(appt.status)
+                ) {
+                  <ui-button
+                    variant="text"
+                    icon="close"
+                    (click)="removeExtra(appt, item.id)"
+                    [attr.data-testid]="'remove-item-' + item.id"
+                    >Remove</ui-button
+                  >
+                }
               </li>
             }
           </ul>
+        </section>
+      }
+
+      @if (canBook() && ['scheduled', 'checked_in'].includes(appt.status)) {
+        <section data-testid="appointment-edit">
+          <h3 class="sheet__h3">Edit appointment</h3>
+          <div class="row">
+            <ui-field label="Main service">
+              <select [(ngModel)]="replacementVariantId" data-testid="replacement-service">
+                @for (service of standardVariants(); track service.id) {
+                  <option [ngValue]="service.id">{{ service.label }}</option>
+                }
+              </select>
+            </ui-field>
+            <ui-button
+              variant="tonal"
+              icon="swap_horiz"
+              (click)="replaceService(appt)"
+              data-testid="replacement-save"
+            >
+              Change service
+            </ui-button>
+          </div>
+          @if (extras().length) {
+            <div class="row">
+              <ui-field label="Add-on or enhancement">
+                <select [(ngModel)]="extraVariantId" data-testid="extra-select">
+                  <option [ngValue]="null">Choose…</option>
+                  @for (extra of extras(); track extra.id) {
+                    <option [ngValue]="extra.id">{{ extra.label }}</option>
+                  }
+                </select>
+              </ui-field>
+              <ui-button
+                variant="tonal"
+                icon="add"
+                (click)="addExtra(appt)"
+                data-testid="extra-add"
+              >
+                Add
+              </ui-button>
+            </div>
+          }
+
+          <div data-testid="appointment-deposit">
+            <h3 class="sheet__h3">Deposit</h3>
+            @if (appt.deposit?.status === 'held') {
+              <p class="sheet__hint">
+                ${{ appt.deposit!.amount_cents / 100 | number: '1.2-2' }} held for the client — it
+                comes off the bill at checkout, and goes back if they cancel in time.
+              </p>
+              <ui-button
+                variant="text"
+                icon="undo"
+                (click)="refundDeposit(appt)"
+                data-testid="deposit-refund"
+              >
+                {{ confirmingDepositRefund ? 'Confirm: deposit given back' : 'Give deposit back' }}
+              </ui-button>
+            } @else if (!appt.deposit) {
+              <p class="sheet__hint">
+                Taken before the visit, by card over the phone, cash or Zelle.
+              </p>
+              <div class="form-grid">
+                <ui-field label="Amount">
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    [(ngModel)]="deposit.dollars"
+                    data-testid="deposit-amount"
+                  />
+                </ui-field>
+                <ui-field label="Method">
+                  <select [(ngModel)]="deposit.method" data-testid="deposit-method">
+                    @for (m of depositMethods; track m) {
+                      <option [value]="m">{{ humanStatus(m) }}</option>
+                    }
+                  </select>
+                </ui-field>
+                <ui-field label="Reference" [optional]="true">
+                  <input [(ngModel)]="deposit.reference" data-testid="deposit-reference" />
+                </ui-field>
+              </div>
+              <ui-button
+                variant="tonal"
+                icon="savings"
+                (click)="recordDeposit(appt)"
+                data-testid="deposit-save"
+              >
+                Record deposit
+              </ui-button>
+            }
+            @if (depositNotice()) {
+              <ui-banner tone="success" data-testid="deposit-notice">{{
+                depositNotice()
+              }}</ui-banner>
+            }
+          </div>
+
+          <div data-testid="appointment-discount">
+            <h3 class="sheet__h3">Discount</h3>
+            <p class="sheet__hint">{{ discountHint() }}</p>
+            <div class="form-grid">
+              <ui-field label="Amount">
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  [(ngModel)]="discount.dollars"
+                  data-testid="appointment-discount-amount"
+                />
+              </ui-field>
+              <ui-field label="Reason">
+                <input [(ngModel)]="discount.reason" data-testid="appointment-discount-reason" />
+              </ui-field>
+            </div>
+            <ui-button
+              variant="tonal"
+              icon="percent"
+              (click)="applyDiscount(appt)"
+              data-testid="appointment-discount-save"
+            >
+              Apply discount
+            </ui-button>
+            @if (discountNotice()) {
+              <ui-banner tone="success" data-testid="discount-notice">{{
+                discountNotice()
+              }}</ui-banner>
+            }
+          </div>
+
+          <ui-field
+            label="Internal front-desk note"
+            hint="Visible to staff, not sent to the client."
+          >
+            <textarea
+              rows="2"
+              [(ngModel)]="appointmentNote"
+              data-testid="appointment-note"
+            ></textarea>
+          </ui-field>
+          <ui-button
+            variant="tonal"
+            icon="save"
+            (click)="saveInternalNote(appt)"
+            data-testid="appointment-note-save"
+          >
+            Save note
+          </ui-button>
+
+          @if (appt.assignment_pending) {
+            <div data-testid="assignment-editor">
+              <h3 class="sheet__h3">Assign therapist</h3>
+              <p class="sheet__hint">
+                Choose exactly {{ appt.therapists_required ?? 1 }}. Capacity has been held while
+                this was marked No preference.
+              </p>
+              <ul class="checks">
+                @for (member of staff(); track member.id) {
+                  <li>
+                    <label class="toggle">
+                      <input
+                        type="checkbox"
+                        [checked]="assignmentIds.includes(member.id)"
+                        (change)="toggleAssignee(member.id, $any($event.target).checked)"
+                      />
+                      {{ member.display_name }}
+                    </label>
+                  </li>
+                }
+              </ul>
+              <ui-button
+                variant="tonal"
+                icon="person_add"
+                (click)="assignStaff(appt)"
+                data-testid="assignment-save"
+              >
+                Confirm assignment
+              </ui-button>
+            </div>
+          }
+
+          <h3 class="sheet__h3">Reschedule</h3>
+          <div class="form-grid">
+            <ui-field label="Date">
+              <input type="date" [(ngModel)]="rescheduleDate" data-testid="reschedule-date" />
+            </ui-field>
+            <ui-field label="Time">
+              <input type="time" [(ngModel)]="rescheduleTime" data-testid="reschedule-time" />
+            </ui-field>
+            <ui-field label="Room">
+              <select [(ngModel)]="rescheduleRoomId" data-testid="reschedule-room">
+                @for (room of board()?.rooms ?? []; track room.id) {
+                  <option [ngValue]="room.id">{{ room.name }}</option>
+                }
+              </select>
+            </ui-field>
+          </div>
+          <ui-button
+            variant="tonal"
+            icon="event_repeat"
+            (click)="reschedule(appt)"
+            data-testid="reschedule-save"
+          >
+            Reschedule
+          </ui-button>
+
+          <div data-testid="repeat-editor">
+            <h3 class="sheet__h3">Repeat appointment</h3>
+            <p class="sheet__hint">
+              All future bookings are created together. If one date is unavailable, none are
+              created.
+            </p>
+            <div class="form-grid">
+              <ui-field label="Repeat every">
+                <select [(ngModel)]="repeatForm.interval_weeks" data-testid="repeat-interval">
+                  <option [ngValue]="1">Week</option>
+                  <option [ngValue]="2">2 weeks</option>
+                  <option [ngValue]="3">3 weeks</option>
+                  <option [ngValue]="4">4 weeks</option>
+                </select>
+              </ui-field>
+              <ui-field label="Future visits">
+                <input
+                  type="number"
+                  min="1"
+                  max="12"
+                  [(ngModel)]="repeatForm.count"
+                  data-testid="repeat-count"
+                />
+              </ui-field>
+            </div>
+            <ui-button
+              variant="tonal"
+              icon="event_repeat"
+              (click)="repeatAppointment(appt)"
+              data-testid="repeat-save"
+            >
+              Book repeats
+            </ui-button>
+            @if (repeatNotice()) {
+              <ui-banner tone="success">{{ repeatNotice() }}</ui-banner>
+            }
+          </div>
         </section>
       }
 
@@ -173,6 +449,16 @@
               <li>
                 <p>{{ n.body }}</p>
                 <small>{{ n.author }} · {{ n.created_at | wallClock: 'date' }}</small>
+                @if (isTherapist() && n.staff_profile_id === auth.user()?.staff_profile_id) {
+                  <ui-button variant="text" icon="edit_note" (click)="correctingNoteId = n.id"
+                    >Correct</ui-button
+                  >
+                  @if (correctingNoteId === n.id) {
+                    <ui-button variant="text" icon="save" (click)="correctCareNote(n)"
+                      >Save correction below</ui-button
+                    >
+                  }
+                }
               </li>
             }
           </ul>
@@ -197,21 +483,90 @@
       </section>
 
       <footer class="sheet__actions">
-        @if (appt.status === 'completed' && canBook()) {
+        @if (
+          canBook() && ['scheduled', 'checked_in', 'in_progress', 'completed'].includes(appt.status)
+        ) {
           <ui-button icon="point_of_sale" (click)="checkout(appt)" data-testid="go-checkout">
             Checkout
           </ui-button>
         }
-        @for (action of nextActions(appt.status); track action) {
-          <ui-button
-            [variant]="destructive(action) ? 'danger' : 'tonal'"
-            (click)="transition(appt, action)"
-            [attr.data-testid]="'action-' + action"
-          >
-            {{ label(action) }}
-          </ui-button>
+        @if (canBook()) {
+          <details class="appointment-menu" data-testid="appointment-menu">
+            <summary aria-label="More appointment actions">⋮</summary>
+            <div class="appointment-menu__items">
+              @for (action of nextActions(appt.status); track action) {
+                @if (destructive(action)) {
+                  <button
+                    type="button"
+                    (click)="transition(appt, action)"
+                    [attr.data-testid]="'menu-' + action"
+                  >
+                    {{ label(action) }}
+                  </button>
+                }
+              }
+              <button type="button" (click)="rebook(appt)" data-testid="menu-rebook">Rebook</button>
+              <button type="button" (click)="focusEditor('reschedule-date')">Reschedule</button>
+              <button type="button" (click)="focusEditor('appointment-note')">Add notes</button>
+              <button type="button" (click)="focusEditor('repeat-interval')">
+                Set as repeating
+              </button>
+            </div>
+          </details>
+        }
+        @if (isTherapist()) {
+          @for (action of nextActions(appt.status); track action) {
+            <ui-button
+              [variant]="destructive(action) ? 'danger' : 'tonal'"
+              (click)="transition(appt, action)"
+              [attr.data-testid]="'action-' + action"
+            >
+              {{ label(action) }}
+            </ui-button>
+          }
         }
       </footer>
+
+      @if (checkoutPrompt()) {
+        <section class="rating-prompt" data-testid="checkout-rating">
+          <h3 class="sheet__h3">How was the visit?</h3>
+          <p class="sheet__hint">Ask the client before checkout. Choose a score from 1 to 10.</p>
+          <div class="rating-prompt__scores">
+            @for (score of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; track score) {
+              <button
+                type="button"
+                [attr.data-testid]="'rating-score-' + score"
+                [class.on]="ratingScore === score"
+                (click)="ratingScore = score"
+                [attr.aria-pressed]="ratingScore === score"
+              >
+                {{ score }}
+              </button>
+            }
+          </div>
+          <ui-field label="Comment" [optional]="true">
+            <textarea rows="2" [(ngModel)]="ratingFeedback"></textarea>
+          </ui-field>
+          <div class="row">
+            <ui-button
+              icon="point_of_sale"
+              (click)="submitRatingAndCheckout(appt)"
+              [disabled]="!ratingScore"
+              data-testid="rating-continue"
+            >
+              Continue to checkout
+            </ui-button>
+            <ui-button
+              variant="outlined"
+              (click)="declineRatingAndCheckout(appt)"
+              data-testid="rating-declined"
+            >
+              Client declined to rate
+            </ui-button>
+            <ui-button variant="text" (click)="checkoutPrompt.set(false)">Cancel</ui-button>
+          </div>
+        </section>
+      }
     </ui-sheet>
   }
 </ui-page>

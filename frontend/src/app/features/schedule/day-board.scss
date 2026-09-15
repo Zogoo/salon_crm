@@ -71,6 +71,11 @@
   overflow: hidden;
 }
 
+.grid__lane:has(.appt:active) {
+  outline: 2px dashed var(--md-primary);
+  outline-offset: 2px;
+}
+
 .grid__tick {
   position: absolute;
   top: 0;
@@ -117,6 +122,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+}
+
+.appt[draggable='true'] {
+  cursor: grab;
+}
+
+.appt[draggable='true']:active {
+  cursor: grabbing;
 }
 
 // Status colours match the chips used everywhere else, so a colour means the

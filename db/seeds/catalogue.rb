@@ -146,8 +146,14 @@ module Seeds
 
     def category(code) = ServiceCategory.find_by!(code: code)
 
+    # Matched on a code derived from the seeded name, never on the name itself:
+    # the Owner can rename a service (feedback 6.1), and a re-run must find the
+    # renamed row rather than create a second copy.
     def upsert_service(name, category_code, kind: "standard")
-      Service.find_or_create_by!(name:, service_category: category(category_code)) do |s|
+      code = name.parameterize(separator: "_")
+      Service.find_or_create_by!(code:) do |s|
+        s.name = name
+        s.service_category = category(category_code)
         s.kind = kind
       end
     end

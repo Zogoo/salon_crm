@@ -108,6 +108,57 @@
           }
         </ui-card>
 
+        <ui-card
+          heading="Included service"
+          sub="Change which eligible 60-minute massage this membership covers."
+        >
+          <div class="row">
+            <ui-field label="Included monthly massage">
+              <select [(ngModel)]="editVariantId" data-testid="mem-edit-variant">
+                @for (option of included(); track option.id) {
+                  <option [ngValue]="option.id">{{ option.label }}</option>
+                }
+              </select>
+            </ui-field>
+            <ui-button
+              variant="tonal"
+              icon="save"
+              (click)="updateIncluded(m)"
+              data-testid="mem-edit-save"
+              >Save</ui-button
+            >
+          </div>
+        </ui-card>
+
+        @if (isOwner()) {
+          <ui-card
+            heading="Credit correction"
+            sub="Owner-only. Positive adds credit; negative removes it. The reason stays in the ledger."
+          >
+            <div class="form-grid">
+              <ui-field label="Credit change">
+                <input
+                  type="number"
+                  min="-3"
+                  max="3"
+                  [(ngModel)]="creditAdjustment.amount"
+                  data-testid="mem-adjust-amount"
+                />
+              </ui-field>
+              <ui-field label="Reason">
+                <input [(ngModel)]="creditAdjustment.reason" data-testid="mem-adjust-reason" />
+              </ui-field>
+            </div>
+            <ui-button
+              variant="tonal"
+              icon="tune"
+              (click)="adjustCredits(m)"
+              data-testid="mem-adjust-save"
+              >Adjust credits</ui-button
+            >
+          </ui-card>
+        }
+
         @if (m.credit_ledger?.length) {
           <ui-card
             heading="Credit ledger"

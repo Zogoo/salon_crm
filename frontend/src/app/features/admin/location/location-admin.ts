@@ -70,6 +70,25 @@ export class LocationAdminPage implements OnInit {
   protected newHour = { day_of_week: 1, opens_at: '09:00', closes_at: '22:00' };
   protected newClosure = { date: '', reason: '' };
   protected newRoom = { name: '', room_type: 'single', client_capacity: 1, position: 0 };
+  protected locationForm = {
+    name: '',
+    code: '',
+    timezone: '',
+    buffer_minutes: 15,
+    slot_granularity_minutes: 15,
+    cancellation_window_hours: 4,
+    no_show_fee_percent: 20,
+    late_cancel_fee_percent: 20,
+    manager_discount_limit_percent: 20,
+  };
+  protected editingRoomId: number | null = null;
+  protected roomForm = {
+    name: '',
+    room_type: 'single',
+    client_capacity: 1,
+    position: 0,
+    status: 'active',
+  };
   protected newBlock = { date: '', starts_at: '09:00', ends_at: '12:00', reason: '' };
 
   ngOnInit(): void {
@@ -77,6 +96,7 @@ export class LocationAdminPage implements OnInit {
       const today = todayIn(this.ctx.current()?.timezone);
       this.newClosure.date = today;
       this.newBlock.date = today;
+      this.seedLocation();
       this.reload();
     });
   }
@@ -84,6 +104,7 @@ export class LocationAdminPage implements OnInit {
   protected onLocationChange(id: number): void {
     this.ctx.select(id);
     this.blockedRoom.set(null);
+    this.seedLocation();
     this.reload();
   }
 
@@ -180,6 +201,40 @@ export class LocationAdminPage implements OnInit {
     });
   }
 
+  protected saveLocation(): void {
+    const loc = this.ctx.current();
+    if (!loc) return;
+    this.api.updateLocation(loc.id, this.locationForm).subscribe({
+      next: () => {
+        this.notice.set('Location settings saved.');
+        void this.ctx.load().then(() => this.seedLocation());
+      },
+      error: (err) => this.error.set(this.message(err, 'Could not save the location')),
+    });
+  }
+
+  protected editRoom(room: Room): void {
+    this.editingRoomId = room.id;
+    this.roomForm = {
+      name: room.name,
+      room_type: room.room_type,
+      client_capacity: room.client_capacity,
+      position: room.position ?? 0,
+      status: room.status ?? 'active',
+    };
+  }
+
+  protected saveRoom(room: Room): void {
+    this.api.updateRoom(room.id, this.roomForm).subscribe({
+      next: () => {
+        this.editingRoomId = null;
+        this.notice.set('Room saved.');
+        this.reload();
+      },
+      error: (err) => this.error.set(this.message(err, 'Could not save the room')),
+    });
+  }
+
   protected showBlocks(room: Room): void {
     this.clear();
     this.blockedRoom.set(room);
@@ -222,6 +277,22 @@ export class LocationAdminPage implements OnInit {
 
   protected wallClock(iso: string): string {
     return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+  }
+
+  private seedLocation(): void {
+    const loc = this.ctx.current();
+    if (!loc) return;
+    this.locationForm = {
+      name: loc.name,
+      code: loc.code,
+      timezone: loc.timezone,
+      buffer_minutes: loc.buffer_minutes,
+      slot_granularity_minutes: loc.slot_granularity_minutes,
+      cancellation_window_hours: loc.cancellation_window_hours,
+      no_show_fee_percent: loc.no_show_fee_percent,
+      late_cancel_fee_percent: loc.late_cancel_fee_percent,
+      manager_discount_limit_percent: loc.manager_discount_limit_percent,
+    };
   }
 
   private clear(): void {

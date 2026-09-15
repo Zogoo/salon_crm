@@ -208,12 +208,27 @@
             hint="Asking for someone by name holds the slot and needs approval."
           >
             <select [(ngModel)]="requestedStaffId" data-testid="therapist-select">
-              <option [ngValue]="null">No preference (books immediately)</option>
+              <option [ngValue]="null">No preference (assign later)</option>
               @for (t of staff(); track t.id) {
                 <option [ngValue]="t.id">{{ t.display_name }}</option>
               }
             </select>
           </ui-field>
+          @if (needsTwoTherapists() && requestedStaffId) {
+            <ui-field
+              label="Second therapist"
+              hint="Optional. Leave empty and the other seat is filled from whoever is free."
+            >
+              <select [(ngModel)]="secondStaffId" data-testid="second-therapist-select">
+                <option [ngValue]="null">Whoever is free</option>
+                @for (t of staff(); track t.id) {
+                  @if (t.id !== requestedStaffId) {
+                    <option [ngValue]="t.id">{{ t.display_name }}</option>
+                  }
+                }
+              </select>
+            </ui-field>
+          }
         </div>
 
         <ui-button

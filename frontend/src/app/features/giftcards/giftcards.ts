@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -9,6 +9,7 @@ import { ClientRecord, GiftCard, PaymentMethod } from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
+import { AuthService } from '../../core/services/auth.service';
 import {
   Fact,
   UiBanner,
@@ -48,6 +49,7 @@ import {
 export class GiftCardsPage implements OnInit {
   private readonly api = inject(MassagelabService);
   private readonly i18n = inject(TranslateService);
+  private readonly auth = inject(AuthService);
   private buyerRequest?: Subscription;
   private readonly destroyRef = inject(DestroyRef);
   protected readonly buyers = signal<ClientRecord[]>([]);
@@ -80,6 +82,8 @@ export class GiftCardsPage implements OnInit {
   protected readonly selected = signal<GiftCard | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly issued = signal<GiftCard | null>(null);
+  protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
+  protected adjustment = { dollars: 0, reason: '' };
 
   protected search = '';
 
@@ -155,11 +159,38 @@ export class GiftCardsPage implements OnInit {
         error: (err) => {
           const error = err?.error?.error;
           this.error.set(
-            Array.isArray(error)
-              ? error.join('. ')
-              : (error?.message ?? error?.code ?? this.i18n.instant('gift_card_form.issue_error')),
+            error?.code === 'code_taken'
+              ? 'That gift card code is already in use. Enter a different code, or leave it blank to generate one.'
+              : Array.isArray(error)
+                ? error.join('. ')
+                : (error?.message ??
+                  error?.code ??
+                  this.i18n.instant('gift_card_form.issue_error')),
           );
         },
       });
+  }
+
+  protected adjust(card: GiftCard): void {
+    const cents = Math.round(this.adjustment.dollars * 100);
+    if (!cents || !this.adjustment.reason.trim()) return;
+    this.api.adjustGiftCard(card.id, cents, this.adjustment.reason.trim()).subscribe({
+      next: (updated) => {
+        this.selected.set(updated);
+        this.adjustment = { dollars: 0, reason: '' };
+        this.reload();
+      },
+      error: (err) => this.error.set(err?.error?.error?.code ?? 'Could not adjust the card'),
+    });
+  }
+
+  protected voidCard(card: GiftCard): void {
+    this.api.voidGiftCard(card.id).subscribe({
+      next: (updated) => {
+        this.selected.set(updated);
+        this.reload();
+      },
+      error: () => this.error.set('Could not void the card'),
+    });
   }
 }

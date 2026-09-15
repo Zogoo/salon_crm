@@ -10,6 +10,8 @@ module Api
 
         order = Sales::OpenOrder.call(appointment: appt, actor: current_user)
         render json: order_json(order), status: :created
+      rescue Sales::OpenOrder::Invalid => e
+        render_invalid(e.message, code: e.message)
       end
 
       def show
@@ -93,14 +95,15 @@ module Api
         Earnings::GenerateForTip.call(order: order.reload)
         render json: order_json(order.reload)
       rescue Sales::SettleOrder::Unsettled => e
-        render json: { error: { code: "unsettled", message: e.message } },
+        code = e.message.start_with?("outstanding_") ? "unsettled" : e.message
+        render json: { error: { code:, message: e.message } },
                status: :unprocessable_content
       end
 
       # A manual discount. Kept as its own ledger row rather than editing the
       # order total, so the reason and the person survive into reporting.
+      # Owner without limit; Manager up to the location's limit (ApplyDiscount).
       def discounts
-        require_owner!
         order = find_order
         Sales::ApplyDiscount.call(order:, actor: current_user,
                                   amount_cents: params.require(:amount_cents),
@@ -118,6 +121,8 @@ module Api
       # could quietly mis-file.
       def line_items
         order = find_order
+        return render_invalid("order_not_open", code: "order_not_open") unless order.status == "open"
+
         quantity = params.fetch(:quantity, 1).to_i
         unit = params.require(:unit_price_cents).to_i
 
@@ -170,6 +175,9 @@ module Api
           tip_cents: order.tip_cents, total_cents: order.total_cents,
           paid_cents: order.paid_cents, redeemed_cents: order.redeemed_cents,
           credited_cents: order.credited_cents, outstanding_cents: order.outstanding_cents,
+          deposit_cents: order.deposit_cents,
+          manual_discount_cents: order.order_discounts.select { |d| d.kind == "manual" }.sum(&:amount_cents),
+          manager_discount_limit_cents: Sales::ApplyDiscount.manager_limit_cents(order),
           appointment_id: order.appointment_id,
           client: order.client && { id: order.client_id, full_name: order.client.full_name },
           line_items: order.order_line_items.map { |li|

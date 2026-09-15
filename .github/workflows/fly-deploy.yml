@@ -1,28 +1,36 @@
-# Deploy to Fly.io after CI passes on main. Needs a provisioned Fly app and a
-# FLY_API_TOKEN repository secret — see docs/engineering/07-deployment.md.
+# Deploy to Fly.io. Needs a provisioned Fly app and a FLY_API_TOKEN secret on
+# the `production` environment — see docs/engineering/07-deployment.md.
+#
+# The whole CI workflow — security scans, lint, RSpec, Vitest and the
+# end-to-end suite against the production image — runs inside this workflow,
+# and `deploy` needs it. No path ships a commit that has not passed all of it:
+# not a push to main, and not the manual "Run workflow" button either.
 name: Fly Deploy
 
 on:
-  workflow_run:
-    workflows: [ CI ]
-    types: [ completed ]
+  push:
     branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: fly-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
   deploy:
     name: Deploy app
-    # workflow_run fires for failed runs too, so only ship a green commit.
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: ci
+    # A manual run from another branch still tests it, but never ships it.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     concurrency: deploy-group
     steps:
       - uses: actions/checkout@v6
-        with:
-          # workflow_run would otherwise check out the branch tip, which may
-          # have moved on. Deploy the exact commit CI went green on.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --remote-only
         env:

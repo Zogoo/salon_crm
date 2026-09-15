@@ -92,7 +92,13 @@ Rails.application.routes.draw do
         member do
           post   :transition
           post   :reschedule
+          post   :assign_staff
+          post   :repeat
+          post   :replace_service
           post   :cancel
+          post   :complete_for_checkout
+          post   :deposit
+          post   "deposit/refund", action: :refund_deposit
           post   "items", action: :add_items
           delete "items/:item_id", action: :remove_item
           get    "care_notes", to: "care_notes#index"
@@ -125,6 +131,7 @@ Rails.application.routes.draw do
         end
       end
       get "dashboard", to: "dashboard#show"
+      resources :audit_logs, only: :index
 
       # --- Money and operations ---
       resources :orders, only: %i[create show] do
@@ -168,7 +175,8 @@ Rails.application.routes.draw do
       post "earning_statements/:id/adjustments", to: "earnings#create_adjustment"
       get  "earning_lines",              to: "earnings#lines"
       post "earning_lines",              to: "earnings#create_line"
-      get  "reports/staff_earnings",     to: "earnings#report"
+      patch "earning_lines/:id",         to: "earnings#update_line"
+      get "reports/staff_earnings",      to: "earnings#report"
 
       # --- Reports ---
       get "reports/daily_revenue",       to: "reports#daily_revenue"

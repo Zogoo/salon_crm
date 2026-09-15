@@ -63,8 +63,18 @@ export class CatalogueAdminPage implements OnInit {
   }
 
   protected creating = false;
+  protected editingService = false;
+  protected editingVariantId: number | null = null;
   protected newService = { name: '', kind: 'standard', service_category_id: 0 };
+  protected serviceForm = { name: '', kind: 'standard', service_category_id: 0 };
   protected newVariant = { duration_minutes: 60, therapist_count: 1, required_client_capacity: 1 };
+  protected variantForm = {
+    duration_minutes: 60,
+    therapist_count: 1,
+    required_client_capacity: 1,
+    requires_room_type: null as string | null,
+    active: true,
+  };
   protected priceForm = { dollars: 0, effective_from: '' };
 
   ngOnInit(): void {
@@ -100,7 +110,16 @@ export class CatalogueAdminPage implements OnInit {
     this.prices.set([]);
     this.pricedVariant.set(null);
     this.api.catalogueService(service.id).subscribe({
-      next: (full) => this.detail.set(full),
+      next: (full) => {
+        this.detail.set(full);
+        this.editingService = false;
+        this.editingVariantId = null;
+        this.serviceForm = {
+          name: full.name,
+          kind: full.kind,
+          service_category_id: full.service_category_id,
+        };
+      },
       error: (err) => this.error.set(this.message(err, 'Could not load that service')),
     });
   }
@@ -130,6 +149,53 @@ export class CatalogueAdminPage implements OnInit {
         this.reload();
       },
       error: (err) => this.error.set(this.message(err, 'Could not change that')),
+    });
+  }
+
+  protected saveService(service: CatalogueService): void {
+    this.clear();
+    this.api.updateService(service.id, this.serviceForm).subscribe({
+      next: (updated) => {
+        this.detail.set(updated);
+        this.editingService = false;
+        this.notice.set('Service details saved. Existing appointments keep their snapshots.');
+        this.reload();
+      },
+      error: (err) => this.error.set(this.message(err, 'Could not save that service')),
+    });
+  }
+
+  protected deleteService(service: CatalogueService): void {
+    this.api.deleteService(service.id).subscribe({
+      next: () => {
+        this.detail.set(null);
+        this.notice.set('Unused service deleted.');
+        this.reload();
+      },
+      error: (err) => this.error.set(this.message(err, 'Could not delete that service')),
+    });
+  }
+
+  protected editVariant(variant: CatalogueVariant): void {
+    this.editingVariantId = variant.id;
+    this.variantForm = {
+      duration_minutes: variant.duration_minutes,
+      therapist_count: variant.therapist_count,
+      required_client_capacity: variant.required_client_capacity,
+      requires_room_type: variant.requires_room_type,
+      active: variant.active,
+    };
+  }
+
+  protected saveVariant(service: CatalogueService, variant: CatalogueVariant): void {
+    this.clear();
+    this.api.updateVariant(variant.id, this.variantForm).subscribe({
+      next: () => {
+        this.editingVariantId = null;
+        this.notice.set('Session length saved. Past appointments are unchanged.');
+        this.open(service);
+      },
+      error: (err) => this.error.set(this.message(err, 'Could not save that session length')),
     });
   }
 

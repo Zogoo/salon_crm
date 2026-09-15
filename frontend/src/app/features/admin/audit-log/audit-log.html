@@ -1,0 +1,76 @@
+<ui-page title="Audit log" sub="Every sensitive read and business change, newest first.">
+  @if (error()) {
+    <ui-banner tone="error">{{ error() }}</ui-banner>
+  }
+
+  <ui-card heading="Filter activity">
+    <div class="form-grid">
+      <ui-field label="Action" hint="For example: payment, care_notes or staff.updated">
+        <input [(ngModel)]="filters.action" data-testid="audit-action" />
+      </ui-field>
+      <ui-field label="Record type">
+        <input [(ngModel)]="filters.auditable_type" placeholder="Appointment, Payment…" />
+      </ui-field>
+      <ui-field label="From"><input type="date" [(ngModel)]="filters.from" /></ui-field>
+      <ui-field label="To"><input type="date" [(ngModel)]="filters.to" /></ui-field>
+    </div>
+    <ui-button icon="search" (click)="reload()" [disabled]="loading()" data-testid="audit-search">
+      Search
+    </ui-button>
+  </ui-card>
+
+  <ui-card heading="Activity" [sub]="(meta()?.count ?? logs().length) + ' matching records'">
+    @if (logs().length) {
+      <ui-table label="Audit activity">
+        <table data-testid="audit-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>Record</th>
+              <th>Changes</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (log of logs(); track log.id) {
+              <tr>
+                <td>{{ log.occurred_at | wallClock: 'datetime' }}</td>
+                <td>
+                  {{ log.actor?.name ?? 'System' }}<br /><small>{{ log.actor?.role ?? '' }}</small>
+                </td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.auditable_type }} #{{ log.auditable_id }}</td>
+                <td>
+                  <code>{{ changes(log) }}</code>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </ui-table>
+      <div class="row">
+        <ui-button
+          variant="outlined"
+          (click)="reload(filters.page - 1)"
+          [disabled]="filters.page <= 1"
+        >
+          Previous
+        </ui-button>
+        <span>Page {{ filters.page }} of {{ meta()?.pages ?? 1 }}</span>
+        <ui-button
+          variant="outlined"
+          (click)="reload(filters.page + 1)"
+          [disabled]="filters.page >= (meta()?.pages ?? 1)"
+          >Next</ui-button
+        >
+      </div>
+    } @else if (!loading()) {
+      <ui-empty
+        icon="history"
+        title="No activity matches"
+        hint="Adjust the filters and try again."
+      />
+    }
+  </ui-card>
+</ui-page>

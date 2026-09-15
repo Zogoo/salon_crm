@@ -67,9 +67,13 @@ export class BookingPage implements OnInit {
   protected readonly enhancementIds = signal<number[]>([]);
   // FRS §5.1: default is no preference — the roster is never the starting point.
   protected requestedStaffId: number | null = null;
+  // Feedback 2.1: a couples or four-hands client may ask for both therapists.
+  protected secondStaffId: number | null = null;
   protected clientNote = '';
   protected selectedSlot: Slot | null = null;
   protected secondClientId: number | null = null;
+  private rebookClientId: number | null = null;
+  private rebookVariantId: number | null = null;
 
   protected showNewClient = false;
   protected newClient = { first_name: '', last_name: '', phone: '', email: '' };
@@ -138,6 +142,8 @@ export class BookingPage implements OnInit {
   ngOnInit(): void {
     const qDate = this.route.snapshot.queryParamMap.get('date');
     if (qDate) this.date = qDate;
+    this.rebookClientId = Number(this.route.snapshot.queryParamMap.get('client_id')) || null;
+    this.rebookVariantId = Number(this.route.snapshot.queryParamMap.get('variant_id')) || null;
     void this.ctx.load().then(() => {
       this.date ||= todayIn(this.ctx.current()?.timezone);
       this.loadForLocation();
@@ -147,7 +153,17 @@ export class BookingPage implements OnInit {
   protected loadForLocation(): void {
     const loc = this.ctx.current();
     if (!loc) return;
-    this.api.services(loc.id).subscribe(({ services }) => this.services.set(services));
+    this.api.services(loc.id).subscribe(({ services }) => {
+      this.services.set(services);
+      if (
+        this.rebookVariantId &&
+        services.some((service) =>
+          service.variants.some((variant) => variant.id === this.rebookVariantId),
+        )
+      ) {
+        this.selectedVariantId.set(this.rebookVariantId);
+      }
+    });
     this.api.staff(loc.id).subscribe(({ staff }) => this.staff.set(staff));
     this.searchClients();
   }
@@ -159,7 +175,12 @@ export class BookingPage implements OnInit {
   }
 
   protected searchClients(): void {
-    this.api.clients(this.clientSearch).subscribe(({ clients }) => this.clients.set(clients));
+    this.api.clients(this.clientSearch).subscribe(({ clients }) => {
+      this.clients.set(clients);
+      if (this.rebookClientId && clients.some((client) => client.id === this.rebookClientId)) {
+        this.selectedClientId = this.rebookClientId;
+      }
+    });
   }
 
   protected createClient(): void {
@@ -173,6 +194,10 @@ export class BookingPage implements OnInit {
       error: (err) => this.error.set(this.messageFrom(err)),
     });
   }
+
+  protected readonly needsTwoTherapists = computed(
+    () => (this.chosenVariant()?.therapist_count ?? 1) > 1,
+  );
 
   protected variantIds(): number[] {
     const ids: number[] = [];
@@ -229,6 +254,9 @@ export class BookingPage implements OnInit {
       booking_channel: 'manager',
     };
     if (this.requestedStaffId) payload['requested_staff_profile_id'] = this.requestedStaffId;
+    if (this.requestedStaffId && this.needsTwoTherapists() && this.secondStaffId) {
+      payload['staff_profile_ids'] = [this.requestedStaffId, this.secondStaffId];
+    }
     if (this.needsTwoClients() && this.secondClientId) {
       payload['participant_client_ids'] = [this.secondClientId];
     }
@@ -257,6 +285,7 @@ export class BookingPage implements OnInit {
     this.addOnIds.set([]);
     this.enhancementIds.set([]);
     this.requestedStaffId = null;
+    this.secondStaffId = null;
     this.slots.set([]);
     this.selectedSlot = null;
     this.booked.set(null);

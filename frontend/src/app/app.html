@@ -36,7 +36,9 @@
 
         @if (user(); as currentUser) {
           <div class="appbar__account">
-            <span class="appbar__name" data-testid="current-user">{{ currentUser.name }}</span>
+            <a class="appbar__name" routerLink="/profile" data-testid="current-user">{{
+              currentUser.name
+            }}</a>
             <span class="appbar__role" data-testid="current-role">{{ currentUser.role }}</span>
             <ui-button variant="text" icon="logout" (click)="signOut()" ariaLabel="Sign out">
               <span class="appbar__signout-label">Sign out</span>

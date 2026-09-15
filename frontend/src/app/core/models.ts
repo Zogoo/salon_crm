@@ -7,6 +7,7 @@ export interface User {
   location_id: number | null;
   accessible_location_ids: number[];
   staff_profile_id: number | null;
+  otp_enabled?: boolean;
 }
 
 export interface Note {
@@ -22,6 +23,17 @@ export interface PageMeta {
   page: number;
   pages: number;
   limit: number;
+}
+
+export interface AuditLogRecord {
+  id: number;
+  action: string;
+  auditable_type: string;
+  auditable_id: number;
+  actor: { id: number; name: string; email: string; role: string } | null;
+  changes: Record<string, unknown>;
+  ip_address: string | null;
+  occurred_at: string;
 }
 
 export interface NotesPage {
@@ -47,6 +59,12 @@ export interface Location {
   closes_at: string;
   buffer_minutes: number;
   slot_granularity_minutes: number;
+  cancellation_window_hours: number;
+  no_show_fee_percent: number;
+  late_cancel_fee_percent: number;
+  /** Most a Manager may discount an order, as a % of its services. */
+  manager_discount_limit_percent: number;
+  status: string;
   room_count: number;
   rooms?: Room[];
 }
@@ -150,19 +168,35 @@ export interface Appointment {
   room: { id: number; name: string };
   client: { id: number; full_name: string; phone: string };
   therapists: StaffSummary[];
+  assignment_pending?: boolean;
+  therapists_required?: number;
   total_price_cents: number;
   client_note: string | null;
   location?: { id: number; name: string };
   appointment_note?: string | null;
   fee_charged_cents?: number;
+  /** Money taken before the visit, held for the client until checkout. */
+  deposit?: Deposit | null;
   items?: {
     id: number;
+    service_variant_id: number;
     name: string;
     kind: string;
     duration_minutes: number;
     price_cents: number;
   }[];
   preference?: ClientRecord['preference'];
+}
+
+export interface Deposit {
+  id: number;
+  amount_cents: number;
+  method: PaymentMethod;
+  status: 'held' | 'applied' | 'refunded' | 'forfeited';
+  reference: string | null;
+  fee_cents: number;
+  refunded_cents: number;
+  received_at: string;
 }
 
 export interface DayBoard {
@@ -302,6 +336,27 @@ export interface RosterShift {
   notes?: string | null;
 }
 
+export interface ShiftBreak {
+  id: number;
+  starts_at: string;
+  ends_at: string;
+  reason: string | null;
+}
+
+export interface StaffRequestRecord {
+  id: number;
+  kind: string;
+  status: string;
+  staff_profile_id: number;
+  display_name: string;
+  shift_id: number | null;
+  requested_payload: Record<string, unknown>;
+  note: string | null;
+  review_note: string | null;
+  reviewed_by_role: string | null;
+  created_at: string;
+}
+
 export interface ShiftBoard {
   date: string;
   working: {
@@ -333,6 +388,10 @@ export interface Order {
   redeemed_cents: number;
   credited_cents: number;
   outstanding_cents: number;
+  /** A deposit still held for this visit; it already covers part of the bill. */
+  deposit_cents: number;
+  manual_discount_cents: number;
+  manager_discount_limit_cents: number;
   appointment_id: number | null;
   client: { id: number; full_name: string } | null;
   line_items: {
@@ -414,6 +473,18 @@ export interface EarningsReport {
   total_cents: number;
 }
 
+export interface EarningLine {
+  id: number;
+  service_date: string;
+  source: string;
+  duration_minutes: number | null;
+  quantity: number;
+  rate_cents: number | null;
+  amount_cents: number;
+  appointment_id: number | null;
+  note: string | null;
+}
+
 export interface EarningPeriod {
   id: number;
   starts_on: string;
@@ -434,18 +505,30 @@ export interface EarningStatement {
   adjustments_cents: number;
   gross_amount_cents: number;
   locked: boolean;
+  period?: { from: string; to: string };
+  breakdown?: EarningsReport;
+  adjustments?: {
+    id: number;
+    service_date: string;
+    amount_cents: number;
+    reason: string;
+  }[];
 }
 
 export interface DailyRevenue {
   from: string;
   to: string;
   by_method: Record<string, number>;
+  gross_service_revenue_cents: number;
+  discounts_cents: number;
   service_revenue_cents: number;
   gift_card_liability_cents: number;
   membership_liability_cents: number;
   fees_cents: number;
   tips_cents: number;
   collected_cents: number;
+  deposits_received_cents: number;
+  deposits_held_cents: number;
 }
 
 export interface ClientLogRow {
@@ -518,12 +601,73 @@ export interface RetentionReport {
   top_clients: { client_id: number; full_name: string; visits: number; spend_cents: number }[];
 }
 
+export interface RatingsReport {
+  from: string;
+  to: string;
+  count: number;
+  average: number | null;
+  distribution: Record<string, number>;
+  recommend_rate: number | null;
+  by_therapist: {
+    staff_profile_id: number;
+    display_name: string;
+    count: number;
+    average: number;
+  }[];
+}
+
+export interface RatingAlertsReport {
+  from: string;
+  to: string;
+  count: number;
+  alerts: {
+    id: number;
+    score: number;
+    feedback: string | null;
+    improvement: string | null;
+    threshold: number;
+    location: string;
+    therapist: string | null;
+    appointment_id: number;
+    created_at: string;
+  }[];
+}
+
+export interface MembershipReport {
+  from: string;
+  to: string;
+  active_members: number;
+  credits_outstanding: number;
+  at_cap: number;
+  enrolled_in_period: number;
+  pending_cancellations: number;
+  credits_granted: number;
+  credits_redeemed: number;
+  cross_location_overrides: number;
+  liability_cents: number;
+}
+
 export interface CareNote {
   id: number;
+  staff_profile_id: number;
   body: string;
   created_at: string;
   author: string;
   supersedes_note_id: number | null;
+}
+
+export interface ManagerPayoutReport {
+  month: string;
+  total_cents: number;
+  payouts: {
+    id: number;
+    staff_profile_id: number;
+    display_name: string;
+    location: string;
+    amount_cents: number;
+    status: string;
+    paid_at: string | null;
+  }[];
 }
 
 export interface ClientRating {
@@ -543,4 +687,36 @@ export interface ClientGiftCard {
   status: string;
   sold_at: string;
   sold_at_location: string;
+}
+
+export interface ClientOrderHistory {
+  id: number;
+  number: string;
+  status: string;
+  location: string;
+  total_cents: number;
+  paid_cents: number;
+  created_at: string;
+}
+
+export interface ClientHistorySummary {
+  client_id: number;
+  visits: number;
+  lifetime_spend_cents: number;
+  first_visit: string | null;
+  last_visit: string | null;
+  days_since_last_visit: number | null;
+  favourite_service: string | null;
+  favourite_therapist: string | null;
+  no_show_count: number;
+  late_cancel_count: number;
+  cancel_count: number;
+}
+
+export interface PreferenceVersion {
+  attention_areas: string | null;
+  avoid_areas: string | null;
+  pressure: string | null;
+  other_requests: string | null;
+  superseded_at: string;
 }

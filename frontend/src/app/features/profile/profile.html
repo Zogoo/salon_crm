@@ -1,0 +1,51 @@
+<ui-page title="Your profile" sub="Update your display name, avatar, and account security.">
+  @if (error()) {
+    <ui-banner tone="error">{{ error() }}</ui-banner>
+  }
+  @if (notice()) {
+    <ui-banner tone="success">{{ notice() }}</ui-banner>
+  }
+  <ui-card heading="Profile">
+    @if (auth.user()?.avatar_url) {
+      <img [src]="auth.user()?.avatar_url" alt="Current avatar" width="96" height="96" />
+    }
+    <div class="form-grid">
+      <ui-field label="Name"><input [(ngModel)]="name" data-testid="profile-name" /></ui-field>
+      <ui-field label="Avatar" [optional]="true"
+        ><input type="file" accept="image/*" (change)="chooseAvatar($event)"
+      /></ui-field>
+    </div>
+    <div class="row">
+      <ui-button icon="save" (click)="save()" data-testid="profile-save">Save</ui-button>
+      @if (auth.user()?.avatar_url) {
+        <ui-button variant="text" (click)="removeAvatar()">Remove avatar</ui-button>
+      }
+    </div>
+  </ui-card>
+  <ui-card
+    heading="Two-factor authentication"
+    sub="Use an authenticator app for a second sign-in code."
+  >
+    @if (auth.user()?.otp_enabled) {
+      <ui-banner tone="success">Two-factor authentication is enabled.</ui-banner>
+    } @else if (otpSetup(); as setup) {
+      <p>Open this setup link in your authenticator app:</p>
+      <p>
+        <a [href]="setup.otpauth_url">{{ setup.otpauth_url }}</a>
+      </p>
+      <p>
+        Manual secret: <code>{{ setup.secret }}</code>
+      </p>
+      <ui-field label="6-digit code"
+        ><input inputmode="numeric" [(ngModel)]="otpCode" data-testid="otp-confirm-code"
+      /></ui-field>
+      <ui-button icon="verified_user" (click)="confirmOtp()" data-testid="otp-confirm"
+        >Confirm and enable</ui-button
+      >
+    } @else {
+      <ui-button icon="security" (click)="startOtp()" data-testid="otp-start"
+        >Set up two-factor authentication</ui-button
+      >
+    }
+  </ui-card>
+</ui-page>

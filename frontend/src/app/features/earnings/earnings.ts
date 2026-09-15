@@ -2,7 +2,14 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { EarningPeriod, EarningsReport, StaffMember } from '../../core/models';
+import {
+  EarningLine,
+  EarningPeriod,
+  EarningStatement,
+  EarningsReport,
+  ManagerPayoutReport,
+  StaffMember,
+} from '../../core/models';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import {
@@ -48,8 +55,11 @@ export class EarningsPage implements OnInit {
 
   protected readonly periods = signal<EarningPeriod[]>([]);
   protected readonly selectedPeriod = signal<EarningPeriod | null>(null);
+  protected readonly selectedStatement = signal<EarningStatement | null>(null);
   protected readonly staff = signal<StaffMember[]>([]);
   protected readonly report = signal<EarningsReport | null>(null);
+  protected readonly lines = signal<EarningLine[]>([]);
+  protected readonly managerPayouts = signal<ManagerPayoutReport | null>(null);
   protected readonly error = signal<string | null>(null);
 
   /** The lengths pay is defined for (FRS §4). */
@@ -64,7 +74,22 @@ export class EarningsPage implements OnInit {
   protected to = '';
 
   // FRS §4: manual session and tip entry, for corrections or off-system work.
-  protected manual = { duration_minutes: 60, quantity: 1, service_date: '', note: '' };
+  // A length makes the line count as a session in the quantity table (FRS §4,
+  // §8); a correction or off-system payment is an amount only.
+  protected manual: {
+    duration_minutes: number | null;
+    dollars: number;
+    service_date: string;
+    note: string;
+  } = {
+    duration_minutes: null,
+    dollars: 0,
+    service_date: '',
+    note: '',
+  };
+  protected lineAmounts: Record<number, number> = {};
+  protected lineNotes: Record<number, string> = {};
+  protected adjustment = { service_date: '', dollars: 0, reason: '' };
 
   ngOnInit(): void {
     void this.ctx.load().then(() => {
@@ -73,10 +98,21 @@ export class EarningsPage implements OnInit {
       this.from = f;
       this.to = t;
       this.manual.service_date = salonToday;
+      this.adjustment.service_date = salonToday;
 
       const loc = this.ctx.current();
       if (loc) this.api.staff(loc.id).subscribe(({ staff }) => this.staff.set(staff));
       this.loadPeriods();
+      this.loadManagerPayouts();
+    });
+  }
+
+  private loadManagerPayouts(): void {
+    const month = this.from.slice(0, 7);
+    if (!month) return;
+    this.api.managerPayouts(month).subscribe({
+      next: (report) => this.managerPayouts.set(report),
+      error: () => this.managerPayouts.set(null),
     });
   }
 
@@ -112,11 +148,48 @@ export class EarningsPage implements OnInit {
     });
   }
 
+  protected openStatement(statement: EarningStatement): void {
+    this.api
+      .earningStatement(statement.id)
+      .subscribe((detail) => this.selectedStatement.set(detail));
+  }
+
+  protected addAdjustment(statement: EarningStatement): void {
+    if (!this.adjustment.reason.trim()) return;
+    this.api
+      .adjustEarningStatement(
+        statement.id,
+        this.adjustment.service_date,
+        Math.round(this.adjustment.dollars * 100),
+        this.adjustment.reason.trim(),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.selectedStatement.set(updated);
+          this.adjustment = { ...this.adjustment, dollars: 0, reason: '' };
+          const period = this.selectedPeriod();
+          if (period) this.openPeriod(period);
+        },
+        error: (err) => this.error.set(err?.error?.error?.code ?? 'Could not add adjustment'),
+      });
+  }
+
+  protected statementPdf(statement: EarningStatement): void {
+    this.api.earningStatementPdf(statement.id).subscribe((blob) => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    });
+  }
+
   protected runReport(): void {
     if (!this.staffId) return;
     this.error.set(null);
     this.api.staffEarnings(this.staffId, this.from, this.to).subscribe({
-      next: (r) => this.report.set(r),
+      next: (r) => {
+        this.report.set(r);
+        this.loadLines();
+      },
       error: (err) => this.error.set(err?.error?.error ?? 'Could not load earnings'),
     });
   }
@@ -128,13 +201,38 @@ export class EarningsPage implements OnInit {
       .addEarningLine({
         staff_profile_id: this.staffId,
         service_date: this.manual.service_date,
-        duration_minutes: this.manual.duration_minutes,
-        quantity: this.manual.quantity,
+        duration_minutes: this.manual.duration_minutes ?? undefined,
+        quantity: 1,
+        amount_cents: Math.round(this.manual.dollars * 100),
         note: this.manual.note,
       })
       .subscribe({
         next: () => this.runReport(),
         error: (err) => this.error.set(err?.error?.error?.code ?? 'Could not add the line'),
       });
+  }
+
+  protected saveLine(line: EarningLine): void {
+    this.api
+      .updateEarningLine(
+        line.id,
+        Math.round((this.lineAmounts[line.id] ?? 0) * 100),
+        this.lineNotes[line.id] ?? '',
+      )
+      .subscribe({
+        next: () => this.runReport(),
+        error: (err) => this.error.set(err?.error?.error?.code ?? 'Could not update the line'),
+      });
+  }
+
+  private loadLines(): void {
+    if (!this.staffId) return;
+    this.api.earningLines(this.staffId, this.from, this.to).subscribe(({ lines }) => {
+      this.lines.set(lines);
+      for (const line of lines) {
+        this.lineAmounts[line.id] = line.amount_cents / 100;
+        this.lineNotes[line.id] = line.note ?? '';
+      }
+    });
   }
 }

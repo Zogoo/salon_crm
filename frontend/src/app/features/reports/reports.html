@@ -12,6 +12,77 @@
   }
 
   <div class="rep">
+    @if (ratings(); as r) {
+      <ui-card heading="Client ratings" data-testid="rep-ratings">
+        <p class="big">
+          {{ r.average ?? '—' }} <small>average from {{ r.count }} ratings</small>
+        </p>
+        @if (r.recommend_rate !== null) {
+          <p>{{ r.recommend_rate | number: '1.0-1' }}% would recommend</p>
+        }
+        <ul class="rows">
+          @for (therapist of r.by_therapist; track therapist.staff_profile_id) {
+            <li>
+              {{ therapist.display_name }}
+              <span>{{ therapist.average }} · {{ therapist.count }} ratings</span>
+            </li>
+          }
+        </ul>
+      </ui-card>
+    }
+
+    @if (ratingAlerts(); as r) {
+      <ui-card heading="Low-rating follow-up" data-testid="rep-rating-alerts">
+        @if (r.alerts.length) {
+          <ul class="rows">
+            @for (alert of r.alerts; track alert.id) {
+              <li>
+                <span class="rows__main"
+                  ><strong>{{ alert.score }}/10 · {{ alert.therapist || 'Unassigned' }}</strong
+                  ><small>{{ alert.feedback || alert.improvement || 'No comment' }}</small></span
+                >
+                <span>{{ alert.location }}</span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <ui-empty icon="sentiment_satisfied" title="No low ratings in this range" />
+        }
+      </ui-card>
+    }
+
+    @if (membership(); as m) {
+      <ui-card heading="Membership" data-testid="rep-membership">
+        <ui-table label="Membership report"
+          ><table>
+            <tr>
+              <td>Active members</td>
+              <td class="num">{{ m.active_members }}</td>
+            </tr>
+            <tr>
+              <td>Credits outstanding</td>
+              <td class="num">{{ m.credits_outstanding }}</td>
+            </tr>
+            <tr>
+              <td>Members at cap</td>
+              <td class="num">{{ m.at_cap }}</td>
+            </tr>
+            <tr>
+              <td>Enrolled in range</td>
+              <td class="num">{{ m.enrolled_in_period }}</td>
+            </tr>
+            <tr>
+              <td>Pending cancellations</td>
+              <td class="num">{{ m.pending_cancellations }}</td>
+            </tr>
+            <tr>
+              <td>Entitlement liability</td>
+              <td class="num">${{ m.liability_cents / 100 | number: '1.2-2' }}</td>
+            </tr>
+          </table></ui-table
+        >
+      </ui-card>
+    }
     @if (revenue(); as r) {
       <ui-card heading="Revenue" data-testid="rep-revenue">
         <ui-table label="Report table">
@@ -37,6 +108,16 @@
         <ui-table label="Report table">
           <table>
             <tr>
+              <td>Services at menu price</td>
+              <td class="num">${{ r.gross_service_revenue_cents / 100 | number: '1.2-2' }}</td>
+            </tr>
+            <tr>
+              <td>Discounts given</td>
+              <td class="num" data-testid="rev-discounts">
+                −${{ r.discounts_cents / 100 | number: '1.2-2' }}
+              </td>
+            </tr>
+            <tr class="total">
               <td>Service revenue</td>
               <td class="num" data-testid="rev-service">
                 ${{ r.service_revenue_cents / 100 | number: '1.2-2' }}
@@ -59,6 +140,16 @@
             <tr>
               <td>Tips <small>(the therapist's)</small></td>
               <td class="num">${{ r.tips_cents / 100 | number: '1.2-2' }}</td>
+            </tr>
+            <tr class="liab">
+              <td>Deposits taken in this period <small>(held for the client)</small></td>
+              <td class="num">${{ r.deposits_received_cents / 100 | number: '1.2-2' }}</td>
+            </tr>
+            <tr class="liab">
+              <td>Deposits held now <small>(liability)</small></td>
+              <td class="num" data-testid="rev-deposits-held">
+                ${{ r.deposits_held_cents / 100 | number: '1.2-2' }}
+              </td>
             </tr>
           </table>
         </ui-table>

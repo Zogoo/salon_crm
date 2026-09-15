@@ -203,6 +203,7 @@ module Scheduling
         client: @client, location: @location, room: room,
         starts_at: @start_at, service_ends_at: service_end, ends_at: finish,
         status: status,
+        staff_assignment_confirmed: @staff_ids.any? || @requested_staff_id.present?,
         total_price_cents: @variants.sum { |v| price_for(v) },
         booking_channel: @channel,
         created_by_user: @actor,

@@ -31,6 +31,7 @@ module Scheduling
         @appt.update!(total_price_cents: @appt.total_price_cents + @variants.sum { |v| price_for(v) })
         AuditLog.record!(auditable: @appt, action: "appointment.items_added", actor: @actor,
                          changes: { variant_ids: @variants.map(&:id) })
+        Sales::SyncOrder.call(appointment: @appt.reload)
         @appt.reload
       end
     end

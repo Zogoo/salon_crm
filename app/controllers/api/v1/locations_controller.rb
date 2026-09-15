@@ -94,7 +94,8 @@ module Api
         params.require(:location).permit(:name, :code, :timezone, :opens_at, :closes_at,
                                          :buffer_minutes, :slot_granularity_minutes,
                                          :cancellation_window_hours, :no_show_fee_percent,
-                                         :late_cancel_fee_percent, :status)
+                                         :late_cancel_fee_percent, :manager_discount_limit_percent,
+                                         :status)
       end
 
       def hours_json(location)
@@ -112,6 +113,11 @@ module Api
           closes_at: location.closes_at.strftime("%H:%M"),
           buffer_minutes: location.buffer_minutes,
           slot_granularity_minutes: location.slot_granularity_minutes,
+          cancellation_window_hours: location.cancellation_window_hours,
+          no_show_fee_percent: location.no_show_fee_percent,
+          late_cancel_fee_percent: location.late_cancel_fee_percent,
+          manager_discount_limit_percent: location.manager_discount_limit_percent,
+          status: location.status,
           room_count: location.rooms.active.count
         }
         if rooms

@@ -2,6 +2,48 @@
   title="Location"
   sub="Opening hours, holidays, rooms and rooms out of service. Each of these decides what can be booked — a closed day offers no times at all."
 >
+  <ui-card
+    heading="Location settings"
+    sub="The name, timezone, buffer, and slot size used throughout booking."
+  >
+    <div class="form-grid">
+      <ui-field label="Name"
+        ><input [(ngModel)]="locationForm.name" data-testid="location-name"
+      /></ui-field>
+      <ui-field label="Code"><input [(ngModel)]="locationForm.code" /></ui-field>
+      <ui-field label="Timezone"><input [(ngModel)]="locationForm.timezone" /></ui-field>
+      <ui-field label="Buffer minutes"
+        ><input type="number" min="0" [(ngModel)]="locationForm.buffer_minutes"
+      /></ui-field>
+      <ui-field label="Slot minutes"
+        ><input type="number" min="5" [(ngModel)]="locationForm.slot_granularity_minutes"
+      /></ui-field>
+      <ui-field label="Cancellation window (hours)">
+        <input type="number" min="0" [(ngModel)]="locationForm.cancellation_window_hours" />
+      </ui-field>
+      <ui-field label="No-show fee (%)">
+        <input type="number" min="0" max="100" [(ngModel)]="locationForm.no_show_fee_percent" />
+      </ui-field>
+      <ui-field label="Late-cancel fee (%)">
+        <input type="number" min="0" max="100" [(ngModel)]="locationForm.late_cancel_fee_percent" />
+      </ui-field>
+      <ui-field
+        label="Manager discount limit (%)"
+        hint="Most a Manager may discount one order, as a share of its services. Above it, only the Owner."
+      >
+        <input
+          type="number"
+          min="0"
+          max="100"
+          [(ngModel)]="locationForm.manager_discount_limit_percent"
+          data-testid="location-discount-limit"
+        />
+      </ui-field>
+    </div>
+    <ui-button icon="save" (click)="saveLocation()" data-testid="location-save"
+      >Save location</ui-button
+    >
+  </ui-card>
   @if (error()) {
     <ui-banner tone="error" data-testid="loc-error">{{ error() }}</ui-banner>
   }
@@ -139,13 +181,45 @@
           <tbody>
             @for (r of rooms(); track r.id) {
               <tr>
-                <td>{{ r.name }}</td>
-                <td>{{ humanStatus(r.room_type) }}</td>
-                <td>{{ r.client_capacity }}</td>
+                @if (editingRoomId === r.id) {
+                  <td><input [(ngModel)]="roomForm.name" data-testid="room-edit-name" /></td>
+                  <td>
+                    <select [(ngModel)]="roomForm.room_type">
+                      <option value="single">Single</option>
+                      <option value="couple">Couple</option>
+                      <option value="three_table">Three tables</option>
+                      <option value="head_spa">Head spa</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input type="number" min="1" max="3" [(ngModel)]="roomForm.client_capacity" />
+                  </td>
+                } @else {
+                  <td>{{ r.name }}</td>
+                  <td>{{ humanStatus(r.room_type) }}</td>
+                  <td>{{ r.client_capacity }}</td>
+                }
                 <td>
                   <ui-chip [tone]="tone(r.status)">{{ humanStatus(r.status) }}</ui-chip>
                 </td>
                 <td class="num">
+                  @if (editingRoomId === r.id) {
+                    <ui-button
+                      variant="text"
+                      icon="save"
+                      (click)="saveRoom(r)"
+                      [attr.data-testid]="'room-edit-save-' + r.id"
+                      >Save</ui-button
+                    >
+                  } @else {
+                    <ui-button
+                      variant="text"
+                      icon="edit"
+                      (click)="editRoom(r)"
+                      [attr.data-testid]="'room-edit-' + r.id"
+                      >Edit</ui-button
+                    >
+                  }
                   <ui-button
                     variant="text"
                     icon="block"
