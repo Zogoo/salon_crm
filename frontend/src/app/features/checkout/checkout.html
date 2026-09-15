@@ -1,6 +1,6 @@
 <ui-page
   title="Checkout"
-  sub="Take payment and close the appointment. An order settles only once nothing is outstanding."
+  sub="Take payment and close the visit. An order closes only once nothing is outstanding."
 >
   <div pageActions>
     <ui-button variant="outlined" icon="arrow_back" (click)="backToBoard()"
@@ -19,113 +19,138 @@
 
   @if (order(); as o) {
     <div class="checkout">
-      <ui-card [heading]="o.client?.full_name ?? 'Walk-in'" [sub]="o.number">
-        <ui-table label="Order lines">
-          <table data-testid="order-lines">
-            <tbody>
-              @for (li of o.line_items; track li.id) {
-                <tr>
-                  <td>{{ li.description }}</td>
-                  <td class="num">${{ li.line_total_cents / 100 | number: '1.2-2' }}</td>
-                </tr>
-              }
-              @for (d of o.discounts; track d.id) {
-                <tr>
-                  <td>{{ d.reason || humanStatus(d.kind) }}</td>
-                  <td class="num credit">−${{ d.amount_cents / 100 | number: '1.2-2' }}</td>
-                </tr>
-              }
-              @if (o.tip_cents) {
-                <tr>
-                  <td>
-                    Tip
-                    @for (t of o.tips; track t.staff_profile_id) {
-                      <small> · {{ t.display_name }}</small>
-                    }
-                  </td>
-                  <td class="num">${{ o.tip_cents / 100 | number: '1.2-2' }}</td>
-                </tr>
-              }
-            </tbody>
-            <tfoot>
-              <tr class="total">
-                <td>Total</td>
-                <td class="num" data-testid="order-total">
-                  ${{ o.total_cents / 100 | number: '1.2-2' }}
-                </td>
-              </tr>
-              @if (o.deposit_cents) {
-                <tr>
-                  <td>Deposit held <small>(taken before the visit)</small></td>
-                  <td class="num" data-testid="order-deposit">
-                    ${{ o.deposit_cents / 100 | number: '1.2-2' }}
+      <!-- The bill and the button that closes it stay together and in view. -->
+      <div class="checkout__summary">
+        <ui-card [heading]="o.client?.full_name ?? 'Walk-in'" [sub]="o.number">
+          <ui-table label="Order lines">
+            <table data-testid="order-lines">
+              <tbody>
+                @for (li of o.line_items; track li.id) {
+                  <tr>
+                    <td>{{ li.description }}</td>
+                    <td class="num">${{ li.line_total_cents / 100 | number: '1.2-2' }}</td>
+                  </tr>
+                }
+                @for (d of o.discounts; track d.id) {
+                  <tr>
+                    <td>{{ d.reason || humanStatus(d.kind) }}</td>
+                    <td class="num credit">−${{ d.amount_cents / 100 | number: '1.2-2' }}</td>
+                  </tr>
+                }
+                @if (o.tip_cents) {
+                  <tr>
+                    <td>
+                      Tip
+                      @for (t of o.tips; track t.staff_profile_id) {
+                        <small> · {{ t.display_name }}</small>
+                      }
+                    </td>
+                    <td class="num">${{ o.tip_cents / 100 | number: '1.2-2' }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr class="total">
+                  <td>Total</td>
+                  <td class="num" data-testid="order-total">
+                    ${{ o.total_cents / 100 | number: '1.2-2' }}
                   </td>
                 </tr>
-              }
-              <tr>
-                <td>Taken</td>
-                <td class="num">
-                  ${{ (o.paid_cents + o.redeemed_cents + o.deposit_cents) / 100 | number: '1.2-2' }}
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Outstanding</strong></td>
-                <td class="num" data-testid="order-outstanding">
-                  <strong>${{ o.outstanding_cents / 100 | number: '1.2-2' }}</strong>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </ui-table>
+                @if (o.deposit_cents) {
+                  <tr>
+                    <td>Deposit held <small>(taken before the visit)</small></td>
+                    <td class="num" data-testid="order-deposit">
+                      ${{ o.deposit_cents / 100 | number: '1.2-2' }}
+                    </td>
+                  </tr>
+                }
+                <tr>
+                  <td>Taken</td>
+                  <td class="num">
+                    ${{ (o.paid_cents + o.redeemed_cents) / 100 | number: '1.2-2' }}
+                  </td>
+                </tr>
+                <tr class="checkout__due">
+                  <td><strong>Outstanding</strong></td>
+                  <td class="num" data-testid="order-outstanding">
+                    <strong>${{ o.outstanding_cents / 100 | number: '1.2-2' }}</strong>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </ui-table>
 
-        @if (o.payments.length || o.gift_card_redemptions.length) {
-          <div>
-            <h3 class="sub-head">Taken so far</h3>
-            <p class="sub-hint">
-              A payment is never edited. Voiding one leaves it on the record and puts the amount
-              back outstanding.
-            </p>
-            <ul class="rows" data-testid="taken-list">
-              @for (p of o.payments; track p.id) {
-                <li [class.rows--void]="p.status === 'voided'">
-                  <span class="rows__main">
-                    <strong>{{ humanStatus(p.method) }}</strong>
-                    @if (p.status === 'voided') {
-                      <small>voided</small>
+          @if (o.payments.length || o.gift_card_redemptions.length) {
+            <div>
+              <h3 class="sub-head">Taken so far</h3>
+              <p class="sub-hint">
+                A payment is never edited. Voiding one keeps it on the record and puts the amount
+                back as outstanding.
+              </p>
+              <ul class="rows" data-testid="taken-list">
+                @for (p of o.payments; track p.id) {
+                  <li [class.rows--void]="p.status === 'voided'">
+                    <span class="rows__main">
+                      <strong>{{ humanStatus(p.method) }}</strong>
+                      @if (p.status === 'voided') {
+                        <small>voided</small>
+                      } @else if (p.reference) {
+                        <small>{{ p.reference }}</small>
+                      }
+                    </span>
+                    <span class="num">${{ p.amount_cents / 100 | number: '1.2-2' }}</span>
+                    @if (isOwner() && p.status !== 'voided') {
+                      <ui-button
+                        variant="text"
+                        icon="undo"
+                        (click)="voidPayment(p.id)"
+                        [attr.data-testid]="'void-' + p.id"
+                        >Void</ui-button
+                      >
+                      <ui-button
+                        variant="text"
+                        icon="currency_exchange"
+                        (click)="refund(p.id)"
+                        [attr.data-testid]="'refund-' + p.id"
+                        >Refund</ui-button
+                      >
                     }
-                  </span>
-                  <span class="num">${{ p.amount_cents / 100 | number: '1.2-2' }}</span>
-                  @if (isOwner() && p.status !== 'voided') {
-                    <ui-button
-                      variant="text"
-                      icon="undo"
-                      (click)="voidPayment(p.id)"
-                      [attr.data-testid]="'void-' + p.id"
-                      >Void</ui-button
-                    >
-                    <ui-button
-                      variant="text"
-                      icon="currency_exchange"
-                      (click)="refund(p.id)"
-                      [attr.data-testid]="'refund-' + p.id"
-                      >Refund</ui-button
-                    >
-                  }
-                </li>
-              }
-              @for (g of o.gift_card_redemptions; track g.code) {
-                <li>
-                  <span class="rows__main">
-                    <strong>Gift card</strong>
-                    <small>{{ g.code }}</small>
-                  </span>
-                  <span class="num">${{ g.amount_cents / 100 | number: '1.2-2' }}</span>
-                </li>
-              }
-            </ul>
-          </div>
-        }
-      </ui-card>
+                  </li>
+                }
+                @for (g of o.gift_card_redemptions; track g.code) {
+                  <li>
+                    <span class="rows__main">
+                      <strong>Gift card</strong>
+                      <small>{{ g.code }}</small>
+                    </span>
+                    <span class="num">${{ g.amount_cents / 100 | number: '1.2-2' }}</span>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (!settled()) {
+            @if (o.outstanding_cents > 0) {
+              <ui-banner tone="info">
+                ${{ o.outstanding_cents / 100 | number: '1.2-2' }} still to take before this can be
+                closed.
+              </ui-banner>
+            } @else {
+              <ui-banner tone="success">Fully paid — ready to close.</ui-banner>
+            }
+            <ui-button
+              icon="lock"
+              [full]="true"
+              (click)="settle()"
+              [disabled]="busy() || o.outstanding_cents > 0"
+              data-testid="settle"
+            >
+              Settle and close
+            </ui-button>
+          }
+        </ui-card>
+      </div>
 
       @if (settled()) {
         <ui-card data-testid="checkout-done">
@@ -141,63 +166,46 @@
         </ui-card>
       } @else {
         <div class="checkout__take">
-          @if (auth.user()?.role !== 'staff') {
-            <ui-card heading="Discount" [sub]="discountSub()">
-              <div class="row">
-                <ui-field label="Amount">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    [(ngModel)]="discountDollars"
-                    data-testid="discount-amount"
-                  />
-                </ui-field>
-                <ui-field label="Reason">
-                  <input [(ngModel)]="discountReason" data-testid="discount-reason" />
-                </ui-field>
-                <ui-button
-                  variant="tonal"
-                  icon="percent"
-                  (click)="discount()"
-                  data-testid="discount-apply"
-                >
-                  Apply discount
-                </ui-button>
-              </div>
-            </ui-card>
-          }
-
-          <ui-card
-            heading="Add sale item"
-            sub="Add a service, add-on, or enhancement sold at the desk."
-          >
+          <ui-card heading="Take payment" sub="Split it across methods if the client wants.">
+            @if (o.outstanding_cents > 0) {
+              <ui-button
+                icon="payments"
+                [full]="true"
+                (click)="payRemainder()"
+                [disabled]="busy()"
+                data-testid="pay-remainder"
+              >
+                Take the remaining ${{ outstandingDollars() | number: '1.2-2' }} by
+                {{ humanStatus(method) }}
+              </ui-button>
+            }
             <div class="form-grid">
-              <ui-field label="Description">
-                <input [(ngModel)]="manualLine.description" data-testid="line-description" />
-              </ui-field>
-              <ui-field label="Category">
-                <select [(ngModel)]="manualLine.category" data-testid="line-category">
-                  <option value="service">Service</option>
-                  <option value="add_on">Add-on</option>
-                  <option value="enhancement">Enhancement</option>
+              <ui-field label="Method">
+                <select [(ngModel)]="method" data-testid="pay-method">
+                  @for (m of methods; track m) {
+                    <option [value]="m">{{ humanStatus(m) }}</option>
+                  }
                 </select>
               </ui-field>
-              <ui-field label="Quantity">
-                <input type="number" min="1" [(ngModel)]="manualLine.quantity" />
-              </ui-field>
-              <ui-field label="Unit price">
-                <input type="number" min="0" step="0.01" [(ngModel)]="manualLine.dollars" />
+              <ui-field label="Part amount" hint="In dollars, for a split payment.">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  [(ngModel)]="amountDollars"
+                  data-testid="pay-amount"
+                />
               </ui-field>
             </div>
-            <ui-button
-              variant="tonal"
-              icon="add_shopping_cart"
-              (click)="addLine()"
-              data-testid="line-add"
-            >
-              Add item
-            </ui-button>
+            <div class="row">
+              <ui-button
+                variant="tonal"
+                (click)="pay()"
+                [disabled]="busy()"
+                data-testid="pay-submit"
+                >Record part payment</ui-button
+              >
+            </div>
           </ui-card>
 
           <ui-card heading="Tip" sub="Goes to the therapist in full — the salon keeps none of it.">
@@ -211,8 +219,8 @@
                 >
               }
             </div>
-            <div class="row">
-              <ui-field label="Or a set amount">
+            <div class="form-grid">
+              <ui-field label="Or a set amount" hint="In dollars.">
                 <input
                   type="number"
                   step="0.01"
@@ -221,114 +229,156 @@
                   data-testid="tip-amount"
                 />
               </ui-field>
+            </div>
+            <div class="row">
               <ui-button variant="tonal" (click)="applyTip()" data-testid="tip-apply"
                 >Set tip</ui-button
               >
             </div>
           </ui-card>
 
-          <ui-card heading="Gift card" sub="Redeemable here whichever location sold it.">
-            <div class="row">
-              <ui-field label="Code" hint="Scan the barcode or type it.">
-                <input [(ngModel)]="giftCardCode" data-testid="gc-code" />
-              </ui-field>
-              <ui-field label="Amount">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  [(ngModel)]="giftCardDollars"
-                  data-testid="gc-amount"
-                />
-              </ui-field>
-              <ui-button
-                variant="tonal"
-                (click)="redeem()"
-                [disabled]="busy()"
-                data-testid="gc-redeem"
-                >Redeem</ui-button
-              >
-            </div>
-          </ui-card>
+          <!-- Less common: folded until needed, so the usual path stays short. -->
+          <div class="panel-sections">
+            <details class="panel-section" data-testid="section-gift-card">
+              <summary>
+                <span class="panel-section__title">Gift card</span>
+                <span class="panel-section__meta">Redeemable whichever location sold it</span>
+              </summary>
+              <div class="panel-section__body">
+                <div class="form-grid">
+                  <ui-field label="Code" hint="Scan the barcode or type it.">
+                    <input [(ngModel)]="giftCardCode" data-testid="gc-code" />
+                  </ui-field>
+                  <ui-field label="Amount" hint="In dollars.">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      [(ngModel)]="giftCardDollars"
+                      data-testid="gc-amount"
+                    />
+                  </ui-field>
+                </div>
+                <div class="row">
+                  <ui-button
+                    variant="tonal"
+                    (click)="redeem()"
+                    [disabled]="busy()"
+                    data-testid="gc-redeem"
+                    >Redeem</ui-button
+                  >
+                </div>
+              </div>
+            </details>
 
-          <ui-card
-            heading="Membership"
-            sub="Covers the included 60-minute massage; the member pays any difference on anything longer."
-          >
-            <ui-button
-              variant="tonal"
-              icon="loyalty"
-              (click)="applyMembership()"
-              [disabled]="busy()"
-              data-testid="apply-membership"
-            >
-              Apply membership credit
-            </ui-button>
-            @if (isOwner()) {
-              <ui-button
-                variant="outlined"
-                icon="verified_user"
-                (click)="applyMembershipOverride()"
-                [disabled]="busy()"
-                data-testid="apply-membership-override"
-              >
-                Approve cross-location use
-              </ui-button>
-            }
-          </ui-card>
-
-          <ui-card
-            heading="Payment"
-            sub="One appointment can be split across more than one method."
-          >
-            <div class="row">
-              <ui-field label="Method">
-                <select [(ngModel)]="method" data-testid="pay-method">
-                  @for (m of methods; track m) {
-                    <option [value]="m">{{ humanStatus(m) }}</option>
+            <details class="panel-section" data-testid="section-membership">
+              <summary>
+                <span class="panel-section__title">Membership</span>
+                <span class="panel-section__meta">Use the client's monthly credit</span>
+              </summary>
+              <div class="panel-section__body">
+                <p class="sub-hint">
+                  Covers the included 60-minute massage; the member pays any difference on anything
+                  longer.
+                </p>
+                <div class="row">
+                  <ui-button
+                    variant="tonal"
+                    icon="loyalty"
+                    (click)="applyMembership()"
+                    [disabled]="busy()"
+                    data-testid="apply-membership"
+                  >
+                    Apply membership credit
+                  </ui-button>
+                  @if (isOwner()) {
+                    <ui-button
+                      variant="outlined"
+                      icon="verified_user"
+                      (click)="applyMembershipOverride()"
+                      [disabled]="busy()"
+                      data-testid="apply-membership-override"
+                    >
+                      Approve cross-location use
+                    </ui-button>
                   }
-                </select>
-              </ui-field>
-              <ui-field label="Amount">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  [(ngModel)]="amountDollars"
-                  data-testid="pay-amount"
-                />
-              </ui-field>
-              <ui-button (click)="pay()" [disabled]="busy()" data-testid="pay-submit"
-                >Record</ui-button
-              >
-            </div>
-            <ui-button
-              variant="outlined"
-              (click)="payRemainder()"
-              [disabled]="busy() || o.outstanding_cents <= 0"
-              data-testid="pay-remainder"
-            >
-              Record the remaining ${{ outstandingDollars() | number: '1.2-2' }}
-            </ui-button>
-          </ui-card>
+                </div>
+              </div>
+            </details>
 
-          <ui-card>
-            @if (o.outstanding_cents > 0) {
-              <ui-banner tone="info">
-                ${{ o.outstanding_cents / 100 | number: '1.2-2' }} still outstanding — an order
-                cannot be closed until it is covered.
-              </ui-banner>
+            @if (auth.user()?.role !== 'staff') {
+              <details class="panel-section" data-testid="section-discount">
+                <summary>
+                  <span class="panel-section__title">Discount</span>
+                  <span class="panel-section__meta">{{ discountSub() }}</span>
+                </summary>
+                <div class="panel-section__body">
+                  <p class="sub-hint">{{ discountSub() }}</p>
+                  <div class="form-grid">
+                    <ui-field label="Amount" hint="In dollars.">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        [(ngModel)]="discountDollars"
+                        data-testid="discount-amount"
+                      />
+                    </ui-field>
+                    <ui-field label="Reason">
+                      <input [(ngModel)]="discountReason" data-testid="discount-reason" />
+                    </ui-field>
+                  </div>
+                  <div class="row">
+                    <ui-button
+                      variant="tonal"
+                      icon="percent"
+                      (click)="discount()"
+                      data-testid="discount-apply"
+                    >
+                      Apply discount
+                    </ui-button>
+                  </div>
+                </div>
+              </details>
             }
-            <ui-button
-              icon="lock"
-              [full]="true"
-              (click)="settle()"
-              [disabled]="busy() || o.outstanding_cents > 0"
-              data-testid="settle"
-            >
-              Settle and close
-            </ui-button>
-          </ui-card>
+
+            <details class="panel-section" data-testid="section-sale-item">
+              <summary>
+                <span class="panel-section__title">Add a sale item</span>
+                <span class="panel-section__meta">Something sold at the desk</span>
+              </summary>
+              <div class="panel-section__body">
+                <ui-field label="Description">
+                  <input [(ngModel)]="manualLine.description" data-testid="line-description" />
+                </ui-field>
+                <div class="form-grid">
+                  <ui-field label="Category">
+                    <select [(ngModel)]="manualLine.category" data-testid="line-category">
+                      <option value="service">Service</option>
+                      <option value="add_on">Add-on</option>
+                      <option value="enhancement">Enhancement</option>
+                    </select>
+                  </ui-field>
+                  <ui-field label="Quantity">
+                    <input type="number" min="1" [(ngModel)]="manualLine.quantity" />
+                  </ui-field>
+                  <ui-field label="Unit price" hint="In dollars.">
+                    <input type="number" min="0" step="0.01" [(ngModel)]="manualLine.dollars" />
+                  </ui-field>
+                </div>
+                <div class="row">
+                  <ui-button
+                    variant="tonal"
+                    icon="add_shopping_cart"
+                    (click)="addLine()"
+                    data-testid="line-add"
+                  >
+                    Add item
+                  </ui-button>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
       }
     </div>

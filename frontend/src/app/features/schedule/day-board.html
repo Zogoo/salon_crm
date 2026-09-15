@@ -39,7 +39,7 @@
               <div class="grid__row" [attr.data-room]="room.name">
                 <div class="grid__room-label">
                   <strong>{{ room.name }}</strong>
-                  <small>{{ room.room_type }} · seats {{ room.client_capacity }}</small>
+                  <small>{{ roomLabel(room) }}</small>
                 </div>
                 <div
                   class="grid__lane"
@@ -62,6 +62,7 @@
                       (click)="select(p.appointment)"
                       [attr.data-testid]="'appt-' + p.appointment.id"
                       [attr.data-status]="p.appointment.status"
+                      [attr.title]="blockTitle(p.appointment)"
                     >
                       <span class="appt__client">{{ p.appointment.client.full_name }}</span>
                       <span class="appt__meta">
@@ -148,6 +149,37 @@
 
       <ui-facts [items]="summary(appt)" />
 
+      <!-- The one thing that blocks checkout goes first, not halfway down. -->
+      @if (canBook() && appt.assignment_pending && editable(appt)) {
+        <section class="assign-callout" data-testid="assignment-editor">
+          <h3 class="sheet__h3">Assign a therapist</h3>
+          <p class="sheet__hint">
+            Booked with no preference. Choose
+            {{ (appt.therapists_required ?? 1) === 1 ? 'one therapist' : 'two therapists' }} before
+            checkout — the time is held until then.
+          </p>
+          <ul class="assign-options">
+            @for (member of staff(); track member.id) {
+              <li>
+                <label>
+                  <input
+                    type="checkbox"
+                    [checked]="assignmentIds.includes(member.id)"
+                    (change)="toggleAssignee(member.id, $any($event.target).checked)"
+                  />
+                  {{ member.display_name }}
+                </label>
+              </li>
+            }
+          </ul>
+          <div class="row">
+            <ui-button icon="person_add" (click)="assignStaff(appt)" data-testid="assignment-save">
+              Confirm therapist
+            </ui-button>
+          </div>
+        </section>
+      }
+
       @if (appt.items?.length) {
         <section>
           <h3 class="sheet__h3">Services</h3>
@@ -159,11 +191,7 @@
                   item.duration_minutes ? item.duration_minutes + ' min' : 'no extra time'
                 }}</small>
                 <span class="num">${{ item.price_cents / 100 | number: '1.2-2' }}</span>
-                @if (
-                  canBook() &&
-                  item.kind !== 'service' &&
-                  ['scheduled', 'checked_in'].includes(appt.status)
-                ) {
+                @if (canBook() && item.kind !== 'service' && editable(appt)) {
                   <ui-button
                     variant="text"
                     icon="close"
@@ -178,248 +206,10 @@
         </section>
       }
 
-      @if (canBook() && ['scheduled', 'checked_in'].includes(appt.status)) {
-        <section data-testid="appointment-edit">
-          <h3 class="sheet__h3">Edit appointment</h3>
-          <div class="row">
-            <ui-field label="Main service">
-              <select [(ngModel)]="replacementVariantId" data-testid="replacement-service">
-                @for (service of standardVariants(); track service.id) {
-                  <option [ngValue]="service.id">{{ service.label }}</option>
-                }
-              </select>
-            </ui-field>
-            <ui-button
-              variant="tonal"
-              icon="swap_horiz"
-              (click)="replaceService(appt)"
-              data-testid="replacement-save"
-            >
-              Change service
-            </ui-button>
-          </div>
-          @if (extras().length) {
-            <div class="row">
-              <ui-field label="Add-on or enhancement">
-                <select [(ngModel)]="extraVariantId" data-testid="extra-select">
-                  <option [ngValue]="null">Choose…</option>
-                  @for (extra of extras(); track extra.id) {
-                    <option [ngValue]="extra.id">{{ extra.label }}</option>
-                  }
-                </select>
-              </ui-field>
-              <ui-button
-                variant="tonal"
-                icon="add"
-                (click)="addExtra(appt)"
-                data-testid="extra-add"
-              >
-                Add
-              </ui-button>
-            </div>
-          }
-
-          <div data-testid="appointment-deposit">
-            <h3 class="sheet__h3">Deposit</h3>
-            @if (appt.deposit?.status === 'held') {
-              <p class="sheet__hint">
-                ${{ appt.deposit!.amount_cents / 100 | number: '1.2-2' }} held for the client — it
-                comes off the bill at checkout, and goes back if they cancel in time.
-              </p>
-              <ui-button
-                variant="text"
-                icon="undo"
-                (click)="refundDeposit(appt)"
-                data-testid="deposit-refund"
-              >
-                {{ confirmingDepositRefund ? 'Confirm: deposit given back' : 'Give deposit back' }}
-              </ui-button>
-            } @else if (!appt.deposit) {
-              <p class="sheet__hint">
-                Taken before the visit, by card over the phone, cash or Zelle.
-              </p>
-              <div class="form-grid">
-                <ui-field label="Amount">
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    [(ngModel)]="deposit.dollars"
-                    data-testid="deposit-amount"
-                  />
-                </ui-field>
-                <ui-field label="Method">
-                  <select [(ngModel)]="deposit.method" data-testid="deposit-method">
-                    @for (m of depositMethods; track m) {
-                      <option [value]="m">{{ humanStatus(m) }}</option>
-                    }
-                  </select>
-                </ui-field>
-                <ui-field label="Reference" [optional]="true">
-                  <input [(ngModel)]="deposit.reference" data-testid="deposit-reference" />
-                </ui-field>
-              </div>
-              <ui-button
-                variant="tonal"
-                icon="savings"
-                (click)="recordDeposit(appt)"
-                data-testid="deposit-save"
-              >
-                Record deposit
-              </ui-button>
-            }
-            @if (depositNotice()) {
-              <ui-banner tone="success" data-testid="deposit-notice">{{
-                depositNotice()
-              }}</ui-banner>
-            }
-          </div>
-
-          <div data-testid="appointment-discount">
-            <h3 class="sheet__h3">Discount</h3>
-            <p class="sheet__hint">{{ discountHint() }}</p>
-            <div class="form-grid">
-              <ui-field label="Amount">
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  [(ngModel)]="discount.dollars"
-                  data-testid="appointment-discount-amount"
-                />
-              </ui-field>
-              <ui-field label="Reason">
-                <input [(ngModel)]="discount.reason" data-testid="appointment-discount-reason" />
-              </ui-field>
-            </div>
-            <ui-button
-              variant="tonal"
-              icon="percent"
-              (click)="applyDiscount(appt)"
-              data-testid="appointment-discount-save"
-            >
-              Apply discount
-            </ui-button>
-            @if (discountNotice()) {
-              <ui-banner tone="success" data-testid="discount-notice">{{
-                discountNotice()
-              }}</ui-banner>
-            }
-          </div>
-
-          <ui-field
-            label="Internal front-desk note"
-            hint="Visible to staff, not sent to the client."
-          >
-            <textarea
-              rows="2"
-              [(ngModel)]="appointmentNote"
-              data-testid="appointment-note"
-            ></textarea>
-          </ui-field>
-          <ui-button
-            variant="tonal"
-            icon="save"
-            (click)="saveInternalNote(appt)"
-            data-testid="appointment-note-save"
-          >
-            Save note
-          </ui-button>
-
-          @if (appt.assignment_pending) {
-            <div data-testid="assignment-editor">
-              <h3 class="sheet__h3">Assign therapist</h3>
-              <p class="sheet__hint">
-                Choose exactly {{ appt.therapists_required ?? 1 }}. Capacity has been held while
-                this was marked No preference.
-              </p>
-              <ul class="checks">
-                @for (member of staff(); track member.id) {
-                  <li>
-                    <label class="toggle">
-                      <input
-                        type="checkbox"
-                        [checked]="assignmentIds.includes(member.id)"
-                        (change)="toggleAssignee(member.id, $any($event.target).checked)"
-                      />
-                      {{ member.display_name }}
-                    </label>
-                  </li>
-                }
-              </ul>
-              <ui-button
-                variant="tonal"
-                icon="person_add"
-                (click)="assignStaff(appt)"
-                data-testid="assignment-save"
-              >
-                Confirm assignment
-              </ui-button>
-            </div>
-          }
-
-          <h3 class="sheet__h3">Reschedule</h3>
-          <div class="form-grid">
-            <ui-field label="Date">
-              <input type="date" [(ngModel)]="rescheduleDate" data-testid="reschedule-date" />
-            </ui-field>
-            <ui-field label="Time">
-              <input type="time" [(ngModel)]="rescheduleTime" data-testid="reschedule-time" />
-            </ui-field>
-            <ui-field label="Room">
-              <select [(ngModel)]="rescheduleRoomId" data-testid="reschedule-room">
-                @for (room of board()?.rooms ?? []; track room.id) {
-                  <option [ngValue]="room.id">{{ room.name }}</option>
-                }
-              </select>
-            </ui-field>
-          </div>
-          <ui-button
-            variant="tonal"
-            icon="event_repeat"
-            (click)="reschedule(appt)"
-            data-testid="reschedule-save"
-          >
-            Reschedule
-          </ui-button>
-
-          <div data-testid="repeat-editor">
-            <h3 class="sheet__h3">Repeat appointment</h3>
-            <p class="sheet__hint">
-              All future bookings are created together. If one date is unavailable, none are
-              created.
-            </p>
-            <div class="form-grid">
-              <ui-field label="Repeat every">
-                <select [(ngModel)]="repeatForm.interval_weeks" data-testid="repeat-interval">
-                  <option [ngValue]="1">Week</option>
-                  <option [ngValue]="2">2 weeks</option>
-                  <option [ngValue]="3">3 weeks</option>
-                  <option [ngValue]="4">4 weeks</option>
-                </select>
-              </ui-field>
-              <ui-field label="Future visits">
-                <input
-                  type="number"
-                  min="1"
-                  max="12"
-                  [(ngModel)]="repeatForm.count"
-                  data-testid="repeat-count"
-                />
-              </ui-field>
-            </div>
-            <ui-button
-              variant="tonal"
-              icon="event_repeat"
-              (click)="repeatAppointment(appt)"
-              data-testid="repeat-save"
-            >
-              Book repeats
-            </ui-button>
-            @if (repeatNotice()) {
-              <ui-banner tone="success">{{ repeatNotice() }}</ui-banner>
-            }
-          </div>
+      @if (appt.client_note) {
+        <section>
+          <h3 class="sheet__h3">Note from the client</h3>
+          <p>{{ appt.client_note }}</p>
         </section>
       }
 
@@ -430,18 +220,314 @@
         </section>
       }
 
-      @if (appt.client_note) {
-        <section>
-          <h3 class="sheet__h3">Note from the client</h3>
-          <p>{{ appt.client_note }}</p>
-        </section>
+      <!-- Changes are there when needed and folded away when not: one open at a time,
+           each saying where it stands so the desk rarely has to open it to know. -->
+      @if (canBook() && editable(appt)) {
+        <div class="panel-sections" data-testid="appointment-edit">
+          <details
+            class="panel-section"
+            [open]="openSection() === 'service'"
+            (toggle)="onSectionToggle('service', $event)"
+            data-testid="section-service"
+          >
+            <summary>
+              <span class="panel-section__title">Service &amp; extras</span>
+              <span class="panel-section__meta">Change the service or add an extra</span>
+            </summary>
+            <div class="panel-section__body">
+              <ui-field label="Main service">
+                <select [(ngModel)]="replacementVariantId" data-testid="replacement-service">
+                  @for (service of standardVariants(); track service.id) {
+                    <option [ngValue]="service.id">{{ service.label }}</option>
+                  }
+                </select>
+              </ui-field>
+              <div class="row">
+                <ui-button
+                  variant="tonal"
+                  icon="swap_horiz"
+                  (click)="replaceService(appt)"
+                  data-testid="replacement-save"
+                >
+                  Change service
+                </ui-button>
+              </div>
+              @if (extras().length) {
+                <ui-field
+                  label="Add-on or enhancement"
+                  hint="Add-ons add 30 minutes; enhancements add no time."
+                >
+                  <select [(ngModel)]="extraVariantId" data-testid="extra-select">
+                    <option [ngValue]="null">Choose…</option>
+                    @for (extra of extras(); track extra.id) {
+                      <option [ngValue]="extra.id">{{ extra.label }}</option>
+                    }
+                  </select>
+                </ui-field>
+                <div class="row">
+                  <ui-button
+                    variant="tonal"
+                    icon="add"
+                    (click)="addExtra(appt)"
+                    data-testid="extra-add"
+                  >
+                    Add to appointment
+                  </ui-button>
+                </div>
+              }
+            </div>
+          </details>
+
+          <details
+            class="panel-section"
+            [open]="openSection() === 'deposit'"
+            (toggle)="onSectionToggle('deposit', $event)"
+            data-testid="section-deposit"
+          >
+            <summary>
+              <span class="panel-section__title">Deposit</span>
+              <span class="panel-section__meta">{{ depositSummary(appt) }}</span>
+            </summary>
+            <div class="panel-section__body" data-testid="appointment-deposit">
+              @if (appt.deposit?.status === 'held') {
+                <p class="sheet__hint">
+                  ${{ appt.deposit!.amount_cents / 100 | number: '1.2-2' }} held for the client. It
+                  comes off the bill at checkout, and goes back if they cancel in time.
+                </p>
+                <div class="row">
+                  <ui-button
+                    [variant]="confirmingDepositRefund ? 'danger' : 'outlined'"
+                    icon="undo"
+                    (click)="refundDeposit(appt)"
+                    data-testid="deposit-refund"
+                  >
+                    {{
+                      confirmingDepositRefund ? 'Confirm: deposit given back' : 'Give deposit back'
+                    }}
+                  </ui-button>
+                </div>
+              } @else if (!appt.deposit) {
+                <p class="sheet__hint">
+                  Money taken before the visit — by card over the phone, cash or Zelle.
+                </p>
+                <div class="form-grid">
+                  <ui-field label="Amount" hint="In dollars.">
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      [(ngModel)]="deposit.dollars"
+                      data-testid="deposit-amount"
+                    />
+                  </ui-field>
+                  <ui-field label="Paid by">
+                    <select [(ngModel)]="deposit.method" data-testid="deposit-method">
+                      @for (m of depositMethods; track m) {
+                        <option [value]="m">{{ humanStatus(m) }}</option>
+                      }
+                    </select>
+                  </ui-field>
+                </div>
+                <ui-field
+                  label="Reference"
+                  [optional]="true"
+                  hint="Last four digits, or the Zelle confirmation."
+                >
+                  <input [(ngModel)]="deposit.reference" data-testid="deposit-reference" />
+                </ui-field>
+                <div class="row">
+                  <ui-button
+                    variant="tonal"
+                    icon="savings"
+                    (click)="recordDeposit(appt)"
+                    data-testid="deposit-save"
+                  >
+                    Record deposit
+                  </ui-button>
+                </div>
+              }
+              @if (depositNotice()) {
+                <ui-banner tone="success" data-testid="deposit-notice">{{
+                  depositNotice()
+                }}</ui-banner>
+              }
+            </div>
+          </details>
+
+          <details
+            class="panel-section"
+            [open]="openSection() === 'discount'"
+            (toggle)="onSectionToggle('discount', $event)"
+            data-testid="section-discount"
+          >
+            <summary>
+              <span class="panel-section__title">Discount</span>
+              <span class="panel-section__meta">Taken off the bill at checkout</span>
+            </summary>
+            <div class="panel-section__body" data-testid="appointment-discount">
+              <p class="sheet__hint">{{ discountHint() }}</p>
+              <div class="form-grid">
+                <ui-field label="Amount" hint="In dollars.">
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    [(ngModel)]="discount.dollars"
+                    data-testid="appointment-discount-amount"
+                  />
+                </ui-field>
+                <ui-field label="Reason">
+                  <input [(ngModel)]="discount.reason" data-testid="appointment-discount-reason" />
+                </ui-field>
+              </div>
+              <div class="row">
+                <ui-button
+                  variant="tonal"
+                  icon="percent"
+                  (click)="applyDiscount(appt)"
+                  data-testid="appointment-discount-save"
+                >
+                  Apply discount
+                </ui-button>
+              </div>
+              @if (discountNotice()) {
+                <ui-banner tone="success" data-testid="discount-notice">{{
+                  discountNotice()
+                }}</ui-banner>
+              }
+            </div>
+          </details>
+
+          <details
+            class="panel-section"
+            [open]="openSection() === 'reschedule'"
+            (toggle)="onSectionToggle('reschedule', $event)"
+            data-testid="section-reschedule"
+          >
+            <summary>
+              <span class="panel-section__title">Reschedule</span>
+              <span class="panel-section__meta">Move to another day, time or room</span>
+            </summary>
+            <div class="panel-section__body">
+              <div class="form-grid">
+                <ui-field label="Date">
+                  <input type="date" [(ngModel)]="rescheduleDate" data-testid="reschedule-date" />
+                </ui-field>
+                <ui-field label="Time">
+                  <input type="time" [(ngModel)]="rescheduleTime" data-testid="reschedule-time" />
+                </ui-field>
+              </div>
+              <ui-field label="Room">
+                <select [(ngModel)]="rescheduleRoomId" data-testid="reschedule-room">
+                  @for (room of board()?.rooms ?? []; track room.id) {
+                    <option [ngValue]="room.id">{{ room.name }}</option>
+                  }
+                </select>
+              </ui-field>
+              <div class="row">
+                <ui-button
+                  variant="tonal"
+                  icon="event_repeat"
+                  (click)="reschedule(appt)"
+                  data-testid="reschedule-save"
+                >
+                  Move appointment
+                </ui-button>
+              </div>
+            </div>
+          </details>
+
+          <details
+            class="panel-section"
+            [open]="openSection() === 'repeat'"
+            (toggle)="onSectionToggle('repeat', $event)"
+            data-testid="section-repeat"
+          >
+            <summary>
+              <span class="panel-section__title">Repeat</span>
+              <span class="panel-section__meta">Book the same visit on future weeks</span>
+            </summary>
+            <div class="panel-section__body" data-testid="repeat-editor">
+              <p class="sheet__hint">
+                All repeats are booked together. If any date is unavailable, none are booked and you
+                are told which dates to change.
+              </p>
+              <div class="form-grid">
+                <ui-field label="Repeat every">
+                  <select [(ngModel)]="repeatForm.interval_weeks" data-testid="repeat-interval">
+                    <option [ngValue]="1">Week</option>
+                    <option [ngValue]="2">2 weeks</option>
+                    <option [ngValue]="3">3 weeks</option>
+                    <option [ngValue]="4">4 weeks</option>
+                  </select>
+                </ui-field>
+                <ui-field label="Future visits" hint="Up to 12.">
+                  <input
+                    type="number"
+                    min="1"
+                    max="12"
+                    [(ngModel)]="repeatForm.count"
+                    data-testid="repeat-count"
+                  />
+                </ui-field>
+              </div>
+              <div class="row">
+                <ui-button
+                  variant="tonal"
+                  icon="event_repeat"
+                  (click)="repeatAppointment(appt)"
+                  data-testid="repeat-save"
+                >
+                  Book repeats
+                </ui-button>
+              </div>
+              @if (repeatNotice()) {
+                <ui-banner tone="success">{{ repeatNotice() }}</ui-banner>
+              }
+            </div>
+          </details>
+
+          <details
+            class="panel-section"
+            [open]="openSection() === 'note'"
+            (toggle)="onSectionToggle('note', $event)"
+            data-testid="section-note"
+          >
+            <summary>
+              <span class="panel-section__title">Internal note</span>
+              <span class="panel-section__meta">{{ appt.appointment_note || 'None yet' }}</span>
+            </summary>
+            <div class="panel-section__body">
+              <ui-field
+                label="Front-desk note"
+                hint="Seen by staff only, never sent to the client."
+              >
+                <textarea
+                  rows="3"
+                  [(ngModel)]="appointmentNote"
+                  data-testid="appointment-note"
+                ></textarea>
+              </ui-field>
+              <div class="row">
+                <ui-button
+                  variant="tonal"
+                  icon="save"
+                  (click)="saveInternalNote(appt)"
+                  data-testid="appointment-note-save"
+                >
+                  Save note
+                </ui-button>
+              </div>
+            </div>
+          </details>
+        </div>
       }
 
       <section>
         <h3 class="sheet__h3">Care notes</h3>
         <p class="sheet__hint">
-          What to avoid, what needed attention, what to consider next time. Append-only — a
-          correction is a new note, so nothing is ever quietly rewritten.
+          What to avoid, what needed attention, what to consider next time. A correction is added as
+          a new note, so nothing is ever quietly rewritten.
         </p>
         @if (careNotes().length) {
           <ul class="notes" data-testid="care-notes">
@@ -482,51 +568,6 @@
         }
       </section>
 
-      <footer class="sheet__actions">
-        @if (
-          canBook() && ['scheduled', 'checked_in', 'in_progress', 'completed'].includes(appt.status)
-        ) {
-          <ui-button icon="point_of_sale" (click)="checkout(appt)" data-testid="go-checkout">
-            Checkout
-          </ui-button>
-        }
-        @if (canBook()) {
-          <details class="appointment-menu" data-testid="appointment-menu">
-            <summary aria-label="More appointment actions">⋮</summary>
-            <div class="appointment-menu__items">
-              @for (action of nextActions(appt.status); track action) {
-                @if (destructive(action)) {
-                  <button
-                    type="button"
-                    (click)="transition(appt, action)"
-                    [attr.data-testid]="'menu-' + action"
-                  >
-                    {{ label(action) }}
-                  </button>
-                }
-              }
-              <button type="button" (click)="rebook(appt)" data-testid="menu-rebook">Rebook</button>
-              <button type="button" (click)="focusEditor('reschedule-date')">Reschedule</button>
-              <button type="button" (click)="focusEditor('appointment-note')">Add notes</button>
-              <button type="button" (click)="focusEditor('repeat-interval')">
-                Set as repeating
-              </button>
-            </div>
-          </details>
-        }
-        @if (isTherapist()) {
-          @for (action of nextActions(appt.status); track action) {
-            <ui-button
-              [variant]="destructive(action) ? 'danger' : 'tonal'"
-              (click)="transition(appt, action)"
-              [attr.data-testid]="'action-' + action"
-            >
-              {{ label(action) }}
-            </ui-button>
-          }
-        }
-      </footer>
-
       @if (checkoutPrompt()) {
         <section class="rating-prompt" data-testid="checkout-rating">
           <h3 class="sheet__h3">How was the visit?</h3>
@@ -563,10 +604,65 @@
             >
               Client declined to rate
             </ui-button>
-            <ui-button variant="text" (click)="checkoutPrompt.set(false)">Cancel</ui-button>
+            <ui-button variant="text" (click)="checkoutPrompt.set(false)">Back</ui-button>
           </div>
         </section>
       }
+
+      <!-- Always in reach, however far down the panel has been scrolled. -->
+      <footer class="sheet__actions">
+        @if (
+          canBook() &&
+          ['scheduled', 'checked_in', 'in_progress', 'completed'].includes(appt.status) &&
+          !checkoutPrompt()
+        ) {
+          <ui-button icon="point_of_sale" (click)="checkout(appt)" data-testid="go-checkout">
+            {{ appt.status === 'completed' ? 'Open checkout' : 'Checkout' }}
+          </ui-button>
+        }
+        @if (canBook()) {
+          <details class="appointment-menu" data-testid="appointment-menu">
+            <summary aria-label="More appointment actions">⋮</summary>
+            <div class="appointment-menu__items" (click)="closeMenu($event)">
+              @for (action of nextActions(appt.status); track action) {
+                @if (destructive(action)) {
+                  <button
+                    type="button"
+                    class="danger"
+                    (click)="transition(appt, action)"
+                    [attr.data-testid]="'menu-' + action"
+                  >
+                    {{ label(action) }}
+                  </button>
+                }
+              }
+              <button type="button" (click)="rebook(appt)" data-testid="menu-rebook">Rebook</button>
+              @if (editable(appt)) {
+                <button type="button" (click)="openEditor('reschedule', 'reschedule-date')">
+                  Reschedule
+                </button>
+                <button type="button" (click)="openEditor('note', 'appointment-note')">
+                  Add notes
+                </button>
+                <button type="button" (click)="openEditor('repeat', 'repeat-interval')">
+                  Set as repeating
+                </button>
+              }
+            </div>
+          </details>
+        }
+        @if (isTherapist()) {
+          @for (action of nextActions(appt.status); track action) {
+            <ui-button
+              [variant]="destructive(action) ? 'danger' : 'tonal'"
+              (click)="transition(appt, action)"
+              [attr.data-testid]="'action-' + action"
+            >
+              {{ label(action) }}
+            </ui-button>
+          }
+        }
+      </footer>
     </ui-sheet>
   }
 </ui-page>

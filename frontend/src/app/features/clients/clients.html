@@ -52,6 +52,15 @@
       }
     </ui-card>
 
+    @if (!selected()) {
+      <ui-card class="detail-placeholder">
+        <ui-empty
+          icon="person_search"
+          title="Select a client"
+          hint="Pick someone from the list to see their preferences, visits, notes and gift cards."
+        />
+      </ui-card>
+    }
     @if (selected(); as client) {
       <div class="clients__detail" data-testid="client-detail">
         <ui-card [heading]="client.full_name" [sub]="contact(client)">
@@ -222,7 +231,7 @@
                     <th>Therapist</th>
                     <th>Status</th>
                     @if (canReadHistory()) {
-                      <th>{{ 'client_history.rating' | translate }}</th>
+                      <th>Rating</th>
                     }
                   </tr>
                 </thead>
@@ -240,7 +249,7 @@
                           @if (ratings()[a.id]; as rating) {
                             {{ rating.score }} / 10
                           } @else {
-                            {{ 'client_history.not_rated' | translate }}
+                            Not rated
                           }
                         </td>
                       }
@@ -258,21 +267,18 @@
           }
         </ui-card>
         @if (canReadHistory()) {
-          <ui-card
-            [heading]="'client_history.gift_cards' | translate"
-            [sub]="'client_history.gift_cards_hint' | translate"
-          >
+          <ui-card heading="Gift cards bought" sub="Cards this client paid for, at any location.">
             @if (giftCards().length) {
-              <ui-table [label]="'client_history.gift_cards' | translate">
+              <ui-table label="Gift cards bought">
                 <table data-testid="client-gift-cards">
                   <thead>
                     <tr>
-                      <th>{{ 'gift_card_form.code' | translate }}</th>
-                      <th>{{ 'client_history.sold' | translate }}</th>
-                      <th>{{ 'client_history.location' | translate }}</th>
-                      <th>{{ 'client_history.value' | translate }}</th>
-                      <th>{{ 'client_history.balance' | translate }}</th>
-                      <th>{{ 'client_history.status' | translate }}</th>
+                      <th>Code</th>
+                      <th>Sold</th>
+                      <th>Location</th>
+                      <th>Value</th>
+                      <th>Balance</th>
+                      <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -292,8 +298,8 @@
             } @else {
               <ui-empty
                 icon="card_giftcard"
-                [title]="'client_history.no_cards' | translate"
-                [hint]="'client_history.no_cards_hint' | translate"
+                title="No gift cards bought"
+                hint="Link the client as the buyer when selling a card and it will show here."
               />
             }
           </ui-card>

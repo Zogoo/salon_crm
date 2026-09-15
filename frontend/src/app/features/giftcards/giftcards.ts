@@ -1,7 +1,7 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { finalize, Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
@@ -19,17 +19,30 @@ import {
   UiEmpty,
   UiFacts,
   UiField,
+  UiIcon,
   UiPage,
   UiTable,
   humanise,
+  statusTone,
 } from '../../ui';
 
-/** FRS §12, §13 — sell, look up (barcode or code), and read the ledger. */
+type Mode = 'lookup' | 'sell';
+
+const EMPTY_FORM = () => ({
+  amountDollars: 100,
+  code: '',
+  buyer_client_id: null as number | null,
+  payment_method: 'card' as PaymentMethod,
+  buyer_name: '',
+  buyer_phone: '',
+  recipient_name: '',
+});
+
+/** FRS §12, §13 — look up a card (barcode or code), read its history, and sell new ones. */
 @Component({
   selector: 'app-giftcards',
   imports: [
     FormsModule,
-    TranslatePipe,
     DecimalPipe,
     WallClockPipe,
     UiPage,
@@ -41,6 +54,7 @@ import {
     UiTable,
     UiFacts,
     UiBanner,
+    UiIcon,
   ],
   templateUrl: './giftcards.html',
   // Shared list-and-detail layout first, then what is specific here.
@@ -48,47 +62,54 @@ import {
 })
 export class GiftCardsPage implements OnInit {
   private readonly api = inject(MassagelabService);
-  private readonly i18n = inject(TranslateService);
   private readonly auth = inject(AuthService);
-  private buyerRequest?: Subscription;
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
-  protected readonly buyers = signal<ClientRecord[]>([]);
-  protected readonly issuing = signal(false);
-  protected buyerSearch = '';
-
-  protected searchBuyers(): void {
-    this.buyerRequest?.unsubscribe();
-    this.chooseBuyer(null);
-    this.buyers.set([]);
-    if (!this.buyerSearch.trim()) return;
-    this.buyerRequest = this.api
-      .clients(this.buyerSearch)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ clients }) => this.buyers.set(clients),
-        error: () => this.error.set(this.i18n.instant('gift_card_form.buyer_error')),
-      });
-  }
-
-  protected chooseBuyer(id: number | null): void {
-    const client = this.buyers().find((c) => c.id === id);
-    this.form.buyer_client_id = client?.id ?? null;
-    this.form.buyer_name = client?.full_name ?? '';
-    this.form.buyer_phone = client?.phone ?? '';
-  }
+  private buyerRequest?: Subscription;
   protected readonly ctx = inject(LocationContextService);
 
+  /** Looking a card up is the everyday task, so it is where the page opens. */
+  protected readonly mode = signal<Mode>('lookup');
   protected readonly cards = signal<GiftCard[]>([]);
   protected readonly selected = signal<GiftCard | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly issued = signal<GiftCard | null>(null);
+  protected readonly issuing = signal(false);
+  protected readonly buyers = signal<ClientRecord[]>([]);
+  protected readonly searchingBuyers = signal(false);
+  protected readonly linkedBuyer = signal<ClientRecord | null>(null);
+  protected readonly confirmingVoid = signal(false);
   protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
-  protected adjustment = { dollars: 0, reason: '' };
 
+  protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
+  protected readonly amountPresets = [50, 100, 150, 200];
+  protected form = EMPTY_FORM();
+  protected buyerSearch = '';
   protected search = '';
+  protected adjustment = { dollars: 0, reason: '' };
 
   protected humanStatus(value: string) {
     return humanise(value);
+  }
+  protected statusTone(value: string) {
+    return statusTone(value);
+  }
+
+  ngOnInit(): void {
+    if (this.route.snapshot.queryParamMap.get('mode') === 'sell') this.mode.set('sell');
+    void this.ctx.load().then(() => this.reload());
+  }
+
+  protected setMode(mode: Mode): void {
+    this.mode.set(mode);
+    this.error.set(null);
+    // Kept in the address, so Back and a bookmark return to the same task.
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { mode: mode === 'sell' ? 'sell' : null },
+      replaceUrl: true,
+    });
   }
 
   protected cardFacts(card: GiftCard): Fact[] {
@@ -96,6 +117,8 @@ export class GiftCardsPage implements OnInit {
     return [
       { label: 'Balance', value: money(card.current_balance_cents) },
       { label: 'Face value', value: money(card.initial_value_cents) },
+      { label: 'Bought by', value: card.buyer?.name || 'Not recorded' },
+      ...(card.recipient?.name ? [{ label: 'For', value: card.recipient.name }] : []),
       { label: 'Sold at', value: card.sold_at_location?.name },
       { label: 'Sold', value: card.sold_at?.slice(0, 10) },
       {
@@ -104,20 +127,6 @@ export class GiftCardsPage implements OnInit {
         hint: 'Flags the card; never forfeits the balance.',
       },
     ];
-  }
-  protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
-  protected form = {
-    amountDollars: 100,
-    code: '',
-    buyer_client_id: null as number | null,
-    payment_method: 'card' as PaymentMethod,
-    buyer_name: '',
-    buyer_phone: '',
-    recipient_name: '',
-  };
-
-  ngOnInit(): void {
-    void this.ctx.load().then(() => this.reload());
   }
 
   protected reload(): void {
@@ -128,32 +137,71 @@ export class GiftCardsPage implements OnInit {
   }
 
   protected open(card: GiftCard): void {
+    this.confirmingVoid.set(false);
     this.api.giftCard(card.code).subscribe((full) => this.selected.set(full));
+  }
+
+  // --- selling ----------------------------------------------------------
+
+  protected searchBuyers(): void {
+    this.buyerRequest?.unsubscribe();
+    this.buyers.set([]);
+    const term = this.buyerSearch.trim();
+    if (term.length < 2) return;
+    this.searchingBuyers.set(true);
+    this.buyerRequest = this.api
+      .clients(term)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.searchingBuyers.set(false)),
+      )
+      .subscribe({
+        next: ({ clients }) => this.buyers.set(clients),
+        error: () => this.error.set('Could not search clients. Please try again.'),
+      });
+  }
+
+  protected linkBuyer(client: ClientRecord): void {
+    this.linkedBuyer.set(client);
+    this.form.buyer_client_id = client.id;
+    this.form.buyer_name = client.full_name;
+    this.form.buyer_phone = client.phone ?? '';
+    this.buyers.set([]);
+    this.buyerSearch = '';
+  }
+
+  protected unlinkBuyer(): void {
+    this.linkedBuyer.set(null);
+    this.form.buyer_client_id = null;
+    this.form.buyer_name = '';
+    this.form.buyer_phone = '';
   }
 
   protected issue(): void {
     const loc = this.ctx.current();
     if (!loc || this.issuing()) return;
+    const cents = Math.round((this.form.amountDollars || 0) * 100);
+    if (cents <= 0) {
+      this.error.set('Enter the amount the client is paying.');
+      return;
+    }
     this.error.set(null);
-    this.issued.set(null);
     this.issuing.set(true);
     this.api
       .issueGiftCard({
         location_id: loc.id,
         code: this.form.code.trim(),
         buyer_client_id: this.form.buyer_client_id,
-        amount_cents: Math.round(this.form.amountDollars * 100),
+        amount_cents: cents,
         payment_method: this.form.payment_method,
-        buyer_name: this.form.buyer_name,
-        buyer_phone: this.form.buyer_phone,
-        recipient_name: this.form.recipient_name,
+        buyer_name: this.form.buyer_name.trim(),
+        buyer_phone: this.form.buyer_phone.trim(),
+        recipient_name: this.form.recipient_name.trim(),
       })
       .pipe(finalize(() => this.issuing.set(false)))
       .subscribe({
         next: (card) => {
-          this.form.code = '';
           this.issued.set(card);
-          this.selected.set(card);
           this.reload();
         },
         error: (err) => {
@@ -163,34 +211,62 @@ export class GiftCardsPage implements OnInit {
               ? 'That gift card code is already in use. Enter a different code, or leave it blank to generate one.'
               : Array.isArray(error)
                 ? error.join('. ')
-                : (error?.message ??
-                  error?.code ??
-                  this.i18n.instant('gift_card_form.issue_error')),
+                : (error?.message ?? error?.code ?? 'Could not issue the card.'),
           );
         },
       });
   }
 
+  protected viewCard(card: GiftCard): void {
+    this.sellAnother();
+    this.setMode('lookup');
+    this.open(card);
+  }
+
+  protected sellAnother(): void {
+    this.issued.set(null);
+    this.form = EMPTY_FORM();
+    this.unlinkBuyer();
+    this.buyerSearch = '';
+    this.buyers.set([]);
+  }
+
+  // --- Owner corrections ------------------------------------------------
+
   protected adjust(card: GiftCard): void {
     const cents = Math.round(this.adjustment.dollars * 100);
-    if (!cents || !this.adjustment.reason.trim()) return;
+    if (!cents || !this.adjustment.reason.trim()) {
+      this.error.set('Enter an amount and a reason for the correction.');
+      return;
+    }
     this.api.adjustGiftCard(card.id, cents, this.adjustment.reason.trim()).subscribe({
       next: (updated) => {
         this.selected.set(updated);
         this.adjustment = { dollars: 0, reason: '' };
         this.reload();
       },
-      error: (err) => this.error.set(err?.error?.error?.code ?? 'Could not adjust the card'),
+      error: (err) =>
+        this.error.set(
+          err?.error?.error?.code === 'negative_balance'
+            ? 'That would take the balance below zero.'
+            : 'Could not adjust the card.',
+        ),
     });
   }
 
+  /** Voiding cannot be undone, so it takes a second, deliberate press. */
   protected voidCard(card: GiftCard): void {
+    if (!this.confirmingVoid()) {
+      this.confirmingVoid.set(true);
+      return;
+    }
     this.api.voidGiftCard(card.id).subscribe({
       next: (updated) => {
+        this.confirmingVoid.set(false);
         this.selected.set(updated);
         this.reload();
       },
-      error: () => this.error.set('Could not void the card'),
+      error: () => this.error.set('Could not void the card.'),
     });
   }
 }

@@ -7,8 +7,22 @@
   align-items: start;
 
   @include expanded-up {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
   }
+}
+
+// On a wide screen the bill and its Settle button stay in view while the
+// right-hand column scrolls.
+.checkout__summary {
+  @include expanded-up {
+    position: sticky;
+    top: var(--sp-4);
+  }
+}
+
+.checkout__due td {
+  padding-top: var(--sp-3);
+  font-size: 1.125rem;
 }
 
 .checkout__take {

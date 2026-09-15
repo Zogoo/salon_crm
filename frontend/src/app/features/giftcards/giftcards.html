@@ -1,232 +1,338 @@
 <ui-page
   title="Gift cards"
-  sub="A card is sold at one location and spendable at all four. The sale is a liability until it is redeemed — it is not revenue on the day it is sold."
+  sub="Sold at one location, spendable at all four. A sale is the client's money held by the salon until it is spent — it is not revenue on the day it is sold."
 >
+  <!-- Two different jobs at the desk: checking a card a client hands over, and
+       selling a new one. One at a time, so neither form competes for attention. -->
+  <div class="gc-tabs" role="tablist" aria-label="Gift card tasks">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="mode() === 'lookup'"
+      (click)="setMode('lookup')"
+      data-testid="gc-tab-lookup"
+    >
+      <ui-icon name="search" />
+      Look up a card
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="mode() === 'sell'"
+      (click)="setMode('sell')"
+      data-testid="gc-tab-sell"
+    >
+      <ui-icon name="card_giftcard" />
+      Sell a card
+    </button>
+  </div>
+
   @if (error()) {
     <ui-banner tone="error" data-testid="gc-error">{{ error() }}</ui-banner>
   }
 
-  <div class="gc">
+  @if (mode() === 'sell') {
     <ui-card
+      class="gc-sell"
       heading="Sell a card"
-      [sub]="'Attributed to ' + (ctx.current()?.name ?? 'this location') + ' for reporting.'"
+      [sub]="'Recorded as sold at ' + (ctx.current()?.name ?? 'this location') + '.'"
     >
-      <div class="form-grid">
-        <ui-field
-          [label]="'gift_card_form.code' | translate"
-          [hint]="'gift_card_form.code_hint' | translate"
-          [optional]="true"
-        >
-          <input type="text" [(ngModel)]="form.code" data-testid="gc-new-code" />
-        </ui-field>
-        <ui-field
-          [label]="'gift_card_form.find_buyer' | translate"
-          [hint]="'gift_card_form.find_buyer_hint' | translate"
-          [optional]="true"
-        >
-          <input
-            type="search"
-            [(ngModel)]="buyerSearch"
-            (input)="searchBuyers()"
-            data-testid="gc-buyer-search"
-          />
-        </ui-field>
-        <ui-field [label]="'gift_card_form.link_buyer' | translate" [optional]="true">
-          <select
-            [ngModel]="form.buyer_client_id"
-            (ngModelChange)="chooseBuyer($event)"
-            data-testid="gc-buyer-client"
-          >
-            <option [ngValue]="null">{{ 'gift_card_form.manual_buyer' | translate }}</option>
-            @for (buyer of buyers(); track buyer.id) {
-              <option [ngValue]="buyer.id">{{ buyer.full_name }} · {{ buyer.phone }}</option>
-            }
-          </select>
-        </ui-field>
-        <ui-field label="Amount" hint="What the client is paying, in dollars.">
-          <input
-            type="number"
-            step="1"
-            min="1"
-            [(ngModel)]="form.amountDollars"
-            data-testid="gc-new-amount"
-          />
-        </ui-field>
-        <ui-field label="Paid by">
-          <select [(ngModel)]="form.payment_method" data-testid="gc-new-method">
-            @for (m of methods; track m) {
-              <option [value]="m">{{ m }}</option>
-            }
-          </select>
-        </ui-field>
-        <ui-field label="Buyer name">
-          <input
-            [(ngModel)]="form.buyer_name"
-            [readOnly]="form.buyer_client_id !== null"
-            data-testid="gc-buyer"
-          />
-        </ui-field>
-        <ui-field label="Buyer phone" [optional]="true">
-          <input
-            [(ngModel)]="form.buyer_phone"
-            [readOnly]="form.buyer_client_id !== null"
-            data-testid="gc-buyer-phone"
-          />
-        </ui-field>
-        <ui-field
-          label="Recipient name"
-          [optional]="true"
-          hint="If the card is a present for someone else."
-        >
-          <input [(ngModel)]="form.recipient_name" data-testid="gc-recipient" />
-        </ui-field>
-      </div>
-
-      <ui-button
-        icon="card_giftcard"
-        (click)="issue()"
-        [disabled]="issuing()"
-        data-testid="gc-issue"
-        >Issue card</ui-button
-      >
-
       @if (issued(); as card) {
-        <ui-banner tone="success" data-testid="gc-issued">
-          Issued {{ card.code }} — ${{ card.current_balance_cents / 100 | number: '1.2-2' }}. Write
-          the code on the card before handing it over.
-        </ui-banner>
-      }
-    </ui-card>
-
-    <ui-card heading="Find a card">
-      <ui-field label="Search" hint="Scan the barcode, or type a code or buyer name.">
-        <input
-          type="search"
-          placeholder="e.g. GC-2026-… or Sarah"
-          [(ngModel)]="search"
-          (input)="reload()"
-          data-testid="gc-search"
-        />
-      </ui-field>
-
-      @if (cards().length) {
-        <ul class="picker" data-testid="gc-list">
-          @for (c of cards(); track c.id) {
-            <li>
-              <button
-                type="button"
-                class="picker__item"
-                [class.on]="selected()?.id === c.id"
-                (click)="open(c)"
-                [attr.data-testid]="'gc-' + c.id"
+        <div data-testid="gc-issued">
+          <ui-empty
+            icon="task_alt"
+            [title]="card.code + ' issued'"
+            [hint]="
+              '$' +
+              (card.current_balance_cents / 100 | number: '1.2-2') +
+              ' is on the card. Write the code on the card before handing it over.'
+            "
+          >
+            <div class="row">
+              <ui-button icon="visibility" (click)="viewCard(card)" data-testid="gc-view-issued">
+                View card
+              </ui-button>
+              <ui-button
+                variant="outlined"
+                icon="add"
+                (click)="sellAnother()"
+                data-testid="gc-sell-another"
               >
-                <span class="picker__main">
-                  <strong>{{ c.code }}</strong>
-                  <small>{{ c.sold_at_location.name }}</small>
-                </span>
-                <span class="picker__amount">
-                  ${{ c.current_balance_cents / 100 | number: '1.2-2' }}
-                </span>
-                @if (c.expired) {
-                  <ui-chip tone="warning">expired</ui-chip>
-                }
-              </button>
-            </li>
-          }
-        </ul>
-      } @else {
-        <ui-empty
-          icon="search_off"
-          title="No cards found"
-          hint="Search by the code printed on the card, or the buyer's name."
-        />
-      }
-    </ui-card>
-  </div>
-
-  @if (selected(); as card) {
-    <ui-card [heading]="card.code" data-testid="gc-detail">
-      <ui-chip cardAction [tone]="card.expired ? 'warning' : 'success'">
-        {{ humanStatus(card.status) }}
-      </ui-chip>
-
-      <ui-facts [items]="cardFacts(card)" />
-
-      @if (card.expired) {
-        <ui-banner tone="warning" data-testid="gc-expired-note">
-          Past its expiry date, but the balance is still the client's — expiry flags a card, it
-          never takes the money. They can spend it; if prices have risen since, they pay the
-          difference.
-        </ui-banner>
-      }
-
-      @if (card.ledger?.length) {
-        <div>
-          <h3 class="sub-head">Ledger</h3>
-          <p class="sub-hint">
-            The balance is the sum of these rows, not a stored number — every movement is here.
-          </p>
-          <ui-table label="Gift card ledger">
-            <table data-testid="gc-ledger">
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>Kind</th>
-                  <th class="num">Amount</th>
-                  <th class="num">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (t of card.ledger; track t.occurred_at) {
-                  <tr>
-                    <td>{{ t.occurred_at | wallClock: 'date' }}</td>
-                    <td>{{ humanStatus(t.kind) }}</td>
-                    <td class="num">${{ t.amount_cents / 100 | number: '1.2-2' }}</td>
-                    <td class="num">${{ t.balance_after_cents / 100 | number: '1.2-2' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </ui-table>
+                Sell another
+              </ui-button>
+            </div>
+          </ui-empty>
         </div>
-      }
-
-      @if (isOwner()) {
-        <div data-testid="gift-card-owner-tools">
-          <h3 class="sub-head">Owner correction</h3>
-          <p class="sub-hint">
-            Use a negative amount to reduce the balance. Every correction remains in the ledger and
-            audit log.
-          </p>
+      } @else {
+        <section class="gc-section">
+          <h3 class="sub-head">Card</h3>
           <div class="form-grid">
-            <ui-field label="Adjustment">
+            <ui-field label="Amount" hint="What the client is paying, in dollars.">
               <input
                 type="number"
-                step="0.01"
-                [(ngModel)]="adjustment.dollars"
-                data-testid="gc-adjust-amount"
+                step="1"
+                min="1"
+                [(ngModel)]="form.amountDollars"
+                data-testid="gc-new-amount"
               />
             </ui-field>
-            <ui-field label="Reason">
-              <input [(ngModel)]="adjustment.reason" data-testid="gc-adjust-reason" />
+            <ui-field label="Paid by">
+              <select [(ngModel)]="form.payment_method" data-testid="gc-new-method">
+                @for (m of methods; track m) {
+                  <option [value]="m">{{ humanStatus(m) }}</option>
+                }
+              </select>
             </ui-field>
           </div>
-          <div class="row">
-            <ui-button variant="tonal" icon="tune" (click)="adjust(card)" data-testid="gc-adjust"
-              >Adjust balance</ui-button
-            >
-            @if (card.status !== 'void') {
-              <ui-button
-                variant="danger"
-                icon="block"
-                (click)="voidCard(card)"
-                data-testid="gc-void"
-                >Void card</ui-button
+          <div class="gc-amounts" role="group" aria-label="Common amounts">
+            @for (preset of amountPresets; track preset) {
+              <button
+                type="button"
+                [class.on]="form.amountDollars === preset"
+                [attr.aria-pressed]="form.amountDollars === preset"
+                (click)="form.amountDollars = preset"
               >
+                ${{ preset }}
+              </button>
             }
           </div>
+          <ui-field
+            label="Card code"
+            hint="The code printed on the card. Leave blank and one is generated."
+            [optional]="true"
+          >
+            <input type="text" [(ngModel)]="form.code" data-testid="gc-new-code" />
+          </ui-field>
+        </section>
+
+        <section class="gc-section">
+          <h3 class="sub-head">Buyer</h3>
+          @if (linkedBuyer(); as buyer) {
+            <div class="gc-linked" data-testid="gc-buyer-linked">
+              <ui-icon name="person" />
+              <span>
+                <strong>{{ buyer.full_name }}</strong>
+                <small>{{ buyer.phone }} · the card will show on their client profile</small>
+              </span>
+              <ui-button variant="text" (click)="unlinkBuyer()" data-testid="gc-buyer-unlink">
+                Change
+              </ui-button>
+            </div>
+          } @else {
+            <ui-field
+              label="Find an existing client"
+              hint="Linking a client shows the card on their profile. Not a client? Just type their name below."
+              [optional]="true"
+            >
+              <input
+                type="search"
+                placeholder="Name or phone"
+                [(ngModel)]="buyerSearch"
+                (input)="searchBuyers()"
+                data-testid="gc-buyer-search"
+              />
+            </ui-field>
+            @if (buyers().length) {
+              <ul class="picker" data-testid="gc-buyer-results">
+                @for (buyer of buyers(); track buyer.id) {
+                  <li>
+                    <button
+                      type="button"
+                      class="picker__item"
+                      (click)="linkBuyer(buyer)"
+                      [attr.data-testid]="'gc-buyer-' + buyer.id"
+                    >
+                      <span class="picker__main">
+                        <strong>{{ buyer.full_name }}</strong>
+                        <small>{{ buyer.phone }}</small>
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else if (buyerSearch.trim().length >= 2 && !searchingBuyers()) {
+              <p class="sub-hint">No client matches — enter the buyer's details below.</p>
+            }
+            <div class="form-grid">
+              <ui-field label="Buyer name" [optional]="true">
+                <input [(ngModel)]="form.buyer_name" data-testid="gc-buyer" />
+              </ui-field>
+              <ui-field label="Buyer phone" [optional]="true">
+                <input type="tel" [(ngModel)]="form.buyer_phone" data-testid="gc-buyer-phone" />
+              </ui-field>
+            </div>
+          }
+        </section>
+
+        <section class="gc-section">
+          <h3 class="sub-head">Recipient</h3>
+          <ui-field
+            label="Recipient name"
+            [optional]="true"
+            hint="Only if the card is a present for someone else."
+          >
+            <input [(ngModel)]="form.recipient_name" data-testid="gc-recipient" />
+          </ui-field>
+        </section>
+
+        <div class="row">
+          <ui-button
+            icon="card_giftcard"
+            (click)="issue()"
+            [disabled]="issuing()"
+            data-testid="gc-issue"
+          >
+            {{ issuing() ? 'Issuing…' : 'Issue $' + (form.amountDollars || 0) + ' card' }}
+          </ui-button>
         </div>
       }
     </ui-card>
+  } @else {
+    <div class="split">
+      <ui-card heading="Find a card">
+        <ui-field label="Search" hint="Scan the barcode, or type a code or the buyer's name.">
+          <input
+            type="search"
+            placeholder="e.g. GC-… or Sarah"
+            [(ngModel)]="search"
+            (input)="reload()"
+            data-testid="gc-search"
+          />
+        </ui-field>
+
+        @if (cards().length) {
+          <ul class="picker" data-testid="gc-list">
+            @for (c of cards(); track c.id) {
+              <li>
+                <button
+                  type="button"
+                  class="picker__item"
+                  [class.on]="selected()?.id === c.id"
+                  (click)="open(c)"
+                  [attr.data-testid]="'gc-' + c.id"
+                >
+                  <span class="picker__main">
+                    <strong>{{ c.code }}</strong>
+                    <small
+                      >{{ c.buyer.name || 'No buyer recorded' }} ·
+                      {{ c.sold_at_location.name }}</small
+                    >
+                  </span>
+                  <span class="picker__amount">
+                    ${{ c.current_balance_cents / 100 | number: '1.2-2' }}
+                  </span>
+                  @if (c.expired) {
+                    <ui-chip tone="warning">expired</ui-chip>
+                  }
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <ui-empty
+            icon="search_off"
+            title="No cards found"
+            hint="Search by the code printed on the card, or the buyer's name."
+          />
+        }
+      </ui-card>
+
+      @if (selected(); as card) {
+        <ui-card [heading]="card.code" data-testid="gc-detail">
+          <ui-chip cardAction [tone]="card.expired ? 'warning' : statusTone(card.status)">
+            {{ card.expired ? 'Expired' : humanStatus(card.status) }}
+          </ui-chip>
+
+          <ui-facts [items]="cardFacts(card)" />
+
+          @if (card.expired) {
+            <ui-banner tone="warning" data-testid="gc-expired-note">
+              Past its expiry date, but the balance is still the client's — expiry flags a card, it
+              never takes the money. They can spend it; if prices have risen since, they pay the
+              difference.
+            </ui-banner>
+          }
+
+          @if (card.ledger?.length) {
+            <div>
+              <h3 class="sub-head">History</h3>
+              <p class="sub-hint">Every movement on the card. The balance is the sum of these.</p>
+              <ui-table label="Gift card history">
+                <table data-testid="gc-ledger">
+                  <thead>
+                    <tr>
+                      <th>When</th>
+                      <th>What</th>
+                      <th class="num">Amount</th>
+                      <th class="num">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (t of card.ledger; track $index) {
+                      <tr>
+                        <td>{{ t.occurred_at | wallClock: 'date' }}</td>
+                        <td>{{ humanStatus(t.kind) }}</td>
+                        <td class="num">${{ t.amount_cents / 100 | number: '1.2-2' }}</td>
+                        <td class="num">${{ t.balance_after_cents / 100 | number: '1.2-2' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </ui-table>
+            </div>
+          }
+
+          @if (isOwner()) {
+            <div data-testid="gift-card-owner-tools">
+              <h3 class="sub-head">Owner correction</h3>
+              <p class="sub-hint">
+                Use a negative amount to reduce the balance. Every correction stays in the history
+                and the audit log.
+              </p>
+              <div class="form-grid">
+                <ui-field label="Adjustment" hint="In dollars.">
+                  <input
+                    type="number"
+                    step="0.01"
+                    [(ngModel)]="adjustment.dollars"
+                    data-testid="gc-adjust-amount"
+                  />
+                </ui-field>
+                <ui-field label="Reason">
+                  <input [(ngModel)]="adjustment.reason" data-testid="gc-adjust-reason" />
+                </ui-field>
+              </div>
+              <div class="row">
+                <ui-button
+                  variant="tonal"
+                  icon="tune"
+                  (click)="adjust(card)"
+                  data-testid="gc-adjust"
+                  >Adjust balance</ui-button
+                >
+                @if (card.status !== 'void') {
+                  <ui-button
+                    variant="danger"
+                    icon="block"
+                    (click)="voidCard(card)"
+                    data-testid="gc-void"
+                  >
+                    {{ confirmingVoid() ? 'Confirm: void this card' : 'Void card' }}
+                  </ui-button>
+                }
+              </div>
+            </div>
+          }
+        </ui-card>
+      } @else {
+        <ui-card>
+          <ui-empty
+            icon="card_giftcard"
+            title="Select a card"
+            hint="Search or scan on the left to see its balance, expiry and history."
+          />
+        </ui-card>
+      }
+    </div>
   }
 </ui-page>

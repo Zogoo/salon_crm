@@ -1,13 +1,97 @@
 @use '../../../styles/tokens' as *;
 
-.gc {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-4);
-  align-items: start;
+// A segmented control: two tasks, one visible at a time.
+.gc-tabs {
+  display: inline-flex;
+  // The page stacks its children as a column; without this the control would
+  // stretch across the page and read as a toolbar rather than two choices.
+  align-self: flex-start;
+  width: fit-content;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-1);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: 999px;
+  background: var(--md-surface-container-high);
 
-  @include expanded-up {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 3rem;
+    padding: 0 var(--sp-4);
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+  }
+
+  button[aria-selected='true'] {
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 16%);
+  }
+}
+
+// A form reads better at a comfortable line length than stretched edge to edge.
+.gc-sell {
+  max-width: 46rem;
+}
+
+.gc-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.gc-section + .gc-section {
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--md-outline-variant);
+}
+
+.gc-amounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+
+  button {
+    min-width: 4.5rem;
+    min-height: 3rem;
+    padding: 0 var(--sp-3);
+    border: 1px solid var(--md-outline);
+    border-radius: var(--md-shape-sm);
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  button.on {
+    border-color: var(--md-primary);
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+  }
+}
+
+.gc-linked {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-primary-container);
+
+  span {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
   }
 }
 

@@ -16,11 +16,14 @@ test.describe('Front-desk visit', () => {
     await openOnBoard(page, date, id);
     await assignTherapist(page);
 
+    // Edits are folded into sections; each opens on demand.
+    await page.getByTestId('section-deposit').locator('summary').click();
     await page.getByTestId('deposit-amount').fill('20');
     await page.getByTestId('deposit-method').selectOption('zelle');
     await page.getByTestId('deposit-save').click();
     await expect(page.getByTestId('deposit-notice')).toContainText('$20.00');
 
+    await page.getByTestId('section-discount').locator('summary').click();
     await page.getByTestId('appointment-discount-amount').fill('10');
     await page.getByTestId('appointment-discount-reason').fill('Started late');
     await page.getByTestId('appointment-discount-save').click();
@@ -48,6 +51,7 @@ test.describe('Front-desk visit', () => {
     await openOnBoard(page, date, id);
 
     // Lawrence allows a Manager 20% of $80 = $16.
+    await page.getByTestId('section-discount').locator('summary').click();
     await page.getByTestId('appointment-discount-amount').fill('50');
     await page.getByTestId('appointment-discount-reason').fill('Complaint');
     await page.getByTestId('appointment-discount-save').click();

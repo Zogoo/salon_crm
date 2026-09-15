@@ -11,10 +11,10 @@ Rails.application.routes.draw do
         delete :avatar, on: :member, action: :destroy_avatar
       end
 
-      resources :notes
 
       # --- Massagelab domain ---
       resources :locations, only: %i[index show update] do
+        collection { get :directory }
         member do
           get    :business_hours
           put    :business_hours, action: :set_business_hours

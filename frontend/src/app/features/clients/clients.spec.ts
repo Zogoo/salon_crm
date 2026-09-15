@@ -1,7 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideTranslateService } from '@ngx-translate/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AuthService } from '../../core/services/auth.service';
 import { ClientsPage } from './clients';
@@ -26,7 +25,6 @@ describe('Client history improvements', () => {
     TestBed.configureTestingModule({
       imports: [ClientsPage],
       providers: [
-        provideTranslateService(),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: AuthService, useValue: { user: () => ({ role }) } },

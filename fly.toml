@@ -52,6 +52,9 @@ swap_size_mb = 512
   cpus = 1
   cpu_kind = 'shared'
 
+# Fly serves these straight from the image, before Rails. The prefix is kept in
+# the path: a request for /assets/i18n/en.json must read
+# /app/public/assets/i18n/en.json, not /app/public/i18n/en.json.
 [[statics]]
-  guest_path = '/app/public'
+  guest_path = '/app/public/assets'
   url_prefix = '/assets'

@@ -1,70 +1,141 @@
 <ui-page
   title="Staff requests"
-  sub="Therapists request shift or location changes here. Managers review shift changes; location changes require the Owner."
+  [sub]="
+    isStaff()
+      ? 'Ask for a different shift or a move to another location. Your manager reviews shift changes; a move needs the Owner.'
+      : 'Changes therapists have asked for. You review shift changes at your location; moves between locations need the Owner.'
+  "
 >
   @if (error()) {
     <ui-banner tone="error">{{ error() }}</ui-banner>
   }
   @if (notice()) {
-    <ui-banner tone="success">{{ notice() }}</ui-banner>
+    <ui-banner tone="success" data-testid="staff-request-notice">{{ notice() }}</ui-banner>
   }
 
   @if (isStaff()) {
-    <ui-card heading="New request">
-      <div class="form-grid">
-        <ui-field label="Request type"
-          ><select [(ngModel)]="form.kind">
-            <option value="shift_change">Shift change</option>
-            <option value="location_change">Location change</option>
-          </select></ui-field
-        >
-        @if (form.kind === 'shift_change') {
-          <ui-field label="Shift ID"><input type="number" [(ngModel)]="form.shift_id" /></ui-field>
-          <ui-field label="New start"><input type="time" [(ngModel)]="form.starts_at" /></ui-field>
-          <ui-field label="New end"><input type="time" [(ngModel)]="form.ends_at" /></ui-field>
+    <ui-card heading="Ask for a change" class="request-form">
+      <ui-field label="What would you like to change?">
+        <select [(ngModel)]="form.kind" data-testid="request-kind">
+          <option value="shift_change">One of my shifts</option>
+          <option value="location_change">Move to another location</option>
+        </select>
+      </ui-field>
+
+      @if (form.kind === 'shift_change') {
+        @if (shiftsAhead().length) {
+          <ui-field label="Which shift" hint="Your published shifts for the next four weeks.">
+            <select
+              [ngModel]="form.shift_id"
+              (ngModelChange)="chooseShift($event)"
+              data-testid="request-shift"
+            >
+              <option [ngValue]="null">Choose a shift…</option>
+              @for (s of shiftsAhead(); track s.id) {
+                <option [ngValue]="s.id">{{ shiftLabel(s) }}</option>
+              }
+            </select>
+          </ui-field>
+          @if (form.shift_id) {
+            <div class="form-grid">
+              <ui-field label="New start">
+                <input type="time" [(ngModel)]="form.starts_at" data-testid="request-start" />
+              </ui-field>
+              <ui-field label="New end">
+                <input type="time" [(ngModel)]="form.ends_at" data-testid="request-end" />
+              </ui-field>
+            </div>
+          }
         } @else {
-          <ui-field label="New location ID"
-            ><input type="number" [(ngModel)]="form.location_id"
-          /></ui-field>
+          <ui-empty
+            icon="event_busy"
+            title="No upcoming shifts"
+            hint="Once your manager publishes the roster, your shifts appear here to choose from."
+          />
         }
-        <ui-field label="Note"><textarea rows="2" [(ngModel)]="form.note"></textarea></ui-field>
+      } @else {
+        <ui-field
+          label="Move to"
+          hint="Your future shifts at your current location are removed once the Owner approves."
+        >
+          <select [(ngModel)]="form.location_id" data-testid="request-location">
+            <option [ngValue]="null">Choose a location…</option>
+            @for (l of otherLocations(); track l.id) {
+              <option [ngValue]="l.id">{{ l.name }}</option>
+            }
+          </select>
+        </ui-field>
+      }
+
+      <ui-field label="Note" [optional]="true" hint="Say why — it helps the reviewer decide.">
+        <textarea rows="2" [(ngModel)]="form.note" data-testid="request-note"></textarea>
+      </ui-field>
+      <div class="row">
+        <ui-button icon="send" (click)="submit()" data-testid="staff-request-submit"
+          >Send request</ui-button
+        >
       </div>
-      <ui-button icon="send" (click)="submit()" data-testid="staff-request-submit"
-        >Submit request</ui-button
-      >
     </ui-card>
   }
 
-  <ui-card heading="Requests">
+  <ui-card [heading]="isStaff() ? 'Your requests' : 'Requests'">
     @if (requests().length) {
-      <ul class="picker" data-testid="staff-request-list">
+      <ul class="requests" data-testid="staff-request-list">
         @for (request of requests(); track request.id) {
-          <li class="picker__item">
-            <span class="picker__main"
-              ><strong>{{ request.display_name }} · {{ humanStatus(request.kind) }}</strong
-              ><small
-                >{{ request.note || 'No note' }} ·
-                {{ request.created_at | wallClock: 'date' }}</small
-              ></span
-            >
-            <ui-chip [tone]="tone(request.status)">{{ humanStatus(request.status) }}</ui-chip>
+          <li class="request">
+            <div class="request__head">
+              <span class="request__main">
+                <strong>{{ request.display_name }} · {{ kindLabel(request.kind) }}</strong>
+                <span>{{ detail(request) }}</span>
+                <small>
+                  {{ request.note || 'No note' }} · sent
+                  {{ request.created_at | wallClock: 'date' }}
+                </small>
+                @if (request.review_note) {
+                  <small>Reviewer: {{ request.review_note }}</small>
+                }
+              </span>
+              <ui-chip [tone]="tone(request.status)">{{ humanStatus(request.status) }}</ui-chip>
+            </div>
+
             @if (!isStaff() && request.status === 'submitted') {
-              <input [(ngModel)]="reviewNotes[request.id]" placeholder="Review note" />
-              <ui-button variant="tonal" icon="check" (click)="decide(request, 'approve')"
-                >Approve</ui-button
-              >
-              <ui-button variant="danger" icon="close" (click)="decide(request, 'reject')"
-                >Reject</ui-button
-              >
+              <div class="request__review">
+                <ui-field label="Review note" [optional]="true">
+                  <input
+                    [(ngModel)]="reviewNotes[request.id]"
+                    placeholder="Shown to the therapist"
+                  />
+                </ui-field>
+                <div class="row">
+                  <ui-button variant="tonal" icon="check" (click)="decide(request, 'approve')"
+                    >Approve</ui-button
+                  >
+                  <ui-button variant="danger" icon="close" (click)="decide(request, 'reject')"
+                    >Reject</ui-button
+                  >
+                </div>
+              </div>
             }
             @if (isStaff() && request.status === 'submitted') {
-              <ui-button variant="text" (click)="withdraw(request)">Withdraw</ui-button>
+              <div class="row">
+                <ui-button variant="text" icon="undo" (click)="withdraw(request)"
+                  >Withdraw</ui-button
+                >
+              </div>
             }
           </li>
         }
       </ul>
     } @else {
-      <ui-empty icon="inbox" title="No staff requests" />
+      <ui-empty
+        icon="inbox"
+        [title]="isStaff() ? 'No requests yet' : 'Nothing to review'"
+        [hint]="
+          isStaff()
+            ? 'Requests you send appear here with their outcome.'
+            : 'Requests appear here as therapists send them.'
+        "
+      />
     }
   </ui-card>
 </ui-page>

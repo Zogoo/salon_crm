@@ -1,0 +1,54 @@
+@use '../../../styles/tokens' as *;
+
+.request-form {
+  max-width: 46rem;
+}
+
+.requests {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-sm);
+}
+
+.request__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.request__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+
+  small {
+    color: var(--md-on-surface-variant);
+  }
+}
+
+.request__review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--md-outline-variant);
+
+  ui-field {
+    flex: 1 1 16rem;
+  }
+}

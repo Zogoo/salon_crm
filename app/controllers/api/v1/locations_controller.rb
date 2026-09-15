@@ -10,6 +10,12 @@ module Api
         render json: location_json(scoped_location!(params[:id]), rooms: true)
       end
 
+      # Names only, for every signed-in user: a therapist asking to move needs
+      # to pick where to, which `index` (their own location only) cannot offer.
+      def directory
+        render json: { locations: Location.active.order(:name).map { |l| { id: l.id, name: l.name } } }
+      end
+
       def update
         require_owner!
         location = scoped_location!(params[:id])

@@ -28,11 +28,6 @@ export const routes: Routes = [
     loadComponent: () => import('./features/profile/profile').then((m) => m.ProfilePage),
   },
   {
-    path: 'notes',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/notes/notes').then((m) => m.Notes),
-  },
-  {
     path: 'schedule',
     canActivate: [authGuard],
     loadComponent: () => import('./features/schedule/day-board').then((m) => m.DayBoardPage),

@@ -8,38 +8,46 @@
 
   @if (managerPayouts(); as managers) {
     <ui-card
-      [heading]="'Manager pay · ' + managers.month"
+      [heading]="'Manager pay · ' + monthLabel(managers.month)"
       sub="Flat monthly pay stays separate from therapist session earnings."
       data-testid="manager-payouts"
     >
-      <ui-table label="Manager payouts"
-        ><table>
-          <thead>
-            <tr>
-              <th>Manager</th>
-              <th>Location</th>
-              <th>Status</th>
-              <th class="num">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (payout of managers.payouts; track payout.id) {
+      @if (managers.payouts.length) {
+        <ui-table label="Manager payouts"
+          ><table>
+            <thead>
               <tr>
-                <td>{{ payout.display_name }}</td>
-                <td>{{ payout.location }}</td>
-                <td>{{ humanStatus(payout.status) }}</td>
-                <td class="num">${{ payout.amount_cents / 100 | number: '1.2-2' }}</td>
+                <th>Manager</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th class="num">Amount</th>
               </tr>
-            }
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3">Total</td>
-              <td class="num">${{ managers.total_cents / 100 | number: '1.2-2' }}</td>
-            </tr>
-          </tfoot>
-        </table></ui-table
-      >
+            </thead>
+            <tbody>
+              @for (payout of managers.payouts; track payout.id) {
+                <tr>
+                  <td>{{ payout.display_name }}</td>
+                  <td>{{ payout.location }}</td>
+                  <td>{{ humanStatus(payout.status) }}</td>
+                  <td class="num">${{ payout.amount_cents / 100 | number: '1.2-2' }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">Total</td>
+                <td class="num">${{ managers.total_cents / 100 | number: '1.2-2' }}</td>
+              </tr>
+            </tfoot>
+          </table></ui-table
+        >
+      } @else {
+        <ui-empty
+          icon="payments"
+          title="No manager pay this month"
+          hint="Managers on monthly pay appear here once their monthly rate is set on the Staff screen."
+        />
+      }
     </ui-card>
   }
 

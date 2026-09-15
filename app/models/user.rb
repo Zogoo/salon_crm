@@ -5,7 +5,6 @@ class User < ApplicationRecord
   has_secure_password
   has_one_attached :avatar
 
-  has_many :notes, dependent: :destroy
   belongs_to :location, optional: true          # required for manager (BR-02)
   has_one :staff_profile, dependent: :destroy
 

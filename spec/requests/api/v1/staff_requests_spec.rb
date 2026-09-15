@@ -35,7 +35,7 @@ RSpec.describe "Staff requests API", type: :request do
   # BR-06: the one approval the Owner withheld from Managers.
   it "refuses a location change approved by a Manager, with its own code" do
     post "/api/v1/staff_requests",
-         params: { kind: "location_change", requested_payload: { "location" => "Luma" } },
+         params: { kind: "location_change", requested_payload: { "location_id" => create(:location).id } },
          headers: auth(therapist.user), as: :json
     id = json["id"]
 
@@ -44,5 +44,31 @@ RSpec.describe "Staff requests API", type: :request do
     expect(response).to have_http_status(:forbidden)
     expect(json.dig("error", "code")).to eq("owner_approval_required")
     expect(StaffRequest.find(id).status).to eq("submitted")
+  end
+
+  it "refuses a request that points at nothing the reviewer can act on" do
+    other_shift = Shift.published.find_by!(staff_profile: world[:staff].last)
+    post "/api/v1/staff_requests", params: { kind: "shift_change", shift_id: other_shift.id },
+                                   headers: auth(therapist.user), as: :json
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(json.dig("error", "code")).to eq("shift_required")
+
+    post "/api/v1/staff_requests",
+         params: { kind: "location_change", requested_payload: { "location_id" => therapist.location_id } },
+         headers: auth(therapist.user), as: :json
+    expect(json.dig("error", "code")).to eq("location_required")
+  end
+
+  it "describes the shift and the destination in words" do
+    destination = create(:location, name: "Riverside")
+    post "/api/v1/staff_requests",
+         params: { kind: "location_change", requested_payload: { "location_id" => destination.id } },
+         headers: auth(therapist.user), as: :json
+    expect(json["requested_location"]).to eq({ "id" => destination.id, "name" => "Riverside" })
+
+    post "/api/v1/staff_requests",
+         params: { kind: "shift_change", shift_id: shift.id, requested_payload: { "ends_at" => "18:00" } },
+         headers: auth(therapist.user), as: :json
+    expect(json["shift"]).to include("starts_at" => "09:00", "ends_at" => "22:00")
   end
 end

@@ -66,6 +66,15 @@
       </ui-card>
     </div>
 
+    @if (!selected() && memberships().length) {
+      <ui-card class="detail-placeholder">
+        <ui-empty
+          icon="loyalty"
+          title="Select a member"
+          hint="Pick a member to record a payment, use a credit or handle a cancellation."
+        />
+      </ui-card>
+    }
     @if (selected(); as m) {
       <div class="detail" data-testid="mem-detail">
         <ui-card [heading]="m.client.full_name" [sub]="'Home location: ' + m.location.name">

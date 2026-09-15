@@ -84,7 +84,6 @@ export class App implements OnInit {
     this.bare.set(
       url.startsWith('/kiosk') ||
         url.startsWith('/sign-in') ||
-        url.startsWith('/sign-up') ||
         url.startsWith('/rate/') ||
         url.startsWith('/reset-password/'),
     );

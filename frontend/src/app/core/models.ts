@@ -10,14 +10,6 @@ export interface User {
   otp_enabled?: boolean;
 }
 
-export interface Note {
-  id: number;
-  title: string;
-  body: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface PageMeta {
   count: number;
   page: number;
@@ -34,11 +26,6 @@ export interface AuditLogRecord {
   changes: Record<string, unknown>;
   ip_address: string | null;
   occurred_at: string;
-}
-
-export interface NotesPage {
-  notes: Note[];
-  meta: PageMeta;
 }
 
 export interface AuthResponse {
@@ -350,6 +337,9 @@ export interface StaffRequestRecord {
   staff_profile_id: number;
   display_name: string;
   shift_id: number | null;
+  /** The shift as it stands, in the location's wall clock. */
+  shift?: { work_date: string; starts_at: string; ends_at: string } | null;
+  requested_location?: { id: number; name: string } | null;
   requested_payload: Record<string, unknown>;
   note: string | null;
   review_note: string | null;

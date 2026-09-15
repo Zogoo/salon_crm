@@ -194,6 +194,17 @@ export class EarningsPage implements OnInit {
     });
   }
 
+  /** "2026-09" reads as "September 2026". */
+  protected monthLabel(month: string): string {
+    const [year, m] = month.split('-').map(Number);
+    if (!year || !m) return month;
+    return new Date(Date.UTC(year, m - 1, 1)).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  }
+
   protected addManual(): void {
     if (!this.staffId) return;
     this.error.set(null);

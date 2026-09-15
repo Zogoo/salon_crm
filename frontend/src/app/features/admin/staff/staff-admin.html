@@ -124,6 +124,15 @@
       }
     </ui-card>
 
+    @if (!selected()) {
+      <ui-card class="detail-placeholder">
+        <ui-empty
+          icon="badge"
+          title="Select a team member"
+          hint="Pick someone from the team to see their profile, qualifications and pay."
+        />
+      </ui-card>
+    }
     @if (selected(); as member) {
       <div class="detail" data-testid="staff-detail">
         <ui-card [heading]="member.display_name" [sub]="memberSummary(member)">

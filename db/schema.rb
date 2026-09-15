@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_15_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_200000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -530,15 +530,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_100000) do
     t.index ["location_id"], name: "index_memberships_on_location_id"
   end
 
-  create_table "notes", force: :cascade do |t|
-    t.text "body"
-    t.datetime "created_at", null: false
-    t.string "title", null: false
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.index ["user_id"], name: "index_notes_on_user_id"
-  end
-
   create_table "notifications", force: :cascade do |t|
     t.integer "appointment_id"
     t.string "channel", null: false
@@ -931,7 +922,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_100000) do
   add_foreign_key "memberships", "clients"
   add_foreign_key "memberships", "locations"
   add_foreign_key "memberships", "service_variants", column: "default_service_variant_id"
-  add_foreign_key "notes", "users"
   add_foreign_key "notifications", "appointments"
   add_foreign_key "order_discounts", "orders"
   add_foreign_key "order_discounts", "users", column: "applied_by_user_id"

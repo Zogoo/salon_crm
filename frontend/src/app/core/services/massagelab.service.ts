@@ -83,6 +83,13 @@ export class MassagelabService {
     return this.http.get<{ locations: Location[] }>(`${this.base}/locations`);
   }
 
+  /** Every active location by name — what a therapist chooses from when asking to move. */
+  locationDirectory(): Observable<{ locations: { id: number; name: string }[] }> {
+    return this.http.get<{ locations: { id: number; name: string }[] }>(
+      `${this.base}/locations/directory`,
+    );
+  }
+
   location(id: number): Observable<Location> {
     return this.http.get<Location>(`${this.base}/locations/${id}`);
   }

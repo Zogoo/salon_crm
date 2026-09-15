@@ -77,6 +77,15 @@
       }
     </ui-card>
 
+    @if (!detail()) {
+      <ui-card class="detail-placeholder">
+        <ui-empty
+          icon="spa"
+          title="Select a service"
+          hint="Pick a service to edit its name, lengths and prices at this location."
+        />
+      </ui-card>
+    }
     @if (detail(); as service) {
       <div class="detail" data-testid="cat-detail">
         <ui-card [heading]="service.name" [sub]="humanStatus(service.kind)">

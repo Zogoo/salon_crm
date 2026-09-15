@@ -37,12 +37,19 @@
               <tr>
                 <td>{{ log.occurred_at | wallClock: 'datetime' }}</td>
                 <td>
-                  {{ log.actor?.name ?? 'System' }}<br /><small>{{ log.actor?.role ?? '' }}</small>
+                  {{ log.actor?.name ?? 'System' }}
+                  @if (roleLabel(log); as role) {
+                    <br /><small>{{ role }}</small>
+                  }
                 </td>
-                <td>{{ log.action }}</td>
-                <td>{{ log.auditable_type }} #{{ log.auditable_id }}</td>
                 <td>
-                  <code>{{ changes(log) }}</code>
+                  {{ actionLabel(log.action) }}<br /><small class="audit__code">{{
+                    log.action
+                  }}</small>
+                </td>
+                <td>{{ recordLabel(log.auditable_type) }} #{{ log.auditable_id }}</td>
+                <td>
+                  {{ changes(log) }}
                 </td>
               </tr>
             }

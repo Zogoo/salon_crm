@@ -12,66 +12,102 @@
     <ui-banner tone="error">{{ error() }}</ui-banner>
   }
 
-  @if (data(); as d) {
-    <section class="tiles" data-testid="dash-tiles" aria-label="Today at a glance">
-      <ui-stat
-        label="Appointments"
-        [value]="d.appointments_today"
-        hint="Booked and completed; cancellations are counted separately."
-        data-testid="tile-appointments"
-      />
-      <ui-stat label="Completed" [value]="d.completed_today" />
-      <ui-stat label="Cancelled" [value]="d.cancelled_today" />
-      <ui-stat label="No-shows" [value]="d.no_shows_today" />
-      <ui-stat label="Staff working" [value]="d.staff_working" />
-      <ui-stat label="Rooms free now" [value]="d.rooms_free_now + ' / ' + d.rooms_total" />
-      <ui-stat
-        label="Awaiting approval"
-        [value]="d.pending_approvals"
-        hint="Auto-approves after 45 minutes if the therapist is still free."
-        data-testid="tile-approvals"
-      />
-      @if (d.revenue_booked_cents !== undefined) {
-        <ui-stat
-          tone="primary"
-          label="Completed revenue"
-          [value]="'$' + (d.revenue_booked_cents / 100 | number: '1.2-2')"
-          hint="Service revenue only — gift cards and fees are not counted here."
-          data-testid="tile-revenue"
-        />
-      }
-    </section>
-
+  @if (isStaff()) {
     @if (shifts(); as s) {
-      <div class="dash__cols">
-        <ui-card heading="Working today" [sub]="s.working.length + ' on shift'">
-          @if (s.working.length) {
-            <ul class="people" data-testid="working-list">
-              @for (w of s.working; track w.id) {
-                <li><ui-icon name="person" />{{ w.display_name }}</li>
-              }
-            </ul>
-          } @else {
-            <ui-empty
-              icon="person_off"
-              title="Nobody is scheduled"
-              hint="Draft and publish shifts on the Roster before anyone can be booked."
-            />
-          }
-        </ui-card>
+      <ui-card
+        heading="Your shift"
+        [sub]="date + 'T00:00' | wallClock: 'date'"
+        data-testid="my-shift"
+      >
+        @if (s.working.length) {
+          <ul class="people" data-testid="working-list">
+            @for (w of s.working; track w.id) {
+              <li>
+                <ui-icon name="schedule" />{{ w.starts_at | wallClock }}–{{
+                  w.ends_at | wallClock
+                }}
+                at {{ ctx.current()?.name }}
+              </li>
+            }
+          </ul>
+          <div class="row">
+            <ui-button variant="tonal" icon="calendar_month" (click)="openSchedule()"
+              >See my appointments</ui-button
+            >
+          </div>
+        } @else {
+          <ui-empty
+            icon="event_available"
+            title="You're not on the roster this day"
+            hint="If that looks wrong, ask for a change and your manager will review it."
+          >
+            <a routerLink="/staff-requests" class="dash__link">Request a shift change</a>
+          </ui-empty>
+        }
+      </ui-card>
+    }
+  } @else {
+    @if (data(); as d) {
+      <section class="tiles" data-testid="dash-tiles" aria-label="Today at a glance">
+        <ui-stat
+          label="Appointments"
+          [value]="d.appointments_today"
+          hint="Booked and completed; cancellations are counted separately."
+          data-testid="tile-appointments"
+        />
+        <ui-stat label="Completed" [value]="d.completed_today" />
+        <ui-stat label="Cancelled" [value]="d.cancelled_today" />
+        <ui-stat label="No-shows" [value]="d.no_shows_today" />
+        <ui-stat label="Staff working" [value]="d.staff_working" />
+        <ui-stat label="Rooms free now" [value]="d.rooms_free_now + ' / ' + d.rooms_total" />
+        <ui-stat
+          label="Awaiting approval"
+          [value]="d.pending_approvals"
+          hint="Auto-approves after 45 minutes if the therapist is still free."
+          data-testid="tile-approvals"
+        />
+        @if (d.revenue_booked_cents !== undefined) {
+          <ui-stat
+            tone="primary"
+            label="Completed revenue"
+            [value]="'$' + (d.revenue_booked_cents / 100 | number: '1.2-2')"
+            hint="Service revenue only — gift cards and fees are not counted here."
+            data-testid="tile-revenue"
+          />
+        }
+      </section>
 
-        <ui-card heading="Not working" [sub]="s.not_working.length + ' off today'">
-          @if (s.not_working.length) {
-            <ul class="people people--muted">
-              @for (n of s.not_working; track n.staff_profile_id) {
-                <li><ui-icon name="person" />{{ n.display_name }}</li>
-              }
-            </ul>
-          } @else {
-            <ui-empty icon="groups" title="Everyone is in" />
-          }
-        </ui-card>
-      </div>
+      @if (shifts(); as s) {
+        <div class="dash__cols">
+          <ui-card heading="Working today" [sub]="s.working.length + ' on shift'">
+            @if (s.working.length) {
+              <ul class="people" data-testid="working-list">
+                @for (w of s.working; track w.id) {
+                  <li><ui-icon name="person" />{{ w.display_name }}</li>
+                }
+              </ul>
+            } @else {
+              <ui-empty
+                icon="person_off"
+                title="Nobody is scheduled"
+                hint="Draft and publish shifts on the Roster before anyone can be booked."
+              />
+            }
+          </ui-card>
+
+          <ui-card heading="Not working" [sub]="s.not_working.length + ' off today'">
+            @if (s.not_working.length) {
+              <ul class="people people--muted">
+                @for (n of s.not_working; track n.staff_profile_id) {
+                  <li><ui-icon name="person" />{{ n.display_name }}</li>
+                }
+              </ul>
+            } @else {
+              <ui-empty icon="groups" title="Everyone is in" />
+            }
+          </ui-card>
+        </div>
+      }
     }
   }
 </ui-page>

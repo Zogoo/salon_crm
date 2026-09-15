@@ -1,19 +1,19 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideTranslateService } from '@ngx-translate/core';
+import { provideRouter } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { GiftCardsPage } from './giftcards';
 
-describe('Gift-card issuance improvements', () => {
+describe('Gift cards page', () => {
   let http: HttpTestingController;
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
       imports: [GiftCardsPage],
       providers: [
-        provideTranslateService(),
+        provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
         {
@@ -26,12 +26,36 @@ describe('Gift-card issuance improvements', () => {
   });
   afterEach(() => http.verify());
 
+  async function openPage() {
+    const fixture = TestBed.createComponent(GiftCardsPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    http.expectOne((r) => r.url.endsWith('/gift_cards')).flush({ gift_cards: [] });
+    await fixture.whenStable();
+    return fixture;
+  }
+
+  it('opens on look-up, with selling one tap away rather than beside it', async () => {
+    const fixture = await openPage();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-testid="gc-search"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="gc-new-code"]')).toBeNull();
+
+    (el.querySelector('[data-testid="gc-tab-sell"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(el.querySelector('[data-testid="gc-new-code"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="gc-search"]')).toBeNull();
+    // Labels are real words, never translation keys.
+    expect(el.textContent).not.toContain('gift_card_form');
+  });
+
   for (const code of ['00123', '']) {
     it(`sends the optional code (${code || 'generated'}) without numeric conversion`, async () => {
-      const fixture = TestBed.createComponent(GiftCardsPage);
-      fixture.detectChanges();
+      const fixture = await openPage();
+      (
+        fixture.nativeElement.querySelector('[data-testid="gc-tab-sell"]') as HTMLButtonElement
+      ).click();
       await fixture.whenStable();
-      http.expectOne((r) => r.url.endsWith('/gift_cards')).flush({ gift_cards: [] });
       const input: HTMLInputElement = fixture.nativeElement.querySelector(
         '[data-testid="gc-new-code"]',
       );

@@ -104,3 +104,75 @@
   opacity: 0.85;
   box-shadow: 0 6px 16px rgb(0 0 0 / 24%);
 }
+
+// --- Appointment panel ------------------------------------------------------
+
+.assign-callout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--md-shape-md);
+  background: var(--md-warning-container);
+  color: var(--md-on-warning-container);
+
+  .sheet__hint {
+    color: inherit;
+  }
+}
+
+// Therapist choices as large targets — a finger on the desk tablet, not a
+// 13px checkbox.
+.assign-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 3rem;
+    padding: 0 var(--sp-3);
+    border: 1px solid var(--md-outline);
+    border-radius: var(--md-shape-sm);
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    cursor: pointer;
+  }
+
+  label:has(input:checked) {
+    border-color: var(--md-primary);
+    box-shadow: inset 0 0 0 1px var(--md-primary);
+  }
+
+  input {
+    width: 1.25rem;
+    height: 1.25rem;
+    accent-color: var(--md-primary);
+  }
+}
+
+// The footer sticks to the bottom of the scrolling panel, bleeding to its edges.
+.sheet__actions {
+  position: sticky;
+  bottom: calc(var(--sp-4) * -1);
+  z-index: 2;
+  margin: 0 calc(var(--sp-4) * -1) calc(var(--sp-4) * -1);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--md-outline-variant);
+  background: var(--md-surface-container-lowest);
+
+  @include medium-up {
+    bottom: calc(var(--sp-5) * -1);
+    margin: 0 calc(var(--sp-5) * -1) calc(var(--sp-5) * -1);
+    padding: var(--sp-3) var(--sp-5);
+  }
+}
+
+.appointment-menu__items button.danger {
+  color: var(--md-error);
+}

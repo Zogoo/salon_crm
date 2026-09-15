@@ -1,9 +1,11 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { Dashboard, ShiftBoard } from '../../core/models';
+import { AuthService } from '../../core/services/auth.service';
+import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
@@ -15,6 +17,8 @@ import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiIcon, UiPage, UiStat } 
   imports: [
     FormsModule,
     DecimalPipe,
+    RouterLink,
+    WallClockPipe,
     UiPage,
     UiCard,
     UiStat,
@@ -31,6 +35,10 @@ export class DashboardPage implements OnInit {
   private readonly api = inject(MassagelabService);
   private readonly router = inject(Router);
   protected readonly ctx = inject(LocationContextService);
+  private readonly auth = inject(AuthService);
+
+  /** A therapist's day is their own shift, not the salon's occupancy. */
+  protected readonly isStaff = computed(() => this.auth.user()?.role === 'staff');
 
   protected readonly data = signal<Dashboard | null>(null);
   protected readonly shifts = signal<ShiftBoard | null>(null);
@@ -38,8 +46,10 @@ export class DashboardPage implements OnInit {
   protected date = '';
 
   /** Names the location so the numbers are never read against the wrong one. */
-  protected readonly subtitle = computed(
-    () => `How today is going at ${this.ctx.current()?.name ?? 'this location'}.`,
+  protected readonly subtitle = computed(() =>
+    this.isStaff()
+      ? `Your day at ${this.ctx.current()?.name ?? 'your location'}.`
+      : `How today is going at ${this.ctx.current()?.name ?? 'this location'}.`,
   );
 
   ngOnInit(): void {

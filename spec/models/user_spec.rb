@@ -7,7 +7,6 @@ RSpec.describe User, type: :model do
     expect(user).to be_valid
   end
 
-  it { is_expected.to have_many(:notes).dependent(:destroy) }
   it { is_expected.to have_one_attached(:avatar) }
 
   it "requires a name" do

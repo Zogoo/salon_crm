@@ -20,6 +20,9 @@ module Api
         profile = current_user.staff_profile
         raise Authorizable::Forbidden unless profile
 
+        problem = request_problem(profile)
+        return render_invalid(problem, code: problem) if problem
+
         request = StaffRequest.create!(
           staff_profile: profile, kind: request_params.require(:kind),
           shift_id: request_params[:shift_id],
@@ -45,6 +48,19 @@ module Api
         params.require(:staff_request).permit(:kind, :shift_id, :note, requested_payload: {})
       end
 
+      # A request must point at something the reviewer can act on: one of the
+      # requester's own shifts, or a real location other than their own.
+      def request_problem(profile)
+        payload = request_params[:requested_payload]&.to_unsafe_h || {}
+        case request_params[:kind]
+        when "shift_change"
+          "shift_required" unless Shift.exists?(id: request_params[:shift_id], staff_profile_id: profile.id)
+        when "location_change"
+          location_id = payload["location_id"].to_i
+          "location_required" if location_id == profile.location_id || !Location.active.exists?(id: location_id)
+        end
+      end
+
       def decide(decision)
         request = StaffRequest.find(params[:id])
         # The reviewer's note comes back as `review_note`, so accept that name
@@ -68,6 +84,15 @@ module Api
           staff_profile_id: r.staff_profile_id,
           display_name: r.staff_profile.display_name,
           shift_id: r.shift_id,
+          # Enough to read the request without looking anything up.
+          shift: r.shift && {
+            work_date: r.shift.work_date,
+            starts_at: r.shift.starts_at.in_time_zone(r.shift.location.tz).strftime("%H:%M"),
+            ends_at: r.shift.ends_at.in_time_zone(r.shift.location.tz).strftime("%H:%M")
+          },
+          requested_location: Location.find_by(id: r.requested_payload["location_id"])&.then { |l|
+            { id: l.id, name: l.name }
+          },
           requested_payload: r.requested_payload,
           note: r.note, review_note: r.review_note,
           reviewed_by_role: r.reviewer_role,

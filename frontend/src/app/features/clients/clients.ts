@@ -1,7 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 import { DecimalPipe } from '@angular/common';
-import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DestroyRef } from '@angular/core';
@@ -38,7 +37,6 @@ import {
   imports: [
     FormsModule,
     DecimalPipe,
-    TranslatePipe,
     WallClockPipe,
     UiPage,
     UiCard,
@@ -57,7 +55,6 @@ import {
 export class ClientsPage implements OnInit {
   private readonly api = inject(MassagelabService);
   protected readonly auth = inject(AuthService);
-  private readonly i18n = inject(TranslateService);
   private readonly destroyRef = inject(DestroyRef);
   private detailRequest?: Subscription;
   protected readonly giftCards = signal<ClientGiftCard[]>([]);
@@ -153,7 +150,7 @@ export class ClientsPage implements OnInit {
             other_requests: full.preference?.other_requests ?? '',
           };
         },
-        error: () => this.error.set(this.i18n.instant('client_history.load_error')),
+        error: () => this.error.set('Could not load client history. Please try again.'),
       });
   }
 

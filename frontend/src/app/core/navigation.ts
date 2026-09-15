@@ -48,13 +48,6 @@ export const NAV_GROUPS: NavGroup[] = [
         description: 'Every room and therapist, hour by hour.',
         roles: ALL,
       },
-      {
-        path: '/notes',
-        label: 'My notes',
-        icon: 'note_alt',
-        description: 'Private working notes for your own account.',
-        roles: ALL,
-      },
     ],
   },
   {

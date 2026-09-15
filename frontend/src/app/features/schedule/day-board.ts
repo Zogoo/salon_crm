@@ -60,6 +60,8 @@ const MESSAGES: Record<string, string> = {
 
 const MOVABLE = ['pending_approval', 'scheduled', 'checked_in'];
 
+type PanelSection = 'service' | 'deposit' | 'discount' | 'reschedule' | 'repeat' | 'note';
+
 /** FRS §6 — rooms as rows, time across, 09:00–22:00. */
 @Component({
   selector: 'app-day-board',
@@ -79,7 +81,7 @@ const MOVABLE = ['pending_approval', 'scheduled', 'checked_in'];
     UiFacts,
   ],
   templateUrl: './day-board.html',
-  styleUrls: ['./day-board.scss', './day-board-controls.scss'],
+  styleUrls: ['../../ui/layouts.scss', './day-board.scss', './day-board-controls.scss'],
 })
 export class DayBoardPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -96,6 +98,8 @@ export class DayBoardPage implements OnInit {
   protected readonly staff = signal<StaffMember[]>([]);
   protected readonly checkoutPrompt = signal(false);
   protected readonly dragging = signal<{ id: number; dx: number; dy: number } | null>(null);
+  /** Which edit section of the panel is unfolded — one at a time. */
+  protected readonly openSection = signal<PanelSection | null>(null);
   protected newCareNote = '';
   protected correctingNoteId: number | null = null;
   protected appointmentNote = '';
@@ -188,12 +192,56 @@ export class DayBoardPage implements OnInit {
     return facts;
   }
 
+  /** "Couple room · 2 seats" rather than the stored "couple · seats 2". */
+  protected roomLabel(room: Room): string {
+    const seats = room.client_capacity === 1 ? '1 seat' : `${room.client_capacity} seats`;
+    return `${humanise(room.room_type)} room · ${seats}`;
+  }
+
+  /** A narrow block truncates, so the full line is one hover away. */
+  protected blockTitle(appt: Appointment): string {
+    const who = appt.assignment_pending
+      ? 'No preference'
+      : appt.therapists.map((t) => t.display_name).join(', ') || 'Unassigned';
+    return `${appt.client.full_name} · ${this.clock(appt.starts_at)}–${this.clock(appt.service_ends_at)} · ${who} · ${humanise(appt.status)}`;
+  }
+
+  /** Changes are allowed before the visit is under way. */
+  protected editable(appt: Appointment): boolean {
+    return ['scheduled', 'checked_in'].includes(appt.status);
+  }
+
+  protected depositSummary(appt: Appointment): string {
+    const d = appt.deposit;
+    if (!d) return 'None taken';
+    const money = `$${(d.amount_cents / 100).toFixed(2)}`;
+    return d.status === 'held' ? `${money} held` : `${money} · ${humanise(d.status)}`;
+  }
+
+  protected onSectionToggle(section: PanelSection, event: Event): void {
+    const open = (event.target as HTMLDetailsElement).open;
+    if (open) this.openSection.set(section);
+    else if (this.openSection() === section) this.openSection.set(null);
+  }
+
+  /** From the ⋮ menu: unfold the right section and put the cursor in it. */
+  protected openEditor(section: PanelSection, testId: string): void {
+    this.openSection.set(section);
+    this.focusEditor(testId);
+  }
+
+  protected closeMenu(event: Event): void {
+    if ((event.target as HTMLElement).closest('button')) {
+      (event.currentTarget as HTMLElement).closest('details')?.removeAttribute('open');
+    }
+  }
+
   protected preferenceFacts(appt: Appointment): Fact[] {
     const p = appt.preference;
     if (!p) return [];
     return (
       [
-        { label: 'Pressure', value: p.pressure },
+        { label: 'Pressure', value: p.pressure ? humanise(p.pressure) : null },
         { label: 'Attention', value: p.attention_areas },
         { label: 'Avoid', value: p.avoid_areas },
         { label: 'Other', value: p.other_requests },
@@ -571,6 +619,11 @@ export class DayBoardPage implements OnInit {
     this.checkoutPrompt.set(true);
     this.ratingScore = null;
     this.ratingFeedback = '';
+    setTimeout(() =>
+      document
+        .querySelector('[data-testid="checkout-rating"]')
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+    );
   }
 
   protected submitRatingAndCheckout(appointment: Appointment): void {
@@ -608,7 +661,9 @@ export class DayBoardPage implements OnInit {
 
   protected focusEditor(testId: string): void {
     setTimeout(() => {
-      (document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null)?.focus();
+      const el = document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null;
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el?.focus({ preventScroll: true });
     });
   }
 
@@ -660,6 +715,8 @@ export class DayBoardPage implements OnInit {
   }
 
   private prepareSelection(appointment: Appointment): void {
+    // A different appointment starts folded; the same one, just saved, stays where the desk was.
+    if (this.selected()?.id !== appointment.id) this.openSection.set(null);
     this.selected.set(appointment);
     this.appointmentNote = appointment.appointment_note ?? '';
     this.rescheduleDate = appointment.starts_at.slice(0, 10);

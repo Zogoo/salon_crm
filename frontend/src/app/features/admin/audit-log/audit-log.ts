@@ -4,7 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { AuditLogRecord, PageMeta } from '../../../core/models';
 import { WallClockPipe } from '../../../core/pipes/wall-clock.pipe';
 import { MassagelabService } from '../../../core/services/massagelab.service';
-import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable } from '../../../ui';
+import {
+  UiBanner,
+  UiButton,
+  UiCard,
+  UiEmpty,
+  UiField,
+  UiPage,
+  UiTable,
+  humanise,
+} from '../../../ui';
 
 @Component({
   selector: 'app-audit-log',
@@ -52,7 +61,41 @@ export class AuditLogPage implements OnInit {
     });
   }
 
+  protected readonly humanise = humanise;
+
+  /** "GiftCard" reads as "Gift card". */
+  protected recordLabel(type: string): string {
+    return humanise(type.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase());
+  }
+
+  /** "gift_card.issued" reads as "Gift card issued". */
+  protected actionLabel(action: string): string {
+    return humanise(action.replace(/\./g, ' '));
+  }
+
+  /** The role only when it adds something — "Owner / owner" says nothing twice. */
+  protected roleLabel(log: AuditLogRecord): string {
+    const role = log.actor?.role;
+    if (!role || log.actor?.name.toLowerCase() === role) return '';
+    return humanise(role);
+  }
+
+  /** `{ amount_cents: 1000, phone: ["old", "new"] }` reads as "Amount: $10.00 · Phone: old → new". */
   protected changes(log: AuditLogRecord): string {
-    return Object.keys(log.changes).length ? JSON.stringify(log.changes) : '—';
+    const entries = Object.entries(log.changes ?? {});
+    if (!entries.length) return '—';
+    return entries
+      .map(([key, value]) => `${humanise(key.replace(/_cents$/, ''))}: ${this.value(key, value)}`)
+      .join(' · ');
+  }
+
+  private value(key: string, value: unknown): string {
+    if (Array.isArray(value) && value.length === 2) {
+      return `${this.value(key, value[0])} → ${this.value(key, value[1])}`;
+    }
+    if (key.endsWith('_cents') && typeof value === 'number') return `$${(value / 100).toFixed(2)}`;
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
   }
 }

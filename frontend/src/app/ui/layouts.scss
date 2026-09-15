@@ -166,3 +166,73 @@
 .credit {
   color: var(--md-success);
 }
+
+// Folded sections: secondary tasks that open on demand, one line of status
+// each while closed. Used by the appointment panel and checkout.
+.panel-sections {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-md);
+  overflow: hidden;
+}
+
+.panel-section + .panel-section {
+  border-top: 1px solid var(--md-outline-variant);
+}
+
+.panel-section summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 3.25rem;
+  padding: var(--sp-2) var(--sp-4);
+  cursor: pointer;
+  list-style: none;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  // A chevron that turns when the section opens.
+  &::after {
+    content: '';
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-left: auto;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+  }
+}
+
+.panel-section[open] summary {
+  background: var(--md-surface-container);
+
+  &::after {
+    transform: rotate(-135deg);
+  }
+}
+
+.panel-section__title {
+  flex: none;
+  font-weight: 600;
+}
+
+.panel-section__meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--md-on-surface-variant);
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}

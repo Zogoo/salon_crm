@@ -16,7 +16,7 @@ import {
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
-import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable } from '../../ui';
+import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable, humanise } from '../../ui';
 
 /**
  * FRS §9, §10, §12.
@@ -133,6 +133,10 @@ export class ReportsPage implements OnInit {
       next: (report) => this.membership.set(report),
       error: () => this.membership.set(null),
     });
+  }
+
+  protected humanStatus(value: string): string {
+    return humanise(value);
   }
 
   protected methodKeys(r: DailyRevenue): string[] {
