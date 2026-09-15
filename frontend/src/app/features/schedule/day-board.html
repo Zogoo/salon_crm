@@ -1,5 +1,6 @@
 <ui-page title="Schedule" [sub]="subtitle()">
   <div pageActions class="board__nav">
+    <app-location-scope />
     <ui-button variant="text" icon="chevron_left" (click)="shiftDay(-1)" ariaLabel="Previous day" />
     <ui-field label="Date">
       <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="date-input" />

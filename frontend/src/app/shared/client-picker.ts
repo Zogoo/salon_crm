@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, switchMap, tap } from 'rxjs';
@@ -82,6 +82,8 @@ export class ClientPicker {
   readonly label = input('Find a client');
   /** A client who must not be offered (e.g. the one being merged away). */
   readonly excludeId = input<number | null>(null);
+  /** A client chosen elsewhere (a rebook link, a client just created) shown as picked. */
+  readonly initial = input<ClientRecord | null>(null);
   readonly picked = output<ClientRecord | null>();
 
   protected readonly listId = `client-picker-${++nextId}`;
@@ -95,6 +97,10 @@ export class ClientPicker {
   protected readonly terms$ = new Subject<string>();
 
   constructor() {
+    effect(() => {
+      const given = this.initial();
+      if (given) this.chosen.set(given);
+    });
     this.terms$
       .pipe(
         debounceTime(250),

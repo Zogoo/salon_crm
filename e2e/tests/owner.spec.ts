@@ -36,10 +36,10 @@ test.describe('Owner tools', () => {
     };
 
     await page.goto('/gift-cards');
-    // Look-up is the default task; selling is its own tab.
+    // The list is the page; creating a card opens in a dialog over it.
     await expect(page.getByTestId('gc-search')).toBeVisible();
     await expect(page.getByTestId('gc-new-code')).toHaveCount(0);
-    await page.getByTestId('gc-tab-sell').click();
+    await page.getByTestId('gc-new').click();
     await expect(page.locator('body')).not.toContainText('gift_card_form');
 
     await sell();
@@ -52,7 +52,7 @@ test.describe('Owner tools', () => {
     // The card opens in a side panel over the list; close it to carry on.
     await page.getByTestId('gc-detail').getByRole('button', { name: 'Close' }).click();
 
-    await page.getByTestId('gc-tab-sell').click();
+    await page.getByTestId('gc-new').click();
     await sell();
     await expect(page.getByTestId('gc-error')).toContainText('already in use');
   });
@@ -68,7 +68,9 @@ test.describe('Owner tools', () => {
     const body = await (await searched).json();
 
     expect(body.audit_logs.length).toBeGreaterThan(0);
-    expect(body.audit_logs.every((l: { action: string }) => l.action.includes('gift_card'))).toBe(true);
+    expect(body.audit_logs.every((l: { action: string }) => l.action.includes('gift_card'))).toBe(
+      true,
+    );
     await expect(page.getByTestId('audit-table')).toContainText('Gift card issued');
     await expect(page.getByTestId('audit-table')).not.toContainText('{"');
   });

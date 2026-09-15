@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { RosterShift, StaffRequestRecord } from '../../core/models';
+import { PageMeta, RosterShift, StaffRequestRecord } from '../../core/models';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { LocationContextService } from '../../core/services/location-context.service';
@@ -15,9 +15,19 @@ import {
   UiEmpty,
   UiField,
   UiPage,
+  UiPaginator,
   humanise,
   statusTone,
 } from '../../ui';
+
+type RequestView = 'waiting' | 'reviewed' | 'all';
+
+/** Each view is a status filter the API applies, so paging stays honest. */
+const VIEW_STATUSES: Record<RequestView, string> = {
+  waiting: 'submitted',
+  reviewed: 'approved,rejected',
+  all: '',
+};
 
 const MESSAGES: Record<string, string> = {
   shift_required: 'Choose which of your shifts you want changed.',
@@ -42,9 +52,10 @@ const MESSAGES: Record<string, string> = {
     UiChip,
     UiEmpty,
     UiBanner,
+    UiPaginator,
   ],
   templateUrl: './staff-requests.html',
-  styleUrls: ['../../ui/layouts.scss', './staff-requests.scss'],
+  styleUrls: ['../../ui/layouts.scss', '../../ui/data-table.scss', './staff-requests.scss'],
 })
 export class StaffRequestsPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -62,12 +73,23 @@ export class StaffRequestsPage implements OnInit {
     this.directory().filter((l) => l.id !== this.ctx.current()?.id),
   );
 
+  protected readonly meta = signal<PageMeta | null>(null);
+  /** A reviewer opens on what is waiting for them; a therapist sees everything they sent. */
+  protected readonly view = signal<RequestView>('all');
+  protected readonly views: { key: RequestView; label: string }[] = [
+    { key: 'waiting', label: 'Waiting for review' },
+    { key: 'reviewed', label: 'Reviewed' },
+    { key: 'all', label: 'All' },
+  ];
+  private page = 1;
+
   protected form = this.emptyForm();
   protected reviewNotes: Record<number, string> = {};
   protected humanStatus = humanise;
   protected tone = statusTone;
 
   ngOnInit(): void {
+    if (!this.isStaff()) this.view.set('waiting');
     this.reload();
     if (!this.isStaff()) return;
     this.api.locationDirectory().subscribe({
@@ -77,10 +99,26 @@ export class StaffRequestsPage implements OnInit {
   }
 
   protected reload(): void {
-    this.api.staffRequests().subscribe({
-      next: ({ staff_requests }) => this.requests.set(staff_requests),
-      error: () => this.error.set('Could not load staff requests.'),
-    });
+    this.api
+      .staffRequests({ status: VIEW_STATUSES[this.view()], page: this.page, limit: 25 })
+      .subscribe({
+        next: ({ staff_requests, meta }) => {
+          this.requests.set(staff_requests);
+          this.meta.set(meta);
+        },
+        error: () => this.error.set('Could not load staff requests.'),
+      });
+  }
+
+  protected setView(view: RequestView): void {
+    this.view.set(view);
+    this.page = 1;
+    this.reload();
+  }
+
+  protected goTo(page: number): void {
+    this.page = page;
+    this.reload();
   }
 
   protected kindLabel(kind: string): string {
@@ -100,10 +138,26 @@ export class StaffRequestsPage implements OnInit {
     }
     const shift = request.shift;
     const payload = request.requested_payload as { starts_at?: string; ends_at?: string };
-    const wanted = `${payload.starts_at || shift?.starts_at || '?'}–${payload.ends_at || shift?.ends_at || '?'}`;
-    return shift
-      ? `${this.clock.transform(`${shift.work_date}T00:00`, 'date')}: ${shift.starts_at}–${shift.ends_at} → ${wanted}`
-      : `Asked for ${wanted}`;
+    const start = payload.starts_at || shift?.starts_at;
+    const end = payload.ends_at || shift?.ends_at;
+    // Say only what is known: a half-filled request reads "Finish at 18:00", never "?–18:00".
+    const wanted =
+      start && end
+        ? `${start}–${end}`
+        : start
+          ? `start at ${start}`
+          : end
+            ? `finish at ${end}`
+            : '';
+    if (!shift)
+      return wanted
+        ? `Asked to ${wanted.includes('at') ? wanted : `work ${wanted}`}`
+        : 'Asked for a different time';
+    const day = this.clock.transform(`${shift.work_date}T00:00`, 'date');
+    const current = `${shift.starts_at}–${shift.ends_at}`;
+    return wanted === current || !wanted
+      ? `${day}: ${current} · no new time given`
+      : `${day}: ${current} → ${wanted}`;
   }
 
   /** Picking a shift starts the new times from its current ones. */

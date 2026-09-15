@@ -31,7 +31,9 @@ test.describe('Front-desk visit', () => {
 
     await page.getByTestId('go-checkout').click();
     await page.getByTestId('rating-score-9').click();
-    const completed = page.waitForResponse((r) => r.url().endsWith(`/appointments/${id}/complete_for_checkout`));
+    const completed = page.waitForResponse((r) =>
+      r.url().endsWith(`/appointments/${id}/complete_for_checkout`),
+    );
     await page.getByTestId('rating-continue').click();
     expect((await completed).status()).toBe(200);
     await expect(page).toHaveURL(new RegExp(`/checkout/${id}$`));
@@ -46,7 +48,9 @@ test.describe('Front-desk visit', () => {
     await expect(page.getByTestId('checkout-done')).toBeVisible();
   });
 
-  test('a Manager discount above the location limit is refused with a clear reason', async ({ page }) => {
+  test('a Manager discount above the location limit is refused with a clear reason', async ({
+    page,
+  }) => {
     const id = await book(page, { client: 'Michael Chen', date });
     await openOnBoard(page, date, id);
 

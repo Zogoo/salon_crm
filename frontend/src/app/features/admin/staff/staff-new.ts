@@ -1,3 +1,4 @@
+import { LocationScope } from '../../../shared/location-scope';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -16,7 +17,7 @@ import { LADDER } from './staff-detail';
  */
 @Component({
   selector: 'app-staff-new',
-  imports: [FormsModule, RouterLink, UiPage, UiCard, UiField, UiButton, UiBanner],
+  imports: [FormsModule, RouterLink, UiPage, LocationScope, UiCard, UiField, UiButton, UiBanner],
   templateUrl: './staff-new.html',
   styleUrls: ['../../../ui/layouts.scss', './staff.scss'],
 })

@@ -1,3 +1,4 @@
+import { LocationScope } from '../../shared/location-scope';
 import { PhonePipe, formatPhone } from '../../core/phone';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
@@ -60,6 +61,7 @@ const STATUS_LABEL: Record<string, string> = {
     DecimalPipe,
     WallClockPipe,
     UiPage,
+    LocationScope,
     UiButton,
     UiIcon,
     UiChip,

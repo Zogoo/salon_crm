@@ -11,6 +11,7 @@ test.describe('Therapist', () => {
   test("sees their own day on the dashboard, not the salon's occupancy", async ({ page }) => {
     await expect(page.getByTestId('my-shift')).toBeVisible();
     await expect(page.getByTestId('dash-tiles')).toHaveCount(0);
+    await expect(page.getByTestId('my-appointments')).toBeVisible();
     await expect(page.locator('body')).not.toContainText('Draft and publish shifts');
   });
 

@@ -3,6 +3,7 @@
   sub="The menu and what each service costs. Prices are per location and dated — changing one never alters an order already taken."
 >
   <div pageActions>
+    <app-location-scope />
     <ui-button icon="add" (click)="creating = !creating" data-testid="cat-new">
       {{ creating ? 'Cancel' : 'Add service' }}
     </ui-button>
@@ -16,8 +17,7 @@
   }
 
   <ui-banner tone="info">
-    Prices below are for {{ ctx.current()?.name }}. Switch location in the top bar to price
-    elsewhere.
+    Prices below are for {{ ctx.current()?.name }}. Switch location above to price elsewhere.
   </ui-banner>
 
   @if (creating) {

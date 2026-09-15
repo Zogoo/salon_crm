@@ -71,4 +71,20 @@ RSpec.describe "Staff requests API", type: :request do
          headers: auth(therapist.user), as: :json
     expect(json["shift"]).to include("starts_at" => "09:00", "ends_at" => "22:00")
   end
+
+  it "pages the list and filters by several statuses at once, so a reviewer starts on what is waiting" do
+    waiting = StaffRequest.create!(staff_profile: therapist, kind: "shift_change", shift:,
+                                   status: "submitted", requested_payload: {})
+    StaffRequest.create!(staff_profile: therapist, kind: "shift_change", shift:,
+                         status: "approved", requested_payload: {})
+    StaffRequest.create!(staff_profile: therapist, kind: "shift_change", shift:,
+                         status: "withdrawn", requested_payload: {})
+
+    get "/api/v1/staff_requests", params: { status: "submitted", limit: 1 }, headers: auth(owner)
+    expect(json["staff_requests"].map { |r| r["id"] }).to eq([ waiting.id ])
+    expect(json["meta"]).to include("count" => 1, "page" => 1, "limit" => 1)
+
+    get "/api/v1/staff_requests", params: { status: "approved,rejected" }, headers: auth(owner)
+    expect(json["staff_requests"].map { |r| r["status"] }).to eq([ "approved" ])
+  end
 end

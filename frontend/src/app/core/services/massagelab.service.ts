@@ -353,12 +353,19 @@ export class MassagelabService {
     return this.http.post<ApprovalRequest>(`${this.base}/approval_requests/${id}/${decision}`, {});
   }
 
-  staffRequests(status = ''): Observable<{ staff_requests: StaffRequestRecord[] }> {
+  staffRequests(
+    query: { status?: string; page?: number; limit?: number } = {},
+  ): Observable<{ staff_requests: StaffRequestRecord[]; meta: PageMeta }> {
     let params = new HttpParams();
-    if (status) params = params.set('status', status);
-    return this.http.get<{ staff_requests: StaffRequestRecord[] }>(`${this.base}/staff_requests`, {
-      params,
-    });
+    if (query.status) params = params.set('status', query.status);
+    if (query.page) params = params.set('page', query.page);
+    if (query.limit) params = params.set('limit', query.limit);
+    return this.http.get<{ staff_requests: StaffRequestRecord[]; meta: PageMeta }>(
+      `${this.base}/staff_requests`,
+      {
+        params,
+      },
+    );
   }
 
   createStaffRequest(payload: Record<string, unknown>): Observable<StaffRequestRecord> {

@@ -2,25 +2,134 @@
 
 .dash__actions {
   display: flex;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   align-items: flex-end;
   flex-wrap: wrap;
+}
+
+// What is waiting on someone. Warm, short, and every line goes to the fix.
+.attention {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--md-shape-md);
+  background: var(--md-warning-container);
+  color: var(--md-on-warning-container);
+}
+
+.attention__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  @include type-title-sm;
+}
+
+.attention__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 2.75rem;
+  padding: 0 var(--sp-3);
+  border-radius: 999px;
+  background: var(--md-surface-container-lowest);
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  @include focus-ring;
 }
 
 .tiles {
   display: grid;
   gap: var(--sp-3);
   // Tiles reflow rather than shrink, so a number is never clipped on a phone.
-  grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
 }
 
 .dash__cols {
   display: grid;
   gap: var(--sp-4);
   grid-template-columns: minmax(0, 1fr);
-  @include medium-up {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  @include expanded-up {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   }
+}
+
+// A short list that stands for a longer one elsewhere.
+.preview {
+  display: flex;
+  flex-direction: column;
+}
+
+.preview__row {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 3.5rem;
+  padding: var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--md-outline-variant);
+  color: inherit;
+  text-decoration: none;
+  @include focus-ring;
+
+  &:is(a):hover {
+    background: var(--md-surface-container);
+  }
+}
+
+li:last-child > .preview__row,
+.preview__row--static:last-child {
+  border-bottom: 0;
+}
+
+.preview__row--static {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 2.75rem;
+}
+
+.preview__time,
+.preview__hours {
+  font-variant-numeric: tabular-nums;
+  @include type-title-sm;
+}
+
+.preview__hours {
+  color: var(--md-on-surface-variant);
+  @include type-body-md;
+}
+
+.preview__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  strong,
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  small {
+    color: var(--md-on-surface-variant);
+    @include type-body-sm;
+  }
+}
+
+.preview__warn {
+  color: var(--md-on-warning-container) !important;
+  font-weight: 600;
+}
+
+.preview__more {
+  align-self: flex-start;
+  padding: var(--sp-2);
+  color: var(--md-primary);
+  font-weight: 600;
+  text-decoration: none;
+  @include focus-ring;
 }
 
 .people {
@@ -35,11 +144,10 @@
     gap: var(--sp-2);
   }
 }
-.people--muted {
-  color: var(--md-on-surface-variant);
-}
 
 .dash__link {
   color: var(--md-primary);
   font-weight: 600;
+  text-decoration: none;
+  @include focus-ring;
 }

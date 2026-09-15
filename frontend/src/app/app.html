@@ -17,23 +17,6 @@
 
         <a class="appbar__brand" routerLink="/dashboard">Massagelab</a>
 
-        @if (locations.locations().length) {
-          <label class="appbar__location">
-            <span class="sr-only">Location</span>
-            <ui-icon name="store" />
-            <select
-              [ngModel]="locations.current()?.id"
-              (ngModelChange)="onLocationChange($event)"
-              [disabled]="!locations.canSwitch()"
-              data-testid="location-switcher"
-            >
-              @for (l of locations.locations(); track l.id) {
-                <option [ngValue]="l.id">{{ l.name }}</option>
-              }
-            </select>
-          </label>
-        }
-
         @if (user(); as currentUser) {
           <div class="appbar__account">
             <a class="appbar__name" routerLink="/profile" data-testid="current-user">{{
@@ -71,6 +54,14 @@
                 >
                   <ui-icon [name]="item.icon" />
                   {{ item.label }}
+                  @if (item.badge && badges()[item.badge]; as count) {
+                    <span
+                      class="drawer__badge"
+                      [attr.aria-label]="count + ' waiting'"
+                      [attr.data-testid]="'badge-' + item.badge"
+                      >{{ count }}</span
+                    >
+                  }
                 </a>
               </li>
             }

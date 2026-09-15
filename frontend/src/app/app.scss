@@ -82,37 +82,8 @@
   }
 }
 
-.appbar__location {
-  margin-left: auto;
-  flex-shrink: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-3);
-  background: var(--md-surface-container-lowest);
-  border: 1px solid var(--md-outline);
-  border-radius: var(--md-shape-full);
-  min-height: 48px;
-  color: var(--md-on-surface-variant);
-
-  select {
-    @include type-label-lg;
-    @include focus-ring;
-    border: none;
-    background: transparent;
-    padding: 0 var(--sp-1);
-    max-width: 8rem;
-    cursor: pointer;
-    color: var(--md-on-surface);
-    text-overflow: ellipsis;
-
-    @include compact-only {
-      max-width: 5.5rem;
-    }
-  }
-}
-
 .appbar__account {
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -287,4 +258,18 @@
   .content {
     padding: 0;
   }
+}
+
+// A count of what is waiting behind a link, so nobody opens a screen to find it empty.
+.drawer__badge {
+  margin-left: auto;
+  min-width: 1.5rem;
+  padding: 0 var(--sp-2);
+  border-radius: var(--md-shape-full);
+  background: var(--md-error);
+  color: var(--md-on-error);
+  line-height: 1.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  @include type-label-md;
 }

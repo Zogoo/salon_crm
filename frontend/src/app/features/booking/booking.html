@@ -7,6 +7,7 @@
   "
 >
   <div pageActions>
+    <app-location-scope />
     <ui-button variant="outlined" icon="arrow_back" (click)="goToBoard()"
       >Back to schedule</ui-button
     >
@@ -52,15 +53,14 @@
     <div class="book">
       <ui-card heading="1 · Who is it for" sub="Search an existing client, or add a new one.">
         <div class="row">
-          <ui-field label="Find a client" hint="Name or phone number.">
-            <input
-              type="search"
-              placeholder="e.g. Sarah, or 312…"
-              [(ngModel)]="clientSearch"
-              (input)="searchClients()"
-              data-testid="client-search"
-            />
-          </ui-field>
+          <!-- Type to find one of thousands; nothing is listed until there is something to match. -->
+          <app-client-picker
+            class="client-find"
+            label="Find a client"
+            placeholder="Name, phone or email"
+            [initial]="selectedClient()"
+            (picked)="pickClient($event)"
+          />
           <ui-button variant="outlined" icon="person_add" (click)="showNewClient = !showNewClient">
             {{ showNewClient ? 'Cancel' : 'New client' }}
           </ui-button>
@@ -86,44 +86,25 @@
           >
         }
 
-        @if (clients().length) {
-          <ul class="picker" data-testid="client-select">
-            @for (c of clients(); track c.id) {
-              <li>
-                <button
-                  type="button"
-                  class="picker__item"
-                  [class.on]="selectedClientId === c.id"
-                  (click)="selectedClientId = c.id"
-                  [attr.data-testid]="'pick-client-' + c.id"
-                >
-                  <span class="picker__main">
-                    <strong>{{ c.full_name }}</strong>
-                    <small>{{ c.phone | phone }}</small>
-                  </span>
-                  @if (c.no_show_count) {
-                    <ui-chip tone="warning">{{ c.no_show_count }} no-show</ui-chip>
-                  }
-                </button>
-              </li>
-            }
-          </ul>
-        } @else {
-          <ui-empty
-            icon="person_search"
-            title="No clients match"
-            hint="Try part of a name, or add them as a new client."
-          />
+        @if (selectedClient()?.no_show_count; as noShows) {
+          <ui-banner tone="warning" data-testid="client-no-shows">
+            {{ noShows }} previous no-show{{ noShows === 1 ? '' : 's' }} — consider taking a
+            deposit.
+          </ui-banner>
         }
 
         @if (needsTwoClients()) {
-          <ui-field label="Second client" hint="This service seats two, so it needs a second name.">
-            <select [(ngModel)]="secondClientId" data-testid="second-client">
-              <option [ngValue]="null">Choose…</option>
-              @for (c of clients(); track c.id) {
-                <option [ngValue]="c.id">{{ c.full_name }}</option>
-              }
-            </select>
+          <ui-field
+            label="Second client"
+            hint="This service seats two, so it needs a second name."
+            data-testid="second-client"
+          >
+            <app-client-picker
+              label="Second client"
+              [excludeId]="selectedClientId"
+              [initial]="secondClient()"
+              (picked)="pickSecondClient($event)"
+            />
           </ui-field>
         }
       </ui-card>

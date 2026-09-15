@@ -79,13 +79,31 @@
   }
 
   <ui-card [heading]="isStaff() ? 'Your requests' : 'Requests'">
+    <div class="request-filters" role="group" aria-label="Show requests">
+      @for (v of views; track v.key) {
+        <button
+          type="button"
+          class="dt__chip"
+          [attr.aria-pressed]="view() === v.key"
+          (click)="setView(v.key)"
+          [attr.data-testid]="'requests-' + v.key"
+        >
+          {{ v.label }}
+        </button>
+      }
+    </div>
     @if (requests().length) {
       <ul class="requests" data-testid="staff-request-list">
         @for (request of requests(); track request.id) {
           <li class="request">
             <div class="request__head">
               <span class="request__main">
-                <strong>{{ request.display_name }} · {{ kindLabel(request.kind) }}</strong>
+                <strong>
+                  @if (!isStaff()) {
+                    {{ request.display_name }} ·
+                  }
+                  {{ kindLabel(request.kind) }}</strong
+                >
                 <span>{{ detail(request) }}</span>
                 <small>
                   {{ request.note || 'No note' }} · sent
@@ -126,10 +144,17 @@
           </li>
         }
       </ul>
+      <ui-paginator [meta]="meta()" (pageChange)="goTo($event)" />
     } @else {
       <ui-empty
         icon="inbox"
-        [title]="isStaff() ? 'No requests yet' : 'Nothing to review'"
+        [title]="
+          view() === 'waiting'
+            ? 'Nothing waiting for review'
+            : isStaff()
+              ? 'No requests yet'
+              : 'No requests here'
+        "
         [hint]="
           isStaff()
             ? 'Requests you send appear here with their outcome.'

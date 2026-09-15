@@ -12,10 +12,14 @@
  */
 export type Role = 'owner' | 'manager' | 'staff';
 
+/** Work that waits behind a link, counted beside it so nobody opens a screen to find it empty. */
+export type NavBadge = 'approvals' | 'staffRequests';
+
 export interface NavItem {
   path: string;
   label: string;
   icon: string;
+  badge?: NavBadge;
   /** What this screen is for, shown as the page subtitle. */
   description: string;
   roles: Role[];
@@ -64,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
         path: '/approvals',
         label: 'Approvals',
         icon: 'approval',
+        badge: 'approvals',
         description: 'Requests waiting on you — therapist requests auto-approve after 45 minutes.',
         roles: DESK,
       },
@@ -102,6 +107,7 @@ export const NAV_GROUPS: NavGroup[] = [
         path: '/staff-requests',
         label: 'Staff requests',
         icon: 'swap_horiz',
+        badge: 'staffRequests',
         description: 'Request or review shift and location changes.',
         roles: ALL,
       },

@@ -1,7 +1,8 @@
+import { LocationScope } from '../../shared/location-scope';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { switchMap } from 'rxjs';
 
 import { Appointment, CareNote, DayBoard, Room, Service, StaffMember } from '../../core/models';
@@ -92,6 +93,7 @@ type PanelSection = 'service' | 'deposit' | 'discount' | 'reschedule' | 'repeat'
     DecimalPipe,
     WallClockPipe,
     UiPage,
+    LocationScope,
     UiCard,
     UiTable,
     UiChip,
@@ -108,6 +110,7 @@ type PanelSection = 'service' | 'deposit' | 'discount' | 'reschedule' | 'repeat'
 export class DayBoardPage implements OnInit {
   private readonly api = inject(MassagelabService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly confirm = inject(ConfirmService);
   protected readonly ctx = inject(LocationContextService);
   protected readonly auth = inject(AuthService);
@@ -149,9 +152,11 @@ export class DayBoardPage implements OnInit {
   private drag: DragState | null = null;
   private suppressClick = false;
   /** Names the location, so a board is never read against the wrong salon. */
-  protected readonly subtitle = computed(
-    () =>
-      `Every room and therapist at ${this.ctx.current()?.name ?? 'this location'}, hour by hour.`,
+  protected readonly subtitle = computed(() =>
+    // A therapist only receives their own appointments, so the page must not promise everyone's.
+    this.isTherapist()
+      ? `Your appointments at ${this.ctx.current()?.name ?? 'this location'}, hour by hour.`
+      : `Every room and therapist at ${this.ctx.current()?.name ?? 'this location'}, hour by hour.`,
   );
   protected readonly canBook = computed(() => this.auth.user()?.role !== 'staff');
   protected readonly isTherapist = computed(() => this.auth.user()?.role === 'staff');
@@ -305,10 +310,19 @@ export class DayBoardPage implements OnInit {
   });
 
   ngOnInit(): void {
+    // Deep links from the dashboard: `?date=` opens that day, `?appt=` opens that appointment.
+    const query = this.route.snapshot.queryParamMap;
     void this.ctx.load().then(() => {
-      this.date ||= todayIn(this.ctx.current()?.timezone);
+      this.date ||= query.get('date') || todayIn(this.ctx.current()?.timezone);
       this.loadEditors();
       this.reload();
+      const appointmentId = Number(query.get('appt'));
+      if (appointmentId) {
+        this.api.appointment(appointmentId).subscribe({
+          next: (full) => this.select(full),
+          error: () => this.error.set('That appointment could not be opened.'),
+        });
+      }
     });
   }
 

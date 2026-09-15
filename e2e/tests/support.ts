@@ -23,7 +23,9 @@ export async function signIn(page: Page, email: string): Promise<void> {
  * today, so a run late in the evening still has open slots.
  */
 export function nextBusinessDate(): string {
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(
+    new Date(),
+  );
   const d = new Date(`${today}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + 1);
   if (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() + 1);
@@ -61,11 +63,13 @@ export async function book(
   opts: { client: string; date: string; slot?: 'first' | 'last' },
 ): Promise<number> {
   await page.goto('/book');
-  await page.getByTestId('client-search').fill(opts.client.split(' ')[0]);
+  await page.getByTestId('client-picker-input').fill(opts.client);
   await page
-    .getByTestId('client-select')
-    .getByRole('button', { name: new RegExp(opts.client) })
+    .getByTestId('client-picker-results')
+    .getByRole('option', { name: new RegExp(opts.client) })
+    .first()
     .click();
+  await expect(page.getByTestId('client-picked')).toContainText(opts.client);
   await chooseService(page, 'Deep Tissue', '60 min');
   await page.getByTestId('booking-date').fill(opts.date);
   await page.getByTestId('search-slots').click();

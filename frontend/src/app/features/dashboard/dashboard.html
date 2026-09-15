@@ -1,11 +1,14 @@
 <ui-page title="Dashboard" [sub]="subtitle()">
   <div pageActions class="dash__actions">
+    <app-location-scope />
+    <ui-button variant="text" icon="chevron_left" (click)="shiftDay(-1)" ariaLabel="Previous day" />
     <ui-field label="Date">
       <input type="date" [(ngModel)]="date" (change)="reload()" data-testid="dash-date" />
     </ui-field>
-    <ui-button variant="tonal" icon="calendar_month" (click)="openSchedule()"
-      >Open schedule</ui-button
-    >
+    <ui-button variant="text" icon="chevron_right" (click)="shiftDay(1)" ariaLabel="Next day" />
+    @if (!isToday()) {
+      <ui-button variant="outlined" (click)="goToday()" data-testid="dash-today">Today</ui-button>
+    }
   </div>
 
   @if (error()) {
@@ -16,7 +19,7 @@
     @if (shifts(); as s) {
       <ui-card
         heading="Your shift"
-        [sub]="date + 'T00:00' | wallClock: 'date'"
+        [sub]="day() + 'T00:00' | wallClock: 'date'"
         data-testid="my-shift"
       >
         @if (s.working.length) {
@@ -30,11 +33,6 @@
               </li>
             }
           </ul>
-          <div class="row">
-            <ui-button variant="tonal" icon="calendar_month" (click)="openSchedule()"
-              >See my appointments</ui-button
-            >
-          </div>
         } @else {
           <ui-empty
             icon="event_available"
@@ -46,68 +44,240 @@
         }
       </ui-card>
     }
+
+    <!-- Who is next, without opening the schedule: the question a therapist actually has. -->
+    <ui-card
+      [heading]="isToday() ? 'Your next clients' : 'Your appointments'"
+      [sub]="
+        isToday()
+          ? plural(upcoming().total, 'appointment') + ' still to come today'
+          : plural(upcoming().total, 'appointment') + ' booked'
+      "
+      data-testid="my-appointments"
+    >
+      <a cardAction class="dash__link" routerLink="/schedule" [queryParams]="{ date: day() }">
+        Open schedule
+      </a>
+      @if (upcoming().items.length) {
+        <ul class="preview">
+          @for (a of upcoming().items; track a.id) {
+            <li>
+              <a
+                class="preview__row"
+                routerLink="/schedule"
+                [queryParams]="{ date: day(), appt: a.id }"
+                [attr.data-testid]="'next-' + a.id"
+              >
+                <span class="preview__time">{{ clock(a.starts_at) }}</span>
+                <span class="preview__main">
+                  <strong>{{ a.client.full_name }}</strong>
+                  <small>{{ a.room.name }}</small>
+                </span>
+                <ui-chip [tone]="tone(a.status)">{{ humanStatus(a.status) }}</ui-chip>
+              </a>
+            </li>
+          }
+        </ul>
+        @if (upcoming().more) {
+          <a class="preview__more" routerLink="/schedule" [queryParams]="{ date: day() }">
+            +{{ upcoming().more }} more — see your full day
+          </a>
+        }
+      } @else {
+        <ui-empty
+          icon="spa"
+          [title]="isToday() ? 'No more clients today' : 'Nothing booked for you on this day'"
+        />
+      }
+    </ui-card>
   } @else {
     @if (data(); as d) {
-      <section class="tiles" data-testid="dash-tiles" aria-label="Today at a glance">
+      <!-- Only what is waiting on someone, and only when something is. -->
+      @if (d.pending_approvals || unassigned()) {
+        <section class="attention" aria-label="Needs attention" data-testid="dash-attention">
+          <p class="attention__title"><ui-icon name="notification_important" />Needs attention</p>
+          @if (d.pending_approvals) {
+            <a class="attention__item" routerLink="/approvals" data-testid="attention-approvals">
+              {{ plural(d.pending_approvals, 'booking request') }} to approve
+              <ui-icon name="chevron_right" />
+            </a>
+          }
+          @if (unassigned()) {
+            <a
+              class="attention__item"
+              routerLink="/schedule"
+              [queryParams]="{ date: day() }"
+              data-testid="attention-unassigned"
+            >
+              {{ plural(unassigned(), 'appointment') }} without a therapist
+              <ui-icon name="chevron_right" />
+            </a>
+          }
+        </section>
+      }
+
+      <section class="tiles" data-testid="dash-tiles" aria-label="The day at a glance">
         <ui-stat
           label="Appointments"
           [value]="d.appointments_today"
-          hint="Booked and completed; cancellations are counted separately."
+          [hint]="
+            d.completed_today +
+            ' completed · ' +
+            d.cancelled_today +
+            ' cancelled · ' +
+            d.no_shows_today +
+            ' no-show' +
+            (d.no_shows_today === 1 ? '' : 's')
+          "
+          link="/schedule"
+          [queryParams]="{ date: day() }"
           data-testid="tile-appointments"
         />
-        <ui-stat label="Completed" [value]="d.completed_today" />
-        <ui-stat label="Cancelled" [value]="d.cancelled_today" />
-        <ui-stat label="No-shows" [value]="d.no_shows_today" />
-        <ui-stat label="Staff working" [value]="d.staff_working" />
-        <ui-stat label="Rooms free now" [value]="d.rooms_free_now + ' / ' + d.rooms_total" />
         <ui-stat
           label="Awaiting approval"
           [value]="d.pending_approvals"
+          [attr.tone]="d.pending_approvals ? 'attention' : null"
           hint="Auto-approves after 45 minutes if the therapist is still free."
+          link="/approvals"
           data-testid="tile-approvals"
         />
+        <ui-stat
+          label="On shift"
+          [value]="d.staff_working"
+          [hint]="d.staff_not_working + ' not scheduled'"
+          link="/admin/roster"
+          [queryParams]="{ from: day(), to: day() }"
+          data-testid="tile-staff"
+        />
+        @if (isToday()) {
+          <ui-stat
+            label="Rooms free now"
+            [value]="d.rooms_free_now + ' of ' + d.rooms_total"
+            hint="At this moment, not across the day."
+            link="/schedule"
+            [queryParams]="{ date: day() }"
+          />
+        }
         @if (d.revenue_booked_cents !== undefined) {
           <ui-stat
             tone="primary"
             label="Completed revenue"
             [value]="'$' + (d.revenue_booked_cents / 100 | number: '1.2-2')"
-            hint="Service revenue only — gift cards and fees are not counted here."
+            hint="Services only. Gift cards and fees are in Reports."
+            link="/reports"
+            [queryParams]="{ from: day(), to: day() }"
             data-testid="tile-revenue"
           />
         }
       </section>
 
-      @if (shifts(); as s) {
-        <div class="dash__cols">
-          <ui-card heading="Working today" [sub]="s.working.length + ' on shift'">
-            @if (s.working.length) {
-              <ul class="people" data-testid="working-list">
-                @for (w of s.working; track w.id) {
-                  <li><ui-icon name="person" />{{ w.display_name }}</li>
-                }
-              </ul>
-            } @else {
-              <ui-empty
-                icon="person_off"
-                title="Nobody is scheduled"
-                hint="Draft and publish shifts on the Roster before anyone can be booked."
-              />
+      <div class="dash__cols">
+        <ui-card
+          [heading]="isToday() ? 'Next up' : 'Appointments'"
+          [sub]="
+            isToday()
+              ? plural(upcoming().total, 'appointment') + ' still to come today'
+              : plural(upcoming().total, 'appointment') + ' booked'
+          "
+          data-testid="dash-next"
+        >
+          <a cardAction class="dash__link" routerLink="/schedule" [queryParams]="{ date: day() }">
+            Open schedule
+          </a>
+          @if (upcoming().items.length) {
+            <ul class="preview">
+              @for (a of upcoming().items; track a.id) {
+                <li>
+                  <a
+                    class="preview__row"
+                    routerLink="/schedule"
+                    [queryParams]="{ date: day(), appt: a.id }"
+                    [attr.data-testid]="'next-' + a.id"
+                  >
+                    <span class="preview__time">{{ clock(a.starts_at) }}</span>
+                    <span class="preview__main">
+                      <strong>{{ a.client.full_name }}</strong>
+                      <small [class.preview__warn]="a.assignment_pending">{{ detail(a) }}</small>
+                    </span>
+                    <ui-chip [tone]="tone(a.status)">{{ humanStatus(a.status) }}</ui-chip>
+                  </a>
+                </li>
+              }
+            </ul>
+            @if (upcoming().more) {
+              <a
+                class="preview__more"
+                routerLink="/schedule"
+                [queryParams]="{ date: day() }"
+                data-testid="next-more"
+              >
+                +{{ upcoming().more }} more — see the full schedule
+              </a>
             }
-          </ui-card>
+          } @else {
+            <ui-empty
+              icon="event_available"
+              [title]="isToday() ? 'Nothing else booked today' : 'Nothing booked on this day'"
+            >
+              <a class="dash__link" routerLink="/book" [queryParams]="{ date: day() }"
+                >New appointment</a
+              >
+            </ui-empty>
+          }
+        </ui-card>
 
-          <ui-card heading="Not working" [sub]="s.not_working.length + ' off today'">
-            @if (s.not_working.length) {
-              <ul class="people people--muted">
-                @for (n of s.not_working; track n.staff_profile_id) {
-                  <li><ui-icon name="person" />{{ n.display_name }}</li>
-                }
-              </ul>
-            } @else {
-              <ui-empty icon="groups" title="Everyone is in" />
+        <ui-card
+          heading="Team"
+          [sub]="team().total + ' on shift · ' + team().off + ' not scheduled'"
+          data-testid="dash-team"
+        >
+          <a
+            cardAction
+            class="dash__link"
+            routerLink="/admin/roster"
+            [queryParams]="{ from: day(), to: day() }"
+          >
+            Open roster
+          </a>
+          @if (team().items.length) {
+            <ul class="preview" data-testid="working-list">
+              @for (w of team().items; track w.id) {
+                <li class="preview__row preview__row--static">
+                  <span class="preview__main">
+                    <strong>{{ w.display_name }}</strong>
+                  </span>
+                  <span class="preview__hours"
+                    >{{ clock(w.starts_at) }}–{{ clock(w.ends_at) }}</span
+                  >
+                </li>
+              }
+            </ul>
+            @if (team().more) {
+              <a
+                class="preview__more"
+                routerLink="/admin/roster"
+                [queryParams]="{ from: day(), to: day() }"
+                data-testid="team-more"
+              >
+                +{{ team().more }} more on shift — see the roster
+              </a>
             }
-          </ui-card>
-        </div>
-      }
+          } @else {
+            <ui-empty
+              icon="person_off"
+              title="Nobody is on shift"
+              hint="Only published shifts make a therapist bookable."
+            >
+              <a
+                class="dash__link"
+                routerLink="/admin/roster"
+                [queryParams]="{ from: day(), to: day() }"
+                >Draft shifts on the roster</a
+              >
+            </ui-empty>
+          }
+        </ui-card>
+      </div>
     }
   }
 </ui-page>

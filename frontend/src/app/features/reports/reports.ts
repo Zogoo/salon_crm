@@ -1,6 +1,8 @@
+import { LocationScope } from '../../shared/location-scope';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 
 import {
   ClientLogRow,
@@ -32,6 +34,7 @@ import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable, humanise
     FormsModule,
     DecimalPipe,
     UiPage,
+    LocationScope,
     UiCard,
     UiField,
     UiButton,
@@ -46,6 +49,7 @@ import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable, humanise
 export class ReportsPage implements OnInit {
   private readonly api = inject(MassagelabService);
   protected readonly ctx = inject(LocationContextService);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly revenue = signal<DailyRevenue | null>(null);
   protected readonly log = signal<ClientLogRow[] | null>(null);
@@ -56,6 +60,14 @@ export class ReportsPage implements OnInit {
   } | null>(null);
   protected readonly noShows = signal<NoShowReport | null>(null);
   protected readonly utilization = signal<UtilizationReport | null>(null);
+  protected readonly therapistPreview = 8;
+  protected readonly showAllTherapists = signal(false);
+
+  /** Busiest first; the full team only on request. */
+  protected therapistRows(u: UtilizationReport): UtilizationReport['therapists'] {
+    const sorted = [...u.therapists].sort((a, b) => b.utilization_percent - a.utilization_percent);
+    return this.showAllTherapists() ? sorted : sorted.slice(0, this.therapistPreview);
+  }
   protected readonly retention = signal<RetentionReport | null>(null);
   protected readonly ratings = signal<RatingsReport | null>(null);
   protected readonly ratingAlerts = signal<RatingAlertsReport | null>(null);
@@ -72,10 +84,12 @@ export class ReportsPage implements OnInit {
   protected to = '';
 
   ngOnInit(): void {
+    // `?from=&to=` lets the dashboard's revenue tile open the same day here.
+    const query = this.route.snapshot.queryParamMap;
     void this.ctx.load().then(() => {
       const today = todayIn(this.ctx.current()?.timezone);
-      this.from = today;
-      this.to = today;
+      this.from = query.get('from') || today;
+      this.to = query.get('to') || this.from;
       this.runAll();
     });
   }

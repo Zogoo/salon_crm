@@ -1,4 +1,5 @@
-import { PhonePipe } from '../../core/phone';
+import { LocationScope } from '../../shared/location-scope';
+import { ClientPicker } from '../../shared/client-picker';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -6,17 +7,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { ClientRecord, Service, ServiceVariant, Slot, StaffMember } from '../../core/models';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
-import {
-  Fact,
-  UiBanner,
-  UiButton,
-  UiCard,
-  UiChip,
-  UiEmpty,
-  UiFacts,
-  UiField,
-  UiPage,
-} from '../../ui';
+import { Fact, UiBanner, UiButton, UiCard, UiEmpty, UiFacts, UiField, UiPage } from '../../ui';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
@@ -25,15 +16,15 @@ import { todayIn } from '../../core/salon-date';
 @Component({
   selector: 'app-booking',
   imports: [
-    PhonePipe,
+    ClientPicker,
     FormsModule,
     DecimalPipe,
     WallClockPipe,
     UiPage,
+    LocationScope,
     UiCard,
     UiField,
     UiButton,
-    UiChip,
     UiEmpty,
     UiFacts,
     UiBanner,
@@ -50,7 +41,8 @@ export class BookingPage implements OnInit {
 
   protected readonly services = signal<Service[]>([]);
   protected readonly staff = signal<StaffMember[]>([]);
-  protected readonly clients = signal<ClientRecord[]>([]);
+  protected readonly selectedClient = signal<ClientRecord | null>(null);
+  protected readonly secondClient = signal<ClientRecord | null>(null);
   protected readonly slots = signal<Slot[]>([]);
   /** Distinguishes "not searched yet" from "searched and found nothing". */
   protected readonly searched = signal(false);
@@ -60,7 +52,6 @@ export class BookingPage implements OnInit {
   protected readonly booked = signal<{ reference: string; status: string } | null>(null);
 
   protected date = '';
-  protected clientSearch = '';
   protected selectedClientId: number | null = null;
   // Signals, not plain fields: the computed()s below derive from them, and a
   // computed only recomputes when a signal it read has changed.
@@ -106,7 +97,7 @@ export class BookingPage implements OnInit {
    * can see the whole decision in one place before committing to it.
    */
   protected summary(): Fact[] {
-    const client = this.clients().find((c) => c.id === this.selectedClientId);
+    const client = this.selectedClient();
     const variant = this.chosenVariant();
     return [
       { label: 'Client', value: client?.full_name },
@@ -167,7 +158,7 @@ export class BookingPage implements OnInit {
       }
     });
     this.loadTherapists();
-    this.searchClients();
+    this.loadRebookClient();
   }
 
   /**
@@ -204,20 +195,28 @@ export class BookingPage implements OnInit {
     this.loadForLocation();
   }
 
-  protected searchClients(): void {
-    this.api.clients(this.clientSearch).subscribe(({ clients }) => {
-      this.clients.set(clients);
-      if (this.rebookClientId && clients.some((client) => client.id === this.rebookClientId)) {
-        this.selectedClientId = this.rebookClientId;
-      }
+  /** A rebook link names the client, so they arrive already chosen. */
+  private loadRebookClient(): void {
+    if (!this.rebookClientId || this.selectedClient()) return;
+    this.api.client(this.rebookClientId).subscribe({
+      next: (client) => this.pickClient(client),
     });
+  }
+
+  protected pickClient(client: ClientRecord | null): void {
+    this.selectedClient.set(client);
+    this.selectedClientId = client?.id ?? null;
+  }
+
+  protected pickSecondClient(client: ClientRecord | null): void {
+    this.secondClient.set(client);
+    this.secondClientId = client?.id ?? null;
   }
 
   protected createClient(): void {
     this.api.createClient(this.newClient).subscribe({
       next: (client) => {
-        this.clients.set([client, ...this.clients()]);
-        this.selectedClientId = client.id;
+        this.pickClient(client);
         this.showNewClient = false;
         this.newClient = { first_name: '', last_name: '', phone: '', email: '' };
       },

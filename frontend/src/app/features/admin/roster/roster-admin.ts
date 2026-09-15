@@ -1,5 +1,7 @@
+import { LocationScope } from '../../../shared/location-scope';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 
 import { RosterShift, ShiftBreak, StaffMember } from '../../../core/models';
 import {
@@ -35,6 +37,7 @@ import { StaffPicker } from '../../../shared/staff-picker';
   imports: [
     FormsModule,
     UiPage,
+    LocationScope,
     UiCard,
     UiField,
     UiButton,
@@ -51,6 +54,7 @@ import { StaffPicker } from '../../../shared/staff-picker';
 export class RosterAdminPage implements OnInit {
   private readonly api = inject(MassagelabService);
   private readonly confirm = inject(ConfirmService);
+  private readonly route = inject(ActivatedRoute);
   protected readonly ctx = inject(LocationContextService);
 
   protected readonly shifts = signal<RosterShift[]>([]);
@@ -76,11 +80,13 @@ export class RosterAdminPage implements OnInit {
   protected newBreak = { starts_at: '13:00', ends_at: '13:30', reason: '' };
 
   ngOnInit(): void {
+    // `?from=&to=` lets the dashboard open the roster on the day it was showing.
+    const query = this.route.snapshot.queryParamMap;
     void this.ctx.load().then(() => {
       const today = todayIn(this.ctx.current()?.timezone);
-      this.from = today;
-      this.to = this.addDays(today, 13);
-      this.newShift.work_date = today;
+      this.from = query.get('from') || today;
+      this.to = query.get('to') || this.addDays(this.from, 13);
+      this.newShift.work_date = this.from;
       this.reload();
     });
   }

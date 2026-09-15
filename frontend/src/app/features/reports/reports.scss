@@ -49,3 +49,15 @@
 .liab td {
   color: var(--md-warning);
 }
+
+.show-more {
+  align-self: flex-start;
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--md-primary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}

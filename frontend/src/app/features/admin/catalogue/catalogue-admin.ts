@@ -1,3 +1,4 @@
+import { LocationScope } from '../../../shared/location-scope';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -32,6 +33,7 @@ import {
     FormsModule,
     DecimalPipe,
     UiPage,
+    LocationScope,
     UiCard,
     UiField,
     UiButton,

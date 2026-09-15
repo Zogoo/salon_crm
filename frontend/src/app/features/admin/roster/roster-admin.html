@@ -3,6 +3,7 @@
   sub="Draft shifts, then publish them. A drafted shift makes nobody bookable — publishing is what puts a therapist on the schedule."
 >
   <div pageActions class="row">
+    <app-location-scope />
     <ui-field label="From"
       ><input type="date" [(ngModel)]="from" data-testid="roster-from"
     /></ui-field>

@@ -1,5 +1,6 @@
 <ui-page title="Reports" [sub]="subtitle()">
   <div pageActions class="row">
+    <app-location-scope />
     <ui-field label="From"
       ><input type="date" [(ngModel)]="from" data-testid="rep-from"
     /></ui-field>
@@ -276,9 +277,10 @@
         </ul>
 
         <h3 class="sub-head">Therapists</h3>
-        <!-- Against published shift hours, not the location's open hours. -->
-        <ul class="rows">
-          @for (t of u.therapists; track t.staff_profile_id) {
+        <!-- Against published shift hours, not the location's open hours. Busiest
+             first and only a handful, so a team of hundreds stays a summary. -->
+        <ul class="rows" data-testid="rep-util-therapists">
+          @for (t of therapistRows(u); track t.staff_profile_id) {
             <li>
               {{ t.display_name }} <span>{{ t.utilization_percent | number: '1.0-1' }}%</span>
             </li>
@@ -287,6 +289,21 @@
             <li class="muted">Nobody on shift.</li>
           }
         </ul>
+        @if (u.therapists.length > therapistPreview) {
+          <button
+            type="button"
+            class="show-more"
+            (click)="showAllTherapists.set(!showAllTherapists())"
+            [attr.aria-expanded]="showAllTherapists()"
+            data-testid="rep-util-toggle"
+          >
+            {{
+              showAllTherapists()
+                ? 'Show the busiest ' + therapistPreview
+                : 'Show all ' + u.therapists.length + ' therapists'
+            }}
+          </button>
+        }
       </ui-card>
     }
 

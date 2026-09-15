@@ -52,3 +52,10 @@
     flex: 1 1 16rem;
   }
 }
+
+// What the list shows, chosen in one tap: the reviewer starts on what is waiting.
+.request-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

@@ -41,16 +41,16 @@ describe('Gift cards page', () => {
     return fixture;
   }
 
-  it('opens on look-up, with selling one tap away rather than beside it', async () => {
+  it('opens on the list, with creating a card one tap away in a dialog', async () => {
     const fixture = await openPage();
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('[data-testid="gc-search"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="gc-new-code"]')).toBeNull();
 
-    (el.querySelector('[data-testid="gc-tab-sell"]') as HTMLButtonElement).click();
+    (el.querySelector('[data-testid="gc-new"] button') as HTMLButtonElement).click();
     await fixture.whenStable();
     expect(el.querySelector('[data-testid="gc-new-code"]')).not.toBeNull();
-    expect(el.querySelector('[data-testid="gc-search"]')).toBeNull();
+    // The list stays behind the dialog; closing it returns to the same place.
     // Labels are real words, never translation keys.
     expect(el.textContent).not.toContain('gift_card_form');
   });
@@ -59,7 +59,7 @@ describe('Gift cards page', () => {
     it(`sends the optional code (${code || 'generated'}) without numeric conversion`, async () => {
       const fixture = await openPage();
       (
-        fixture.nativeElement.querySelector('[data-testid="gc-tab-sell"]') as HTMLButtonElement
+        fixture.nativeElement.querySelector('[data-testid="gc-new"] button') as HTMLButtonElement
       ).click();
       await fixture.whenStable();
       const input: HTMLInputElement = fixture.nativeElement.querySelector(

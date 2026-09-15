@@ -11,13 +11,14 @@ import { MassagelabService } from '../../core/services/massagelab.service';
 import { WallClockPipe } from '../../core/pipes/wall-clock.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { ClientPicker } from '../../shared/client-picker';
+import { LocationScope } from '../../shared/location-scope';
 import {
   ConfirmService,
   Fact,
   UiBanner,
   UiButton,
-  UiCard,
   UiChip,
+  UiDialog,
   UiEmpty,
   UiFacts,
   UiField,
@@ -28,7 +29,6 @@ import {
   humanise,
 } from '../../ui';
 
-type Mode = 'lookup' | 'sell';
 type CardFilters = { status: string; location_id: string };
 
 const EMPTY_FORM = () => ({
@@ -43,8 +43,8 @@ const EMPTY_FORM = () => ({
 
 /**
  * FRS §12, §13 — find a card among hundreds (by code, buyer or recipient),
- * read its history, and sell new ones. Looking up and selling are separate
- * tabs, because they are separate jobs at the desk.
+ * read its history, and create new ones. The list is the page; creating a card
+ * is a single action that opens a dialog over it.
  */
 @Component({
   selector: 'app-giftcards',
@@ -53,7 +53,8 @@ const EMPTY_FORM = () => ({
     DecimalPipe,
     WallClockPipe,
     UiPage,
-    UiCard,
+    LocationScope,
+    UiDialog,
     UiField,
     UiButton,
     UiChip,
@@ -76,8 +77,8 @@ export class GiftCardsPage implements OnInit {
   private readonly router = inject(Router);
   protected readonly ctx = inject(LocationContextService);
 
-  /** Looking a card up is the everyday task, so it is where the page opens. */
-  protected readonly mode = signal<Mode>('lookup');
+  /** The "Create new gift card" dialog is open. */
+  protected readonly selling = signal(false);
   protected readonly rows = signal<GiftCard[]>([]);
   protected readonly meta = signal<PageMeta | null>(null);
   protected readonly loading = signal(true);
@@ -118,22 +119,31 @@ export class GiftCardsPage implements OnInit {
   protected humanStatus = humanise;
 
   ngOnInit(): void {
-    if (this.route.snapshot.queryParamMap.get('mode') === 'sell') this.mode.set('sell');
+    // An old `?mode=sell` link still lands on the create dialog.
+    if (this.route.snapshot.queryParamMap.get('mode') === 'sell') this.openSell();
     this.list.readFromUrl();
     void this.ctx.load().then(() => this.reload());
   }
 
-  protected setMode(mode: Mode): void {
-    this.mode.set(mode);
+  protected openSell(): void {
+    this.sellAnother();
     this.error.set(null);
     this.notice.set(null);
-    // Kept in the address, so Back and a bookmark return to the same task.
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParamsHandling: 'merge',
-      queryParams: { mode: mode === 'sell' ? 'sell' : null },
-      replaceUrl: true,
-    });
+    this.selling.set(true);
+  }
+
+  protected closeSell(): void {
+    this.selling.set(false);
+    this.error.set(null);
+    this.sellAnother();
+    if (this.route.snapshot.queryParamMap.has('mode')) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParamsHandling: 'merge',
+        queryParams: { mode: null },
+        replaceUrl: true,
+      });
+    }
   }
 
   protected statusFilterLabel(status: string): string {
@@ -252,8 +262,7 @@ export class GiftCardsPage implements OnInit {
   }
 
   protected viewCard(card: GiftCard): void {
-    this.sellAnother();
-    this.setMode('lookup');
+    this.closeSell();
     this.open(card);
   }
 

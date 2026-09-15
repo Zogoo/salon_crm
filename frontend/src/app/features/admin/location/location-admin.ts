@@ -1,3 +1,4 @@
+import { LocationScope } from '../../../shared/location-scope';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -34,6 +35,7 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
   imports: [
     FormsModule,
     UiPage,
+    LocationScope,
     UiCard,
     UiField,
     UiButton,

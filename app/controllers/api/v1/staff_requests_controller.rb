@@ -1,8 +1,12 @@
 module Api
   module V1
     class StaffRequestsController < ApplicationController
+      include Listable
+
+      # Paged, newest first. `status` takes one or several (comma-separated), so
+      # a reviewer's default view is simply what is still waiting on them.
       def index
-        scope = StaffRequest.includes(:staff_profile, :shift)
+        scope = StaffRequest.includes(staff_profile: :location, shift: :location)
         scope =
           case current_user.role
           when "owner"   then scope
@@ -10,9 +14,11 @@ module Api
                                    .where(staff_profiles: { location_id: current_user.location_id })
           else scope.where(staff_profile_id: current_user.staff_profile&.id)
           end
-        scope = scope.where(status: params[:status]) if params[:status].present?
+        statuses = params[:status].to_s.split(",").map(&:strip).compact_blank
+        scope = scope.where(status: statuses) if statuses.any?
         scope = scope.where(kind: params[:kind]) if params[:kind].present?
-        render json: { staff_requests: scope.order(created_at: :desc).map { |r| request_json(r) } }
+        pagy, records = list_page(scope.order(created_at: :desc, id: :desc))
+        render json: { staff_requests: records.map { |r| request_json(r) }, meta: list_meta(pagy) }
       end
 
       # BR-05: only staff raise requests — that is the point of the workflow.

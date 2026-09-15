@@ -1,3 +1,4 @@
+import { LocationScope } from '../../../shared/location-scope';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -32,6 +33,7 @@ type StaffFilters = { status: string; role: string };
     FormsModule,
     RouterLink,
     UiPage,
+    LocationScope,
     UiButton,
     UiIcon,
     UiChip,
@@ -64,7 +66,7 @@ export class StaffListPage implements OnInit {
 
   protected readonly subtitle = computed(
     () =>
-      `Everyone who works at ${this.ctx.current()?.name ?? 'this location'}. Switch location in the top bar to see another team.`,
+      `Everyone who works at ${this.ctx.current()?.name ?? 'this location'}. Switch location above to see another team.`,
   );
 
   protected readonly summary = computed(() => {

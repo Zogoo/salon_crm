@@ -2,6 +2,10 @@
   title="Earnings"
   sub="Therapists are paid per completed session, at the rate that applied on the day of the session. Tips are theirs in full and are shown separately."
 >
+  <div pageActions>
+    <app-location-scope />
+  </div>
+
   @if (error()) {
     <ui-banner tone="error" data-testid="earn-error">{{ error() }}</ui-banner>
   }
