@@ -51,7 +51,7 @@ import { StaffPicker } from '../../shared/staff-picker';
     UiBanner,
   ],
   templateUrl: './earnings.html',
-  styleUrl: '../../ui/layouts.scss',
+  styleUrls: ['../../ui/layouts.scss', './earnings.scss'],
 })
 export class EarningsPage implements OnInit {
   private readonly api = inject(MassagelabService);
@@ -183,7 +183,50 @@ export class EarningsPage implements OnInit {
     });
   }
 
+  protected readonly quantityNotice = signal<string | null>(null);
+
+  /** Addendum §4: a typed session count becomes a correction line at the therapist's rate. */
+  protected setQuantity(duration: number, previous: number, input: HTMLInputElement): void {
+    const quantity = Number(input.value);
+    if (!this.staffId || !Number.isInteger(quantity) || quantity < 0) {
+      input.value = String(previous);
+      this.error.set('Enter a whole number of sessions, 0 or more.');
+      return;
+    }
+    if (quantity === previous) return;
+    this.error.set(null);
+    this.api
+      .setSessionQuantity({
+        staff_profile_id: this.staffId,
+        duration_minutes: duration,
+        from: this.from,
+        to: this.to,
+        quantity,
+      })
+      .subscribe({
+        next: (r) => {
+          this.report.set(r);
+          this.loadLines();
+          this.quantityNotice.set(
+            `${duration}-minute sessions changed from ${previous} to ${quantity}. Recorded as a correction dated ${this.to}.`,
+          );
+        },
+        error: (err) => {
+          input.value = String(previous);
+          const code = err?.error?.error?.code;
+          this.error.set(
+            {
+              period_locked: 'That pay period is locked, so its sessions can no longer change.',
+              no_rate_for_duration: `There is no ${duration}-minute rate for this therapist. Set one on their Pay tab first.`,
+              quantity_invalid: 'Enter a whole number of sessions, 0 or more.',
+            }[code as string] ?? 'Could not change the quantity.',
+          );
+        },
+      });
+  }
+
   protected runReport(): void {
+    this.quantityNotice.set(null);
     if (!this.staffId) return;
     this.error.set(null);
     this.api.staffEarnings(this.staffId, this.from, this.to).subscribe({

@@ -91,8 +91,10 @@ export const routes: Routes = [
   },
   {
     // Doc 01 §3.1 / doc 05 §6 — onboarding, qualifications and pay rates.
+    // Addendum §8: Managers keep their team's working hours here; adding
+    // people, qualifications and pay stay the Owner's.
     path: 'admin/staff',
-    canActivate: [authGuard, ownerGuard],
+    canActivate: [authGuard, bookingRoleGuard],
     loadComponent: () => import('./features/admin/staff/staff-list').then((m) => m.StaffListPage),
   },
   {
@@ -102,7 +104,7 @@ export const routes: Routes = [
   },
   {
     path: 'admin/staff/:id',
-    canActivate: [authGuard, ownerGuard],
+    canActivate: [authGuard, bookingRoleGuard],
     loadComponent: () =>
       import('./features/admin/staff/staff-detail').then((m) => m.StaffDetailPage),
   },

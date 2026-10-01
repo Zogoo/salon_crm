@@ -176,3 +176,31 @@
 .appointment-menu__items button.danger {
   color: var(--md-error);
 }
+
+// A name with the hours they can be booked, so the desk does not pick someone
+// who is only in for the morning.
+.assign-options__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  small {
+    color: var(--md-on-surface-variant);
+    @include type-body-sm;
+  }
+}
+
+// A closed visit is read-only by default; correcting it is one deliberate step.
+.closed-visit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--md-shape-md);
+  background: var(--md-surface-container-low);
+}
+
+.assign-options label:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

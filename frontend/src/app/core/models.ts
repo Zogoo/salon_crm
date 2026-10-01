@@ -190,6 +190,16 @@ export interface Appointment {
     price_cents: number;
   }[];
   preference?: ClientRecord['preference'];
+  /** A named-therapist request still waiting (Addendum §6). */
+  approval_request?: {
+    id: number;
+    status: string;
+    requested_therapist: StaffSummary;
+    auto_approves_at: string;
+  };
+  order?: { id: number; status: string } | null;
+  /** Who is holding the time for a no-preference booking, until the desk confirms. */
+  held_by?: StaffSummary[];
 }
 
 export interface Deposit {
@@ -376,13 +386,25 @@ export interface ShiftBoard {
     starts_at: string;
     ends_at: string;
     notes: string | null;
+    /** The usual hours for this weekday, if set (Addendum §8). */
+    working_hours: WorkingHoursDay | null;
   }[];
   not_working: { staff_profile_id: number; display_name: string }[];
 }
 
 // --- Money, gift cards, membership, earnings ---
 
-export type PaymentMethod = 'card' | 'cash' | 'zelle' | 'online' | 'other';
+export type PaymentMethod = 'card' | 'cash' | 'zelle' | 'venmo' | 'online' | 'other';
+
+/** What the client pays with at checkout: a recorded method, or a gift card (Addendum §1). */
+export type TenderMethod = PaymentMethod | 'gift_card';
+
+/** One part of a payment, or of a split. `code` is the gift card's. */
+export interface PaymentPart {
+  method: TenderMethod;
+  amount_cents: number;
+  code?: string;
+}
 
 export interface Order {
   id: number;
@@ -392,7 +414,10 @@ export interface Order {
   subtotal_cents: number;
   discount_cents: number;
   tip_cents: number;
+  /** Added to the bill by hand at checkout (Addendum §5). */
+  transaction_fee_cents: number;
   total_cents: number;
+  closed_at: string | null;
   paid_cents: number;
   redeemed_cents: number;
   credited_cents: number;
@@ -416,6 +441,8 @@ export interface Order {
     amount_cents: number;
     status: string;
     reference: string | null;
+    /** "deposit" for the deposit taken before the visit. */
+    processing: string;
   }[];
   discounts: { id: number; kind: string; amount_cents: number; reason: string | null }[];
   gift_card_redemptions: { code: string; amount_cents: number }[];
@@ -536,6 +563,17 @@ export interface DailyRevenue {
   membership_liability_cents: number;
   fees_cents: number;
   tips_cents: number;
+  transaction_fees_cents: number;
+  /** Service revenue + tips + transaction fees (Addendum §3). */
+  total_revenue_cents: number;
+  by_location?: {
+    location_id: number;
+    name: string;
+    service_revenue_cents: number;
+    tips_cents: number;
+    transaction_fees_cents: number;
+    total_revenue_cents: number;
+  }[];
   collected_cents: number;
   deposits_received_cents: number;
   deposits_held_cents: number;
@@ -740,4 +778,12 @@ export interface PreferenceVersion {
   pressure: string | null;
   other_requests: string | null;
   superseded_at: string;
+}
+
+/** One weekday of a therapist's usual week. 0 = Sunday … 6 = Saturday. */
+export interface WorkingHoursDay {
+  weekday?: number;
+  off: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
 }

@@ -1,6 +1,7 @@
 # BR-23: immutable once created. Void or refund and re-enter; never edit.
 class Payment < ApplicationRecord
-  METHODS = %w[card cash zelle online other].freeze
+  # Addendum §1 names Venmo alongside Cash, Zelle and Card.
+  METHODS = %w[card cash zelle venmo online other].freeze
 
   belongs_to :order
   belongs_to :received_by_user, class_name: "User", optional: true

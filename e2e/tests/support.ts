@@ -33,7 +33,7 @@ export function nextBusinessDate(): string {
 }
 
 /** Picks a length of a service from the grouped <select> on the booking page. */
-async function chooseService(page: Page, service: string, length: string): Promise<void> {
+export async function chooseService(page: Page, service: string, length: string): Promise<void> {
   const select = page.getByTestId('service-select');
   await expect(select.locator('optgroup').first()).toBeAttached();
   const value = await select.evaluate(
@@ -110,13 +110,17 @@ export async function openOnBoard(page: Page, date: string, id: number): Promise
  */
 export async function assignTherapist(page: Page): Promise<void> {
   const editor = page.getByTestId('assignment-editor');
-  const boxes = editor.locator('input[type=checkbox]');
+  // One therapist is a radio choice; two are checkboxes.
+  const boxes = editor.locator('input[type=radio], input[type=checkbox]');
   await expect(boxes.first()).toBeVisible();
   const count = await boxes.count();
+  const single = (await boxes.first().getAttribute('type')) === 'radio';
 
   for (let i = 0; i < count; i++) {
-    for (let j = 0; j < count; j++) {
-      if (await boxes.nth(j).isChecked()) await boxes.nth(j).uncheck();
+    if (!single) {
+      for (let j = 0; j < count; j++) {
+        if (await boxes.nth(j).isChecked()) await boxes.nth(j).uncheck();
+      }
     }
     await boxes.nth(i).check();
     const saved = page.waitForResponse((r) => r.url().includes('/assign_staff'));

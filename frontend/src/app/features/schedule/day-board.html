@@ -196,6 +196,35 @@
         </div>
       }
 
+      <!-- Addendum §6: a named-therapist request is decided here, where the desk already is. -->
+      @if (canBook() && appt.status === 'pending_approval' && appt.approval_request; as req) {
+        <section class="assign-callout" data-testid="approval-callout">
+          <h3 class="sheet__h3">Waiting for approval</h3>
+          <p class="sheet__hint">
+            The client asked for <strong>{{ req.requested_therapist.display_name }}</strong> by
+            name. The time is held; if nobody decides, it approves itself at
+            {{ req.auto_approves_at | wallClock }} provided they are still free.
+          </p>
+          <div class="row">
+            <ui-button
+              icon="check"
+              (click)="decideApproval(appt, 'approve')"
+              data-testid="approval-approve"
+            >
+              Approve {{ req.requested_therapist.display_name }}
+            </ui-button>
+            <ui-button
+              variant="danger"
+              icon="close"
+              (click)="decideApproval(appt, 'reject')"
+              data-testid="approval-reject"
+            >
+              Decline…
+            </ui-button>
+          </div>
+        </section>
+      }
+
       <!-- The one thing that blocks checkout goes first, not halfway down. -->
       @if (canBook() && appt.assignment_pending && editable(appt)) {
         <section class="assign-callout" data-testid="assignment-editor">
@@ -204,25 +233,86 @@
             Booked with no preference. Choose
             {{ (appt.therapists_required ?? 1) === 1 ? 'one therapist' : 'two therapists' }} before
             checkout — the time is held until then.
-          </p>
-          <ul class="assign-options">
-            @for (member of staff(); track member.id) {
-              <li>
-                <label>
-                  <input
-                    type="checkbox"
-                    [checked]="assignmentIds.includes(member.id)"
-                    (change)="toggleAssignee(member.id, $any($event.target).checked)"
-                  />
-                  {{ member.display_name }}
-                </label>
-              </li>
+            @if (appt.held_by?.length) {
+              <strong
+                >{{ heldByNames(appt) }} {{ appt.held_by!.length === 1 ? 'is' : 'are' }} holding
+                this time and already selected — confirm, or choose someone else.</strong
+              >
             }
-          </ul>
+          </p>
+          @if (staff().length) {
+            <ul
+              class="assign-options"
+              [attr.role]="(appt.therapists_required ?? 1) === 1 ? 'radiogroup' : null"
+            >
+              @for (member of staff(); track member.id) {
+                <li>
+                  <label>
+                    <!-- One therapist is one choice: a radio, so two cannot be ticked by mistake. -->
+                    <input
+                      [type]="(appt.therapists_required ?? 1) === 1 ? 'radio' : 'checkbox'"
+                      name="assignee"
+                      [checked]="assignmentIds.includes(member.id)"
+                      [disabled]="!fitsHours(member.id, appt)"
+                      (change)="toggleAssignee(member.id, $any($event.target).checked, appt)"
+                      [attr.data-testid]="'assign-' + member.id"
+                    />
+                    <span class="assign-options__who">
+                      {{ member.display_name }}
+                      @if (staffHours().get(member.id); as hours) {
+                        <!-- Someone who cannot take this visit is shown, greyed, with why. -->
+                        <small
+                          >{{ hours
+                          }}{{ fitsHours(member.id, appt) ? '' : ' · not at this time' }}</small
+                        >
+                      }
+                    </span>
+                  </label>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="sheet__hint">Nobody is on the roster this day. Publish a shift first.</p>
+          }
           <div class="row">
-            <ui-button icon="person_add" (click)="assignStaff(appt)" data-testid="assignment-save">
-              Confirm therapist
+            <ui-button
+              icon="person_add"
+              (click)="assignStaff(appt)"
+              [disabled]="assignmentIds.length !== (appt.therapists_required ?? 1)"
+              data-testid="assignment-save"
+            >
+              Confirm {{ (appt.therapists_required ?? 1) === 1 ? 'therapist' : 'therapists' }}
             </ui-button>
+          </div>
+        </section>
+      }
+
+      <!-- Addendum §2: a closed visit can still be put right afterwards. -->
+      @if (canBook() && appt.status === 'completed' && appt.order?.status === 'paid') {
+        <section class="closed-visit" data-testid="closed-visit">
+          <p class="sheet__hint">
+            This visit is paid and closed. Correct it if the therapist, tip, fee, deposit or payment
+            was entered wrong — reports and earnings update with it.
+          </p>
+          <div class="row">
+            <ui-button
+              variant="tonal"
+              icon="edit_note"
+              (click)="correcting.set(true)"
+              data-testid="visit-correct"
+            >
+              Correct this visit
+            </ui-button>
+            @if (isOwner()) {
+              <ui-button
+                variant="danger"
+                icon="delete"
+                (click)="deleteVisit(appt)"
+                data-testid="visit-delete"
+              >
+                Delete visit…
+              </ui-button>
+            }
           </div>
         </section>
       }
@@ -719,5 +809,14 @@
         }
       </footer>
     </ui-sheet>
+
+    @if (correcting()) {
+      <app-visit-correction
+        [appointment]="appt"
+        [staff]="staff()"
+        (saved)="afterCorrection($event)"
+        (closed)="correcting.set(false)"
+      />
+    }
   }
 </ui-page>

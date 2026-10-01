@@ -33,7 +33,7 @@ module Scheduling
     def shifts_for(date)
       rel = Shift.published
                  .where(location_id: @location.id, work_date: date)
-                 .includes(:shift_breaks, staff_profile: :staff_qualifications)
+                 .includes(:shift_breaks, staff_profile: %i[staff_qualifications staff_working_hours])
       rel = rel.where(staff_profile_id: @requested_staff_id) if @requested_staff_id && @shape.therapist_count == 1
       rel.select { |s| s.staff_profile.status == "active" && s.staff_profile.qualified_for?(@shape.service_ids) }
     end
@@ -118,6 +118,7 @@ module Scheduling
 
     def staff_free?(shift, from, to, busy_staff, breaks)
       return false unless shift.covers?(from, to)                       # C4
+      return false unless shift.staff_profile.within_working_hours?(from, to, @location.tz)  # Addendum §8
       return false if clash?(busy_staff[shift.staff_profile_id], from, to)  # C5
       return false if clash?(breaks[shift.staff_profile_id], from, to)      # C6
       true

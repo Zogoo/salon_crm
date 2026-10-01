@@ -21,7 +21,7 @@ module Api
         location = scoped_location!(params.require(:location_id))
         date = params[:date].present? ? Date.parse(params[:date]) : location.today
         working = Shift.published.where(location_id: location.id, work_date: date)
-                       .includes(:staff_profile).order(:starts_at)
+                       .includes(staff_profile: :staff_working_hours).order(:starts_at)
         working = working.where(staff_profile_id: current_user.staff_profile&.id) if current_user.staff?
 
         off =
@@ -34,7 +34,9 @@ module Api
 
         render json: {
           date:,
-          working: working.map { |sh| shift_json(sh) },
+          # Addendum §8: the usual hours beside the shift, so the desk sees when
+          # each therapist can actually be booked that day.
+          working: working.map { |sh| shift_json(sh).merge(working_hours: day_hours_json(sh.staff_profile, date)) },
           not_working: off.order(:display_name).map { |p|
             { staff_profile_id: p.id, display_name: p.display_name }
           }
@@ -209,6 +211,11 @@ module Api
           ends_at: local_iso(shift.ends_at, shift.location),
           notes: shift.notes
         }
+      end
+
+      def day_hours_json(profile, date)
+        row = profile.working_hours_on(date)
+        row && { off: row.off, starts_at: row.starts_at, ends_at: row.ends_at }
       end
     end
   end

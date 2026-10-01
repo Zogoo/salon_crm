@@ -28,8 +28,18 @@ class Order < ApplicationRecord
 
   # A gift card redemption is not a payment — it has its own ledger — but it
   # does settle an order (BR-22).
-  def redeemed_cents
-    gift_card_transactions.where(kind: "redeem").sum(:amount_cents).abs
+  #
+  # A redemption taken back when a settled visit is corrected is answered by a
+  # "refund" row on the same card and order, so what counts is the net.
+  def redeemed_cents = live_redemptions.sum { |_card, cents| cents }
+
+  # [[gift_card, net cents]] still drawn against this order, per card.
+  def live_redemptions
+    rows = gift_card_transactions.where(kind: %w[redeem refund]).includes(:gift_card).to_a
+    rows.group_by(&:gift_card).filter_map do |card, txns|
+      net = txns.sum { |t| t.kind == "redeem" ? t.amount_cents.abs : -t.amount_cents.abs }
+      [ card, net ] if net.positive?
+    end
   end
 
   # A membership credit is a *discount*: it lowers what is owed rather than
@@ -61,7 +71,7 @@ class Order < ApplicationRecord
   # already paid part of (BR-22, BR-23).
   def money_taken?
     status != "open" || payments.captured.exists? ||
-      gift_card_transactions.where(kind: "redeem").exists? ||
+      redeemed_cents.positive? ||
       order_discounts.where(kind: "membership_upgrade_credit").exists?
   end
 
@@ -74,7 +84,9 @@ class Order < ApplicationRecord
     self.subtotal_cents = order_line_items.sum(:line_total_cents)
     self.discount_cents = order_discounts.sum(:amount_cents)
     self.tip_cents = tip_allocations.sum(:amount_cents)
-    self.total_cents = subtotal_cents - discount_cents + tax_cents + tip_cents
+    # Addendum §5: the transaction fee is part of what the client pays, beside
+    # the services and the tip, never inside either.
+    self.total_cents = subtotal_cents - discount_cents + tax_cents + tip_cents + transaction_fee_cents
     save!
     self
   end

@@ -37,6 +37,26 @@ module Api
         render json: { error: { code: e.message } }, status: :unprocessable_content
       end
 
+      # Addendum §1: take what is owed in one method or split across two, and
+      # close the visit — all or nothing.
+      def checkout
+        order = find_order
+        Sales::TakePayments.call(order:, parts: payment_parts, actor: current_user)
+        render json: order_json(order.reload)
+      rescue Sales::TakePayments::Invalid, Sales::RecordPayment::Invalid,
+             GiftCards::RedeemCard::Invalid, Sales::SettleOrder::Unsettled => e
+        render json: { error: payment_error(e.message) }, status: :unprocessable_content
+      end
+
+      # Addendum §5: a fee the desk adds to the bill by hand.
+      def transaction_fee
+        order = find_order
+        Sales::SetTransactionFee.call(order:, amount_cents: params.require(:amount_cents), actor: current_user)
+        render json: order_json(order.reload)
+      rescue Sales::SetTransactionFee::Invalid => e
+        render json: { error: { code: e.message } }, status: :unprocessable_content
+      end
+
       def gift_card_redemptions
         order = find_order
         GiftCards::RedeemCard.call(
@@ -161,6 +181,21 @@ module Api
 
       def order_params = params.require(:order).permit(:appointment_id)
 
+      def payment_parts
+        params.fetch(:payments, []).map { |p| p.permit(:method, :amount_cents, :code, :reference).to_h }
+      end
+
+      # "split_total_mismatch:11500" and "insufficient_balance:4000" carry the
+      # number the desk needs to put it right.
+      def payment_error(message)
+        code, number = message.split(":", 2)
+        code = "unsettled" if code.start_with?("outstanding_")
+        details = {}
+        details[:due_cents] = number.to_i if code == "split_total_mismatch"
+        details[:available_cents] = number.to_i if code == "insufficient_balance"
+        { code:, details: }
+      end
+
       def find_order
         order = Order.includes(:order_line_items, :payments, :tip_allocations,
                                :order_discounts, :gift_card_transactions).find(params[:id])
@@ -172,7 +207,8 @@ module Api
         {
           id: order.id, number: order.number, status: order.status, kind: order.kind,
           subtotal_cents: order.subtotal_cents, discount_cents: order.discount_cents,
-          tip_cents: order.tip_cents, total_cents: order.total_cents,
+          tip_cents: order.tip_cents, transaction_fee_cents: order.transaction_fee_cents,
+          total_cents: order.total_cents, closed_at: order.closed_at,
           paid_cents: order.paid_cents, redeemed_cents: order.redeemed_cents,
           credited_cents: order.credited_cents, outstanding_cents: order.outstanding_cents,
           deposit_cents: order.deposit_cents,
@@ -186,14 +222,12 @@ module Api
           },
           payments: order.payments.map { |p|
             { id: p.id, method: p.method, amount_cents: p.amount_cents,
-              status: p.status, reference: p.reference }
+              status: p.status, reference: p.reference, processing: p.processing }
           },
           discounts: order.order_discounts.map { |d|
             { id: d.id, kind: d.kind, amount_cents: d.amount_cents, reason: d.reason }
           },
-          gift_card_redemptions: order.gift_card_transactions.where(kind: "redeem").map { |t|
-            { code: t.gift_card.code, amount_cents: t.amount_cents.abs }
-          },
+          gift_card_redemptions: order.live_redemptions.map { |card, cents| { code: card.code, amount_cents: cents } },
           tips: order.tip_allocations.map { |t|
             { staff_profile_id: t.staff_profile_id, amount_cents: t.amount_cents,
               display_name: t.staff_profile.display_name }

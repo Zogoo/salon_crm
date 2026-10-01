@@ -126,7 +126,7 @@ module Scheduling
       day = @start_at.in_time_zone(@location.tz).to_date
       candidates = Shift.published
            .where(location_id: @location.id, work_date: day)
-           .includes(:shift_breaks, staff_profile: :staff_qualifications)
+           .includes(:shift_breaks, staff_profile: %i[staff_qualifications staff_working_hours])
            .select { |s| eligible?(s, shape, finish) }
            .map(&:staff_profile).uniq
       if @requested_staff_id
@@ -142,6 +142,7 @@ module Scheduling
       sp.status == "active" &&
         sp.qualified_for?(shape.service_ids) &&
         shift.covers?(@start_at, finish) &&
+        sp.within_working_hours?(@start_at, finish, @location.tz) &&
         shift.shift_breaks.none? { |b| b.starts_at < finish && b.ends_at > @start_at } &&
         !staff_clash?(sp.id, finish)
     end
@@ -158,6 +159,10 @@ module Scheduling
 
       if shift.shift_breaks.any? { |b| b.starts_at < finish && b.ends_at > @start_at }    # C6
         raise Conflict, "therapist_on_break"
+      end
+      # Addendum §8: the usual hours, where set, bound the day like the shift does.
+      unless sp.within_working_hours?(@start_at, finish, @location.tz)
+        raise Conflict, "therapist_outside_working_hours"
       end
     end
 

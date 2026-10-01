@@ -1,0 +1,21 @@
+@use '../../../styles/tokens' as *;
+
+// The session count is typed into (Addendum §4). Sized for a few digits and
+// right-aligned with the money beside it.
+.earn-qty {
+  width: 5rem;
+  min-height: 2.5rem;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+
+  &:focus-visible {
+    outline: 2px solid var(--md-primary);
+    outline-offset: 1px;
+  }
+}

@@ -115,8 +115,8 @@ export const NAV_GROUPS: NavGroup[] = [
         path: '/admin/staff',
         label: 'Staff',
         icon: 'badge',
-        description: 'Onboard therapists, set what they are qualified for, and set their pay.',
-        roles: OWNER,
+        description: 'The team, their working hours, and — for the Owner — qualifications and pay.',
+        roles: DESK,
       },
       {
         path: '/earnings',

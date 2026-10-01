@@ -37,6 +37,12 @@
                     <td class="num credit">−${{ d.amount_cents / 100 | number: '1.2-2' }}</td>
                   </tr>
                 }
+                @if (o.transaction_fee_cents) {
+                  <tr data-testid="order-fee-line">
+                    <td>Transaction fee</td>
+                    <td class="num">${{ o.transaction_fee_cents / 100 | number: '1.2-2' }}</td>
+                  </tr>
+                }
                 @if (o.tip_cents) {
                   <tr>
                     <td>
@@ -133,21 +139,22 @@
           @if (!settled()) {
             @if (o.outstanding_cents > 0) {
               <ui-banner tone="info">
-                ${{ o.outstanding_cents / 100 | number: '1.2-2' }} still to take before this can be
-                closed.
+                ${{ o.outstanding_cents / 100 | number: '1.2-2' }} to take. Choose how the client
+                pays under Take payment.
               </ui-banner>
             } @else {
-              <ui-banner tone="success">Fully paid — ready to close.</ui-banner>
+              <!-- A deposit or membership credit already covers it: nothing to take. -->
+              <ui-banner tone="success">Nothing left to pay — ready to close.</ui-banner>
+              <ui-button
+                icon="lock"
+                [full]="true"
+                (click)="settle()"
+                [disabled]="busy()"
+                data-testid="settle"
+              >
+                Close the visit
+              </ui-button>
             }
-            <ui-button
-              icon="lock"
-              [full]="true"
-              (click)="settle()"
-              [disabled]="busy() || o.outstanding_cents > 0"
-              data-testid="settle"
-            >
-              Settle and close
-            </ui-button>
           }
         </ui-card>
       </div>
@@ -166,48 +173,7 @@
         </ui-card>
       } @else {
         <div class="checkout__take">
-          <ui-card heading="Take payment" sub="Split it across methods if the client wants.">
-            @if (o.outstanding_cents > 0) {
-              <ui-button
-                icon="payments"
-                [full]="true"
-                (click)="payRemainder()"
-                [disabled]="busy()"
-                data-testid="pay-remainder"
-              >
-                Take the remaining ${{ outstandingDollars() | number: '1.2-2' }} by
-                {{ humanStatus(method) }}
-              </ui-button>
-            }
-            <div class="form-grid">
-              <ui-field label="Method">
-                <select [(ngModel)]="method" data-testid="pay-method">
-                  @for (m of methods; track m) {
-                    <option [value]="m">{{ humanStatus(m) }}</option>
-                  }
-                </select>
-              </ui-field>
-              <ui-field label="Part amount" hint="In dollars, for a split payment.">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  [(ngModel)]="amountDollars"
-                  data-testid="pay-amount"
-                />
-              </ui-field>
-            </div>
-            <div class="row">
-              <ui-button
-                variant="tonal"
-                (click)="pay()"
-                [disabled]="busy()"
-                data-testid="pay-submit"
-                >Record part payment</ui-button
-              >
-            </div>
-          </ui-card>
-
+          <!-- Tip and fee first: they change the total the payment has to match. -->
           <ui-card heading="Tip" sub="Goes to the therapist in full — the salon keeps none of it.">
             <div class="row">
               @for (p of tipPresets; track p) {
@@ -237,40 +203,59 @@
             </div>
           </ui-card>
 
+          <ui-card
+            heading="Transaction fee"
+            sub="Added to the client's total and reported on its own line — for example a card surcharge."
+            data-testid="fee-card"
+          >
+            <div class="form-grid">
+              <ui-field label="Fee" hint="In dollars. Set 0 to remove it.">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  [(ngModel)]="feeDollars"
+                  data-testid="fee-amount"
+                />
+              </ui-field>
+            </div>
+            <div class="row">
+              <ui-button
+                variant="tonal"
+                (click)="applyFee()"
+                [disabled]="busy()"
+                data-testid="fee-apply"
+              >
+                {{ o.transaction_fee_cents ? 'Change fee' : 'Add fee' }}
+              </ui-button>
+            </div>
+          </ui-card>
+
+          @if (o.outstanding_cents > 0) {
+            <ui-card
+              heading="Take payment"
+              [sub]="
+                'The client owes $' +
+                (o.outstanding_cents / 100 | number: '1.2-2') +
+                '. Paid one way, or split between two.'
+              "
+              data-testid="take-payment"
+            >
+              <app-payment-split [dueCents]="o.outstanding_cents" (changed)="payment.set($event)" />
+              <ui-button
+                icon="lock"
+                [full]="true"
+                (click)="takePayment()"
+                [disabled]="busy() || !payment().valid"
+                data-testid="pay-and-close"
+              >
+                Take ${{ o.outstanding_cents / 100 | number: '1.2-2' }} and close the visit
+              </ui-button>
+            </ui-card>
+          }
+
           <!-- Less common: folded until needed, so the usual path stays short. -->
           <div class="panel-sections">
-            <details class="panel-section" data-testid="section-gift-card">
-              <summary>
-                <span class="panel-section__title">Gift card</span>
-                <span class="panel-section__meta">Redeemable whichever location sold it</span>
-              </summary>
-              <div class="panel-section__body">
-                <div class="form-grid">
-                  <ui-field label="Code" hint="Scan the barcode or type it.">
-                    <input [(ngModel)]="giftCardCode" data-testid="gc-code" />
-                  </ui-field>
-                  <ui-field label="Amount" hint="In dollars.">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      [(ngModel)]="giftCardDollars"
-                      data-testid="gc-amount"
-                    />
-                  </ui-field>
-                </div>
-                <div class="row">
-                  <ui-button
-                    variant="tonal"
-                    (click)="redeem()"
-                    [disabled]="busy()"
-                    data-testid="gc-redeem"
-                    >Redeem</ui-button
-                  >
-                </div>
-              </div>
-            </details>
-
             <details class="panel-section" data-testid="section-membership">
               <summary>
                 <span class="panel-section__title">Membership</span>

@@ -146,8 +146,9 @@ RSpec.describe "Pre-release conflict fixes" do
       Sales::RecordPayment.call(order:, method: "card", amount_cents: 6_000, actor: owner)
       Sales::SettleOrder.call(order:, actor: owner)
 
-      today = world[:location].today
-      report = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ], from: today, to: today)
+      # A visit's money belongs to the day of the visit (Addendum §3).
+      day = appt.starts_at.in_time_zone(world[:location].tz).to_date
+      report = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ], from: day, to: day)
 
       expect(report).to include(gross_service_revenue_cents: 8_000, discounts_cents: 2_000,
                                 service_revenue_cents: 6_000, collected_cents: 6_000)
@@ -265,8 +266,8 @@ RSpec.describe "Pre-release conflict fixes" do
       order = Sales::OpenOrder.call(appointment: appt, actor: manager)
       expect(order.outstanding_cents).to eq(6_000)
 
-      today = world[:location].today
-      held = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ], from: today, to: today)
+      day = appt.starts_at.in_time_zone(world[:location].tz).to_date
+      held = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ], from: day, to: day)
       expect(held[:deposits_held_cents]).to eq(2_000)
       expect(held[:service_revenue_cents]).to eq(0)
 
@@ -275,7 +276,7 @@ RSpec.describe "Pre-release conflict fixes" do
 
       expect(deposit.reload.status).to eq("applied")
       expect(order.reload.payments.captured.pluck(:method, :amount_cents)).to contain_exactly([ "card", 2_000 ], [ "cash", 6_000 ])
-      after = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ], from: today, to: today)
+      after = Reporting::DailyRevenue.call(location_ids: [ world[:location].id ], from: day, to: day)
       expect(after).to include(deposits_held_cents: 0, service_revenue_cents: 8_000, collected_cents: 8_000)
     end
 

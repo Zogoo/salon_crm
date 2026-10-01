@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_01_090100) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -597,6 +597,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
     t.integer "tax_cents", default: 0, null: false
     t.integer "tip_cents", default: 0, null: false
     t.integer "total_cents", default: 0, null: false
+    t.integer "transaction_fee_cents", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["appointment_id"], name: "index_orders_on_appointment_id"
     t.index ["client_id", "status"], name: "index_orders_on_client_id_and_status"
@@ -810,6 +811,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
     t.index ["staff_profile_id"], name: "index_staff_session_rates_on_staff_profile_id"
   end
 
+  create_table "staff_working_hours", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "ends_at"
+    t.boolean "off", default: false, null: false
+    t.integer "staff_profile_id", null: false
+    t.string "starts_at"
+    t.datetime "updated_at", null: false
+    t.integer "weekday", null: false
+    t.index ["staff_profile_id", "weekday"], name: "index_staff_working_hours_on_staff_profile_id_and_weekday", unique: true
+    t.index ["staff_profile_id"], name: "index_staff_working_hours_on_staff_profile_id"
+  end
+
   create_table "tip_allocations", force: :cascade do |t|
     t.string "allocated_by", default: "system_even_split", null: false
     t.integer "amount_cents", null: false
@@ -957,6 +970,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
   add_foreign_key "staff_requests", "staff_profiles"
   add_foreign_key "staff_requests", "users", column: "reviewed_by_user_id"
   add_foreign_key "staff_session_rates", "staff_profiles"
+  add_foreign_key "staff_working_hours", "staff_profiles"
   add_foreign_key "tip_allocations", "appointments"
   add_foreign_key "tip_allocations", "orders"
   add_foreign_key "tip_allocations", "staff_profiles"

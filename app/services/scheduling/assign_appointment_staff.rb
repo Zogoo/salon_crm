@@ -61,6 +61,9 @@ module Scheduling
       if shift.shift_breaks.any? { |row| row.starts_at < @appointment.ends_at && row.ends_at > @appointment.starts_at }
         raise Conflict, "therapist_on_break"
       end
+      unless member.within_working_hours?(@appointment.starts_at, @appointment.ends_at, @appointment.location.tz)
+        raise Conflict, "therapist_outside_working_hours"
+      end
 
       clash = AppointmentStaff.active
                               .overlapping(@appointment.starts_at, @appointment.ends_at)

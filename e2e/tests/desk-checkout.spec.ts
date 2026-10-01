@@ -42,10 +42,10 @@ test.describe('Front-desk visit', () => {
     await expect(page.getByTestId('order-deposit')).toContainText('$20.00');
     await expect(page.getByTestId('order-outstanding')).toContainText('$50.00');
 
-    await page.getByTestId('pay-remainder').click();
-    await expect(page.getByTestId('order-outstanding')).toContainText('$0.00');
-    await page.getByTestId('settle').click();
+    // One method, the amount is what is owed; taking it closes the visit.
+    await page.getByTestId('pay-and-close').click();
     await expect(page.getByTestId('checkout-done')).toBeVisible();
+    await expect(page.getByTestId('order-outstanding')).toContainText('$0.00');
   });
 
   test('a Manager discount above the location limit is refused with a clear reason', async ({

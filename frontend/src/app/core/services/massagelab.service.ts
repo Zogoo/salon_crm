@@ -38,6 +38,7 @@ import {
   Order,
   PageMeta,
   PaymentMethod,
+  PaymentPart,
   PreferenceVersion,
   Qualification,
   RatingAlertsReport,
@@ -54,6 +55,7 @@ import {
   StaffRequestRecord,
   UtilizationReport,
   VariantPrice,
+  WorkingHoursDay,
 } from '../models';
 
 /** One place for every domain call, so a view-layer change touches components only. */
@@ -468,6 +470,43 @@ export class MassagelabService {
     return this.http.post<Order>(`${this.base}/orders/${id}/settle`, {});
   }
 
+  /** Addendum §1: pay what is owed in one method or split across two, and close. */
+  checkout(id: number, payments: PaymentPart[]): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/checkout`, { payments });
+  }
+
+  /** Addendum §5: a fee added to the bill by hand. */
+  setTransactionFee(id: number, amountCents: number): Observable<Order> {
+    return this.http.post<Order>(`${this.base}/orders/${id}/transaction_fee`, {
+      amount_cents: amountCents,
+    });
+  }
+
+  /** Addendum §2: correct a completed, paid visit. */
+  correctVisit(
+    appointmentId: number,
+    body: {
+      reason: string;
+      payments: PaymentPart[];
+      staff_profile_ids?: number[];
+      tip_cents?: number;
+      transaction_fee_cents?: number;
+      deposit?: { amount_cents: number; method: PaymentMethod };
+    },
+  ): Observable<Appointment> {
+    return this.http.post<Appointment>(
+      `${this.base}/appointments/${appointmentId}/correct_visit`,
+      body,
+    );
+  }
+
+  /** Addendum §2: delete a completed visit entered in error (Owner). */
+  deleteVisit(appointmentId: number, reason: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/appointments/${appointmentId}/delete_visit`, {
+      reason,
+    });
+  }
+
   /** BR-23: payments are immutable; voiding is the sanctioned correction. */
   voidPayment(orderId: number, paymentId: number, reason: string): Observable<Order> {
     return this.http.post<Order>(`${this.base}/orders/${orderId}/payments/${paymentId}/void`, {
@@ -595,6 +634,34 @@ export class MassagelabService {
       .set('from', from)
       .set('to', to);
     return this.http.get<EarningsReport>(`${this.base}/reports/staff_earnings`, { params });
+  }
+
+  /** Addendum §4: the Quantity column is typed into. */
+  setSessionQuantity(body: {
+    staff_profile_id: number;
+    duration_minutes: number;
+    from: string;
+    to: string;
+    quantity: number;
+  }): Observable<EarningsReport> {
+    return this.http.put<EarningsReport>(`${this.base}/reports/staff_earnings/quantity`, body);
+  }
+
+  /** Addendum §8: a therapist's usual week. */
+  workingHours(staffId: number): Observable<{ working_hours: WorkingHoursDay[] }> {
+    return this.http.get<{ working_hours: WorkingHoursDay[] }>(
+      `${this.base}/staff/${staffId}/working_hours`,
+    );
+  }
+
+  setWorkingHours(
+    staffId: number,
+    days: WorkingHoursDay[],
+  ): Observable<{ working_hours: WorkingHoursDay[] }> {
+    return this.http.put<{ working_hours: WorkingHoursDay[] }>(
+      `${this.base}/staff/${staffId}/working_hours`,
+      { working_hours: days },
+    );
   }
 
   addEarningLine(payload: Record<string, unknown>) {
@@ -852,8 +919,12 @@ export class MassagelabService {
 
   // --- Reports ---
 
-  dailyRevenue(locationId: number, from: string, to: string): Observable<DailyRevenue> {
-    const params = new HttpParams().set('location_id', locationId).set('from', from).set('to', to);
+  /** One location, or several for the system-wide view (Addendum §3). */
+  dailyRevenue(locationIds: number | number[], from: string, to: string): Observable<DailyRevenue> {
+    let params = new HttpParams().set('from', from).set('to', to);
+    for (const id of Array.isArray(locationIds) ? locationIds : [locationIds]) {
+      params = params.append('location_ids[]', id);
+    }
     return this.http.get<DailyRevenue>(`${this.base}/reports/daily_revenue`, { params });
   }
 

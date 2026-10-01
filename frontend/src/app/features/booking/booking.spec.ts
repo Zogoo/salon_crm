@@ -101,6 +101,8 @@ describe('BookingPage', () => {
 
     p.onVariantChange(21);
     expect(p.needsTwoClients()).toBe(true);
+    // Addendum §7: offered, never required — the couple books with one name.
+    expect(p.blockers()).not.toContain('a second client');
   });
 
   it('clears a chosen slot when the service changes, so a stale time cannot be booked', () => {

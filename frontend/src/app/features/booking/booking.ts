@@ -114,7 +114,6 @@ export class BookingPage implements OnInit {
     if (!this.selectedClientId) missing.push('a client');
     if (!this.selectedVariantId()) missing.push('a service');
     if (!this.selectedSlot) missing.push('a time');
-    if (this.needsTwoClients() && !this.secondClientId) missing.push('a second client');
     return missing;
   }
 
@@ -172,12 +171,16 @@ export class BookingPage implements OnInit {
       next: ({ working }) => {
         const onShift = new Map<number, StaffMember>();
         for (const w of working) {
-          if (!onShift.has(w.staff_profile_id)) {
-            onShift.set(w.staff_profile_id, {
-              id: w.staff_profile_id,
-              display_name: w.display_name,
-            } as StaffMember);
-          }
+          // Addendum §8: a day marked off in their usual week is not offered at all,
+          // and each name says when they can be booked.
+          if (w.working_hours?.off || onShift.has(w.staff_profile_id)) continue;
+          const hours = w.working_hours
+            ? `${w.working_hours.starts_at}–${w.working_hours.ends_at}`
+            : `${w.starts_at.slice(11, 16)}–${w.ends_at.slice(11, 16)}`;
+          onShift.set(w.staff_profile_id, {
+            id: w.staff_profile_id,
+            display_name: `${w.display_name} · ${hours}`,
+          } as StaffMember);
         }
         this.staff.set(
           [...onShift.values()].sort((a, b) => a.display_name.localeCompare(b.display_name)),

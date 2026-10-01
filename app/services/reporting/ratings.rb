@@ -11,7 +11,7 @@ module Reporting
       ratings = AppointmentRating
                   .joins(:appointment)
                   .where(appointments: { location_id: @location_ids })
-                  .where(submitted_at: @from.beginning_of_day..@to.end_of_day)
+                  .where(submitted_at: local_days)
                   .includes(:staff_profile)
 
       {
@@ -27,6 +27,12 @@ module Reporting
     end
 
     private
+
+    # The salon's days, not UTC's: an evening rating belongs to that evening.
+    def local_days
+      tz = Location.where(id: @location_ids).first&.tz || Time.zone
+      tz.local(@from.year, @from.month, @from.day).beginning_of_day..tz.local(@to.year, @to.month, @to.day).end_of_day
+    end
 
     def recommend_rate(ratings)
       answered = ratings.reject { |r| r.would_recommend.nil? }

@@ -7,6 +7,7 @@ import { Subscription } from 'rxjs';
 import { ListState } from '../../../core/list-state';
 import { PageMeta, StaffMember } from '../../../core/models';
 import { LocationContextService } from '../../../core/services/location-context.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { MassagelabService } from '../../../core/services/massagelab.service';
 import {
   UiBanner,
@@ -64,6 +65,8 @@ export class StaffListPage implements OnInit {
     () => this.load(),
   );
 
+  private readonly auth = inject(AuthService);
+  protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
   protected readonly subtitle = computed(
     () =>
       `Everyone who works at ${this.ctx.current()?.name ?? 'this location'}. Switch location above to see another team.`,

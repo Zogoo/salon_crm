@@ -130,3 +130,46 @@
     color: var(--md-error);
   }
 }
+
+// Addendum §8: one line per weekday — day, status, then its hours.
+.hours {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hours__row {
+  display: grid;
+  grid-template-columns: 7rem 9rem auto auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 3rem;
+
+  select,
+  input {
+    min-height: 2.75rem;
+    padding: 0 var(--sp-2);
+    border: 1px solid var(--md-outline);
+    border-radius: var(--md-shape-sm);
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    font: inherit;
+  }
+
+  @include compact-only {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.hours__day {
+  font-weight: 600;
+}
+
+.hours__note {
+  grid-column: span 3;
+  color: var(--md-on-surface-variant);
+  @include type-body-sm;
+}

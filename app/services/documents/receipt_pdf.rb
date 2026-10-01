@@ -46,6 +46,9 @@ module Documents
     def totals(pdf)
       pdf.text "Subtotal: #{money(@order.subtotal_cents)}", size: 10
       pdf.text "Tip (100% to the therapist): #{money(@order.tip_cents)}", size: 10
+      if @order.transaction_fee_cents.positive?
+        pdf.text "Transaction fee: #{money(@order.transaction_fee_cents)}", size: 10
+      end
       pdf.text "Total: #{money(@order.total_cents)}", size: 12, style: :bold
     end
 
@@ -54,6 +57,9 @@ module Documents
       pdf.text "Payments", size: 10, style: :bold
       @order.payments.captured.each do |p|
         pdf.text "#{p.method.humanize}: #{money(p.amount_cents)}", size: 9
+      end
+      @order.live_redemptions.each do |card, cents|
+        pdf.text "Gift card #{card.code}: #{money(cents)}", size: 9
       end
       refunded = Refund.where(order: @order).sum(:amount_cents)
       pdf.text "Refunded: #{money(refunded)}", size: 9 if refunded.positive?

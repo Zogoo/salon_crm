@@ -3,9 +3,10 @@ import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { Order, PaymentMethod } from '../../core/models';
+import { Order, PaymentPart } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
+import { PaymentSplit } from '../../shared/payment-split';
 import {
   ConfirmService,
   UiBanner,
@@ -36,6 +37,7 @@ import {
     UiEmpty,
     UiTable,
     UiBanner,
+    PaymentSplit,
   ],
   templateUrl: './checkout.html',
   // Shared list-and-detail layout first, then what is specific here.
@@ -56,12 +58,13 @@ export class CheckoutPage implements OnInit {
     return humanise(value);
   }
 
-  protected readonly methods: PaymentMethod[] = ['card', 'cash', 'zelle', 'online', 'other'];
-  protected method: PaymentMethod = 'card';
-  protected amountDollars = 0;
-  protected giftCardCode = '';
-  protected giftCardDollars = 0;
+  /** How the client is paying, from the payment editor (Addendum §1). */
+  protected readonly payment = signal<{ parts: PaymentPart[]; valid: boolean }>({
+    parts: [],
+    valid: false,
+  });
   protected tipDollars = 0;
+  protected feeDollars = 0;
   protected discountDollars = 0;
   protected discountReason = '';
   protected manualLine = {
@@ -74,9 +77,6 @@ export class CheckoutPage implements OnInit {
   // FRS §21: the terminal prompts 20 / 25 / 30 or a custom amount.
   protected readonly tipPresets = [20, 25, 30];
 
-  protected readonly outstandingDollars = computed(
-    () => (this.order()?.outstanding_cents ?? 0) / 100,
-  );
   protected readonly settled = computed(() => this.order()?.status === 'paid');
   protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
 
@@ -109,30 +109,19 @@ export class CheckoutPage implements OnInit {
     this.run(this.api.setTip(order.id, Math.round(this.tipDollars * 100)));
   }
 
-  protected pay(): void {
+  /** Addendum §5: added to the bill, kept apart from services and tips. */
+  protected applyFee(): void {
     const order = this.order();
-    if (!order) return;
-    const cents = Math.round(this.amountDollars * 100);
-    if (cents <= 0) return;
-    this.run(this.api.addPayment(order.id, this.method, cents));
+    if (!order || this.feeDollars < 0) return;
+    this.run(this.api.setTransactionFee(order.id, Math.round(this.feeDollars * 100)));
   }
 
-  protected payRemainder(): void {
+  /** Addendum §1: one method or a split of two, recorded and closed together. */
+  protected takePayment(): void {
     const order = this.order();
-    if (!order || order.outstanding_cents <= 0) return;
-    this.run(this.api.addPayment(order.id, this.method, order.outstanding_cents));
-  }
-
-  protected redeem(): void {
-    const order = this.order();
-    if (!order || !this.giftCardCode) return;
-    this.run(
-      this.api.redeemGiftCard(
-        order.id,
-        this.giftCardCode.trim(),
-        Math.round(this.giftCardDollars * 100),
-      ),
-    );
+    const { parts, valid } = this.payment();
+    if (!order || !valid) return;
+    this.run(this.api.checkout(order.id, parts));
   }
 
   protected applyMembership(): void {
@@ -267,18 +256,27 @@ export class CheckoutPage implements OnInit {
   }
 
   private accept(order: Order): void {
+    // Fill the fee box from the order only when the page opens: refilling it
+    // after every save would overwrite a fee typed while the tip was saving.
+    if (!this.order()) this.feeDollars = order.transaction_fee_cents / 100;
     this.order.set(order);
-    this.amountDollars = order.outstanding_cents / 100;
-    this.giftCardDollars = order.outstanding_cents / 100;
   }
 
   private messageFrom(err: unknown): string {
     const body = (
-      err as { error?: { error?: { code?: string; details?: { available_cents?: number } } } }
+      err as {
+        error?: {
+          error?: { code?: string; details?: { available_cents?: number; due_cents?: number } };
+        };
+      }
     )?.error?.error;
     const code = body?.code;
     const map: Record<string, string> = {
       overpayment_rejected: 'That is more than is outstanding. Enter the surplus as a tip instead.',
+      split_total_mismatch: `The payments must add up to exactly $${((body?.details?.due_cents ?? 0) / 100).toFixed(2)}.`,
+      gift_card_code_required: 'Enter the gift card code.',
+      fee_invalid: 'Enter a fee of $0 or more.',
+      fee_below_amount_taken: 'The fee cannot be lowered below what has already been taken.',
       gift_card_not_found: 'No gift card with that code.',
       gift_card_void: 'That gift card has been voided.',
       insufficient_balance: `Not enough left on the card${

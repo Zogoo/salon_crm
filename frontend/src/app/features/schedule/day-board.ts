@@ -11,6 +11,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { LocationContextService } from '../../core/services/location-context.service';
 import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
+import { VisitCorrection } from './visit-correction';
 import {
   Fact,
   ConfirmService,
@@ -66,6 +67,13 @@ interface RulerMark {
 /** What the desk is told when the API refuses, keyed by the error code. */
 const MESSAGES: Record<string, string> = {
   therapist_assignment_required: 'Assign the therapist before checkout.',
+  wrong_therapist_count: 'Choose exactly the number of therapists this service needs.',
+  therapist_outside_working_hours: "That is outside the therapist's working hours.",
+  therapist_unavailable: 'That therapist is already with another client then.',
+  therapist_not_on_shift: 'That therapist is not on shift for the whole appointment.',
+  therapist_on_break: 'That therapist is on a break then.',
+  therapist_not_qualified: 'That therapist is not qualified for this service.',
+  period_locked: 'That pay period is locked, so this visit can no longer be changed.',
   discount_above_manager_limit:
     'That is more than a Manager can discount on this order. Ask the Owner to apply it.',
   discount_exceeds_remaining: 'The discount is larger than what is left to pay.',
@@ -103,6 +111,7 @@ type PanelSection = 'service' | 'deposit' | 'discount' | 'reschedule' | 'repeat'
     UiField,
     UiSheet,
     UiFacts,
+    VisitCorrection,
   ],
   templateUrl: './day-board.html',
   styleUrls: ['../../ui/layouts.scss', './day-board.scss', './day-board-controls.scss'],
@@ -122,6 +131,12 @@ export class DayBoardPage implements OnInit {
   protected readonly careNotes = signal<CareNote[]>([]);
   protected readonly services = signal<Service[]>([]);
   protected readonly staff = signal<StaffMember[]>([]);
+  /** "10:00–18:00" beside each name — the usual hours where set, else the shift. */
+  protected readonly staffHours = signal(new Map<number, string>());
+  /** When each is bookable that day, to grey out anyone who cannot take a visit. */
+  private readonly staffWindows = signal(new Map<number, { from: string; to: string } | null>());
+  /** The "Correct this visit" dialog is open (Addendum §2). */
+  protected readonly correcting = signal(false);
   protected readonly checkoutPrompt = signal(false);
   /** The appointment being dragged, drawn faded where it still is. */
   protected readonly dragging = signal<number | null>(null);
@@ -147,7 +162,18 @@ export class DayBoardPage implements OnInit {
   protected readonly depositMethods = ['card', 'cash', 'zelle', 'other'];
   protected readonly depositNotice = signal('');
   protected confirmingDepositRefund = false;
-  protected date = '';
+  /**
+   * The day on screen. Backed by a signal so the date box and the board redraw
+   * when it is set after the location loads — a plain field does not tell a
+   * zoneless view it changed.
+   */
+  private readonly dateValue = signal('');
+  protected get date(): string {
+    return this.dateValue();
+  }
+  protected set date(value: string) {
+    this.dateValue.set(value);
+  }
 
   private drag: DragState | null = null;
   private suppressClick = false;
@@ -160,6 +186,7 @@ export class DayBoardPage implements OnInit {
   );
   protected readonly canBook = computed(() => this.auth.user()?.role !== 'staff');
   protected readonly isTherapist = computed(() => this.auth.user()?.role === 'staff');
+  protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
 
   protected readonly discountHint = computed(() => {
     if (this.auth.user()?.role === 'owner') return 'Recorded with your name and the reason.';
@@ -531,10 +558,83 @@ export class DayBoardPage implements OnInit {
     });
   }
 
-  protected toggleAssignee(id: number, on: boolean): void {
+  protected toggleAssignee(id: number, on: boolean, appointment: Appointment): void {
+    if ((appointment.therapists_required ?? 1) === 1) {
+      this.assignmentIds = on ? [id] : [];
+      return;
+    }
     this.assignmentIds = on
       ? [...this.assignmentIds, id]
       : this.assignmentIds.filter((staffId) => staffId !== id);
+  }
+
+  protected heldByNames(appointment: Appointment): string {
+    return (appointment.held_by ?? []).map((m) => m.display_name).join(' and ');
+  }
+
+  /** Whether a therapist's hours that day cover the whole appointment (Addendum §8). */
+  protected fitsHours(staffId: number, appointment: Appointment): boolean {
+    const window = this.staffWindows().get(staffId);
+    if (window === undefined) return true;
+    if (window === null) return false;
+    return (
+      window.from <= this.clock(appointment.starts_at) &&
+      window.to >= this.clock(appointment.ends_at)
+    );
+  }
+
+  /** Addendum §6: approve the named therapist without leaving the schedule. */
+  protected async decideApproval(
+    appointment: Appointment,
+    decision: 'approve' | 'reject',
+  ): Promise<void> {
+    const request = appointment.approval_request;
+    if (!request) return;
+    if (decision === 'reject') {
+      const ok = await this.confirm.confirm({
+        title: `Decline ${request.requested_therapist.display_name} for ${appointment.client.full_name}?`,
+        message:
+          'The booking is cancelled and the time is freed. No fee is charged. Let the client know, and book them with someone else if they want.',
+        confirmLabel: 'Decline and cancel',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
+    this.api.decideApproval(request.id, decision).subscribe({
+      next: () => {
+        this.api.appointment(appointment.id).subscribe({
+          next: (fresh) => this.prepareSelection(fresh),
+        });
+        this.reload();
+      },
+      error: (err) => this.error.set(this.apiMessage(err, 'Could not record the decision')),
+    });
+  }
+
+  protected afterCorrection(appointment: Appointment): void {
+    this.correcting.set(false);
+    this.prepareSelection(appointment);
+    this.reload();
+  }
+
+  /** Addendum §2: remove a completed visit entered in error. Owner only. */
+  protected async deleteVisit(appointment: Appointment): Promise<void> {
+    const { confirmed, value } = await this.confirm.ask({
+      title: `Delete ${appointment.client.full_name}'s visit?`,
+      message:
+        "Use this for a visit entered by mistake. Its payments are voided, any gift card money goes back on the card, and it leaves the schedule, the reports and the therapist's earnings. If the client really paid, return the money to them.",
+      confirmLabel: 'Delete visit',
+      tone: 'danger',
+      field: { label: 'Reason', required: true, placeholder: 'e.g. Booked twice by mistake' },
+    });
+    if (!confirmed) return;
+    this.api.deleteVisit(appointment.id, value).subscribe({
+      next: () => {
+        this.selected.set(null);
+        this.reload();
+      },
+      error: (err) => this.error.set(this.apiMessage(err, 'Could not delete the visit')),
+    });
   }
 
   protected assignStaff(appointment: Appointment): void {
@@ -823,7 +923,10 @@ export class DayBoardPage implements OnInit {
     this.rescheduleDate = appointment.starts_at.slice(0, 10);
     this.rescheduleTime = this.clock(appointment.starts_at);
     this.rescheduleRoomId = appointment.room.id;
-    this.assignmentIds = appointment.therapists.map((member) => member.id);
+    // A no-preference booking starts on whoever is already holding the time.
+    this.assignmentIds = appointment.assignment_pending
+      ? (appointment.held_by ?? []).map((member) => member.id)
+      : appointment.therapists.map((member) => member.id);
     this.replacementVariantId =
       appointment.items?.find((item) => item.kind === 'service')?.service_variant_id ?? null;
     this.checkoutPrompt.set(false);
@@ -873,12 +976,40 @@ export class DayBoardPage implements OnInit {
     this.api.shifts(loc.id, this.date).subscribe({
       next: ({ working }) => {
         const onShift = new Map<number, StaffMember>();
+        const hours = new Map<number, string>();
         for (const w of working) {
           onShift.set(w.staff_profile_id, {
             id: w.staff_profile_id,
             display_name: w.display_name,
           } as StaffMember);
+          const usual = w.working_hours;
+          hours.set(
+            w.staff_profile_id,
+            usual?.off
+              ? 'Usually off this day'
+              : usual
+                ? `${usual.starts_at}–${usual.ends_at}`
+                : `${this.clock(w.starts_at)}–${this.clock(w.ends_at)}`,
+          );
         }
+        this.staffHours.set(hours);
+        const windows = new Map<number, { from: string; to: string } | null>();
+        for (const w of working) {
+          const usual = w.working_hours;
+          const shift = { from: this.clock(w.starts_at), to: this.clock(w.ends_at) };
+          windows.set(
+            w.staff_profile_id,
+            usual?.off
+              ? null
+              : usual?.starts_at && usual.ends_at
+                ? {
+                    from: usual.starts_at > shift.from ? usual.starts_at : shift.from,
+                    to: usual.ends_at < shift.to ? usual.ends_at : shift.to,
+                  }
+                : shift,
+          );
+        }
+        this.staffWindows.set(windows);
         this.staff.set(
           [...onShift.values()].sort((a, b) => a.display_name.localeCompare(b.display_name)),
         );

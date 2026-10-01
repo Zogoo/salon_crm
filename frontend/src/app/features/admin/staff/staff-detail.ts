@@ -10,7 +10,9 @@ import {
   Service,
   SessionRate,
   StaffMember,
+  WorkingHoursDay,
 } from '../../../core/models';
+import { AuthService } from '../../../core/services/auth.service';
 import { MassagelabService } from '../../../core/services/massagelab.service';
 import { todayIn } from '../../../core/salon-date';
 import {
@@ -32,7 +34,19 @@ import {
 /** The six rungs a therapist is paid on (FRS §4). */
 export const LADDER = [30, 45, 60, 75, 90, 120] as const;
 
-type Tab = 'profile' | 'qualifications' | 'pay';
+type Tab = 'profile' | 'hours' | 'qualifications' | 'pay';
+
+type HoursMode = 'unset' | 'working' | 'off';
+interface HoursRow {
+  weekday: number;
+  mode: HoursMode;
+  starts_at: string;
+  ends_at: string;
+}
+
+/** The week as the salon reads it: Monday first. 0 = Sunday, as Date#getDay. */
+const WEEK = [1, 2, 3, 4, 5, 6, 0];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
  * One team member. Rates are why this is Owner-only, and they are
@@ -65,6 +79,12 @@ export class StaffDetailPage implements OnInit {
   private readonly browser = inject(BrowserLocation);
   private readonly confirm = inject(ConfirmService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(AuthService);
+
+  /** A Manager sees the team and sets working hours; profile, qualifications and pay are the Owner's. */
+  protected readonly isOwner = computed(() => this.auth.user()?.role === 'owner');
+  protected readonly hours = signal<HoursRow[]>(this.emptyWeek());
+  protected readonly savingHours = signal(false);
 
   protected readonly member = signal<StaffMember | null>(null);
   protected readonly selected = this.member;
@@ -147,14 +167,21 @@ export class StaffDetailPage implements OnInit {
           next: ({ services }) => this.services.set(services),
           error: () => this.services.set([]),
         });
-        if (full.engagement_type === 'manager_flat') this.loadMonthlyRate(full.id);
+        if (full.engagement_type === 'manager_flat' && this.isOwner())
+          this.loadMonthlyRate(full.id);
       },
       error: (err) => this.error.set(this.message(err, 'Could not load that team member.')),
+    });
+    this.api.workingHours(id).subscribe({
+      next: ({ working_hours }) => this.hours.set(this.toRows(working_hours)),
+      error: () => this.hours.set(this.emptyWeek()),
     });
     this.api.qualifications(id).subscribe({
       next: ({ qualifications }) => this.quals.set(qualifications),
       error: () => this.quals.set([]),
     });
+    // Rates are the Owner's alone (BR-02); a Manager is never sent them.
+    if (!this.isOwner()) return;
     this.api.sessionRates(id).subscribe({
       next: ({ session_rates }) => this.rates.set(session_rates),
       // A Manager is never given rates at all, so an error here is expected.
@@ -171,6 +198,77 @@ export class StaffDetailPage implements OnInit {
         this.notice.set('Profile saved.');
       },
       error: (err) => this.error.set(this.message(err, 'Could not save the profile.')),
+    });
+  }
+
+  // --- working hours (Addendum §8) ------------------------------------------
+
+  protected dayName(weekday: number): string {
+    return DAY_NAMES[weekday];
+  }
+
+  protected setHours(index: number, change: Partial<HoursRow>): void {
+    this.hours.update((rows) =>
+      rows.map((r, i) => {
+        if (i !== index) return r;
+        const next = { ...r, ...change };
+        // Choosing Working starts from a sensible day rather than two empty boxes.
+        if (change.mode === 'working' && !next.starts_at) {
+          next.starts_at = '09:00';
+          next.ends_at = '17:00';
+        }
+        return next;
+      }),
+    );
+  }
+
+  protected saveHours(): void {
+    const m = this.member();
+    if (!m) return;
+    const bad = this.hours().find(
+      (d) => d.mode === 'working' && (!d.starts_at || !d.ends_at || d.ends_at <= d.starts_at),
+    );
+    if (bad) {
+      this.error.set(`${this.dayName(bad.weekday)}: the end must be after the start.`);
+      return;
+    }
+    this.error.set(null);
+    this.savingHours.set(true);
+    const days = this.hours()
+      .filter((d) => d.mode !== 'unset')
+      .map((d) => ({
+        weekday: d.weekday,
+        off: d.mode === 'off',
+        starts_at: d.mode === 'working' ? d.starts_at : null,
+        ends_at: d.mode === 'working' ? d.ends_at : null,
+      }));
+    this.api.setWorkingHours(m.id, days).subscribe({
+      next: ({ working_hours }) => {
+        this.savingHours.set(false);
+        this.hours.set(this.toRows(working_hours));
+        this.notice.set('Working hours saved. Appointments already booked are unchanged.');
+      },
+      error: (err) => {
+        this.savingHours.set(false);
+        this.error.set(this.message(err, 'Could not save the working hours.'));
+      },
+    });
+  }
+
+  private emptyWeek(): HoursRow[] {
+    return WEEK.map((weekday) => ({ weekday, mode: 'unset', starts_at: '', ends_at: '' }));
+  }
+
+  private toRows(days: WorkingHoursDay[]): HoursRow[] {
+    return WEEK.map((weekday) => {
+      const d = days.find((x) => x.weekday === weekday);
+      if (!d) return { weekday, mode: 'unset', starts_at: '', ends_at: '' };
+      return {
+        weekday,
+        mode: d.off ? 'off' : 'working',
+        starts_at: d.starts_at ?? '',
+        ends_at: d.ends_at ?? '',
+      };
     });
   }
 

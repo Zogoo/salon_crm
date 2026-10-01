@@ -42,7 +42,7 @@ module Api
         from, to = range
         scope = AppointmentRating.joins(appointment: :location)
                                  .where(appointments: { location_id: location_ids })
-                                 .where(created_at: from.beginning_of_day..to.end_of_day)
+                                 .where(created_at: local_days(from, to))
                                  .includes(:staff_profile, appointment: :location)
                                  .order(created_at: :desc)
 
@@ -116,6 +116,13 @@ module Api
         requested.any? ? (requested & allowed) : allowed
       end
 
+      # A report's days are the salon's days, not UTC's: a rating given at 20:00
+      # in Chicago is already tomorrow in UTC and must still count today.
+      def local_days(from, to)
+        tz = reporting_location&.tz || Time.zone
+        tz.local(from.year, from.month, from.day).beginning_of_day..tz.local(to.year, to.month, to.day).end_of_day
+      end
+
       def range
         # The salon's business day, not UTC's — see Location#today.
         default = Location.find_by(id: location_ids.first)&.today || Date.current
@@ -144,10 +151,12 @@ module Api
         [ [ "Method", "Cents" ] ] +
           data[:by_method].map { |m, c| [ m, c ] } +
           [ [], [ "Service revenue", data[:service_revenue_cents] ],
-            [ "Gift card liability", data[:gift_card_liability_cents] ],
+            [ "Tips", data[:tips_cents] ],
+            [ "Transaction fees", data[:transaction_fees_cents] ],
+            [ "Total revenue", data[:total_revenue_cents] ],
+            [], [ "Gift card liability", data[:gift_card_liability_cents] ],
             [ "Membership liability", data[:membership_liability_cents] ],
-            [ "Fees", data[:fees_cents] ],
-            [ "Tips", data[:tips_cents] ] ]
+            [ "No-show and late-cancellation fees", data[:fees_cents] ] ]
       end
 
       def client_log_csv(rows)

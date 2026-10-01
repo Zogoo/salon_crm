@@ -1,5 +1,4 @@
-import { LocationScope } from '../../shared/location-scope';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -20,6 +19,8 @@ import { MassagelabService } from '../../core/services/massagelab.service';
 import { todayIn } from '../../core/salon-date';
 import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable, humanise } from '../../ui';
 
+type Period = 'day' | 'week' | 'month' | 'custom';
+
 /**
  * FRS §9, §10, §12.
  *
@@ -34,7 +35,6 @@ import { UiBanner, UiButton, UiCard, UiEmpty, UiField, UiPage, UiTable, humanise
     FormsModule,
     DecimalPipe,
     UiPage,
-    LocationScope,
     UiCard,
     UiField,
     UiButton,
@@ -74,31 +74,93 @@ export class ReportsPage implements OnInit {
   protected readonly membership = signal<MembershipReport | null>(null);
   protected readonly error = signal<string | null>(null);
 
-  /** Names the location and range, so a figure is never read out of context. */
+  /** Names what the figures cover, so a figure is never read out of context. */
   protected subtitle(): string {
-    return `Revenue, liabilities and fees at ${this.ctx.current()?.name ?? 'this location'} — kept apart on purpose, because adding them together is the most common mistake in salon accounting.`;
+    return 'Revenue with tips and transaction fees, and — kept apart — the liabilities and fees that are not revenue.';
   }
+
+  /** Addendum §3: the same report by day, week, month or any range. */
+  protected readonly periods: { key: Period; label: string }[] = [
+    { key: 'day', label: 'Day' },
+    { key: 'week', label: 'Week' },
+    { key: 'month', label: 'Month' },
+    { key: 'custom', label: 'Custom' },
+  ];
+  protected readonly period = signal<Period>('day');
+  /** One location's id, or "all" for the whole business (Owner). */
+  protected readonly scope = signal<string>('');
+  /** The day the week or month is taken around. */
+  protected anchor = '';
 
   // Set once the location is known — the salon's day, not the browser's.
   protected from = '';
   protected to = '';
+  private readonly ran = signal({ from: '', to: '' });
+
+  protected readonly scopeName = computed(() =>
+    this.scope() === 'all'
+      ? 'All locations'
+      : (this.ctx.locations().find((l) => String(l.id) === this.scope())?.name ?? ''),
+  );
+
+  protected readonly rangeLabel = computed(() => {
+    const { from, to } = this.ran();
+    if (!from) return '';
+    const fmt = (d: string, opts: Intl.DateTimeFormatOptions) =>
+      new Date(`${d}T12:00:00`).toLocaleDateString('en-US', opts);
+    const full: Intl.DateTimeFormatOptions = {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    };
+    const start: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+    return from === to ? fmt(from, full) : `${fmt(from, start)} – ${fmt(to, full)}`;
+  });
 
   ngOnInit(): void {
     // `?from=&to=` lets the dashboard's revenue tile open the same day here.
     const query = this.route.snapshot.queryParamMap;
     void this.ctx.load().then(() => {
+      this.scope.set(String(this.ctx.current()?.id ?? ''));
       const today = todayIn(this.ctx.current()?.timezone);
       this.from = query.get('from') || today;
       this.to = query.get('to') || this.from;
+      this.anchor = this.from;
+      if (this.from !== this.to) this.period.set('custom');
       this.runAll();
     });
   }
 
-  protected onLocationChange(id: number): void {
-    this.ctx.select(id);
-    const today = todayIn(this.ctx.current()?.timezone);
-    this.from = today;
-    this.to = today;
+  protected setScope(value: string): void {
+    this.scope.set(value);
+    // Choosing one location makes it the one every other screen shows too.
+    if (value !== 'all') this.ctx.select(Number(value));
+    this.runAll();
+  }
+
+  protected setPeriod(period: Period): void {
+    this.period.set(period);
+    if (period !== 'custom') this.applyPeriod();
+  }
+
+  /** Day, the Monday-to-Sunday week, or the calendar month around the anchor. */
+  protected applyPeriod(): void {
+    const d = new Date(`${this.anchor || todayIn(this.ctx.current()?.timezone ?? null)}T12:00:00Z`);
+    const iso = (x: Date) => x.toISOString().slice(0, 10);
+    if (this.period() === 'day') {
+      this.from = this.to = iso(d);
+    } else if (this.period() === 'week') {
+      const monday = new Date(d);
+      monday.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+      const sunday = new Date(monday);
+      sunday.setUTCDate(monday.getUTCDate() + 6);
+      this.from = iso(monday);
+      this.to = iso(sunday);
+    } else if (this.period() === 'month') {
+      this.from = iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
+      this.to = iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)));
+    }
     this.runAll();
   }
 
@@ -106,11 +168,28 @@ export class ReportsPage implements OnInit {
     const loc = this.ctx.current();
     if (!loc) return;
     this.error.set(null);
+    this.ran.set({ from: this.from, to: this.to });
 
-    this.api.dailyRevenue(loc.id, this.from, this.to).subscribe({
-      next: (r) => this.revenue.set(r),
-      error: (err) => this.error.set(err?.error?.error ?? 'Could not load revenue'),
-    });
+    const all = this.scope() === 'all';
+    this.api
+      .dailyRevenue(all ? this.ctx.locations().map((l) => l.id) : loc.id, this.from, this.to)
+      .subscribe({
+        next: (r) => this.revenue.set(r),
+        error: (err) => this.error.set(err?.error?.error ?? 'Could not load revenue'),
+      });
+    if (all) {
+      // The other reports are per location; the banner says so.
+      this.log.set(null);
+      this.liability.set(null);
+      this.fees.set(null);
+      this.noShows.set(null);
+      this.utilization.set(null);
+      this.retention.set(null);
+      this.ratings.set(null);
+      this.ratingAlerts.set(null);
+      this.membership.set(null);
+      return;
+    }
     this.api.clientLog(loc.id, this.from).subscribe({
       next: ({ rows }) => this.log.set(rows),
       error: () => this.log.set([]),

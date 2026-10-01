@@ -14,6 +14,7 @@ class StaffProfile < ApplicationRecord
   has_many :care_notes, dependent: :restrict_with_error
   has_many :appointment_ratings, dependent: :nullify
   has_many :staff_monthly_rates, dependent: :destroy
+  has_many :staff_working_hours, dependent: :destroy
 
   validates :employee_code, :display_name, presence: true
   validates :employee_code, uniqueness: true
@@ -30,6 +31,23 @@ class StaffProfile < ApplicationRecord
 
   # BR-35: the rate that applied on the service date, not today's rate.
   def manager? = engagement_type == "manager_flat"
+
+  # Addendum §8: the usual hours set for the weekday of `date`, if any. `nil`
+  # means "not set" and places no limit; a row marked off means not working.
+  def working_hours_on(date)
+    staff_working_hours.to_a.find { |row| row.weekday == date.wday }
+  end
+
+  # True when `from`–`to` sits inside the usual hours for that day, or no hours
+  # are set. One rule for search, booking and assignment, so none can disagree.
+  def within_working_hours?(from, to, tz)
+    date = from.in_time_zone(tz).to_date
+    row = working_hours_on(date)
+    return true unless row
+
+    window = row.window_on(date, tz)
+    window.present? && window.first <= from && window.last >= to
+  end
 
   def rate_cents_for(duration_minutes, on:)
     staff_session_rates

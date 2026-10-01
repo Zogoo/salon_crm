@@ -55,6 +55,7 @@ Rails.application.routes.draw do
           resource  :qualifications, only: %i[show update]
           resources :session_rates,  only: %i[index create]
           resource  :monthly_rate,   only: %i[show create], controller: :monthly_rates
+          resource  :working_hours,  only: %i[show update], controller: :working_hours
         end
       end
       get "manager_payouts", to: "manager_payouts#index"
@@ -97,6 +98,8 @@ Rails.application.routes.draw do
           post   :replace_service
           post   :cancel
           post   :complete_for_checkout
+          post   :correct_visit
+          post   :delete_visit
           post   :deposit
           post   "deposit/refund", action: :refund_deposit
           post   "items", action: :add_items
@@ -145,6 +148,8 @@ Rails.application.routes.draw do
           post :membership_credit
           post :tips
           post :settle
+          post :checkout
+          post :transaction_fee
           post "payments/:payment_id/void", action: :void_payment, as: :void_payment
         end
       end
@@ -176,6 +181,7 @@ Rails.application.routes.draw do
       get  "earning_lines",              to: "earnings#lines"
       post "earning_lines",              to: "earnings#create_line"
       patch "earning_lines/:id",         to: "earnings#update_line"
+      put   "reports/staff_earnings/quantity", to: "earnings#set_quantity"
       get "reports/staff_earnings",      to: "earnings#report"
 
       # --- Reports ---

@@ -64,6 +64,19 @@ module Api
         render json: { error: { code: e.message } }, status: :unprocessable_content
       end
 
+      # Addendum §4: the Quantity column is typed into.
+      def set_quantity
+        staff = StaffProfile.find(params.require(:staff_profile_id))
+        Earnings::SetSessionQuantity.call(
+          staff_profile: staff, duration_minutes: params.require(:duration_minutes),
+          from: Date.parse(params.require(:from)), to: Date.parse(params.require(:to)),
+          quantity: params.require(:quantity), actor: current_user
+        )
+        render json: Reporting::StaffEarnings.call(staff_profile: staff, from: params[:from], to: params[:to])
+      rescue Earnings::SetSessionQuantity::Invalid => e
+        render json: { error: { code: e.message } }, status: :unprocessable_content
+      end
+
       def update_line
         line = EarningLine.find(params[:id])
         Earnings::UpdateManualLine.call(

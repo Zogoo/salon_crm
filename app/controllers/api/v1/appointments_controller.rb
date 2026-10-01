@@ -179,6 +179,41 @@ module Api
         render_invalid(e.message, code: e.message)
       end
 
+      # Addendum §2: correct a completed, paid visit — therapist, tip, fee,
+      # deposit and payments. Reports and earnings are derived from what this
+      # rewrites, so they follow on their own.
+      def correct_visit
+        require_booking!
+        appt = find_appointment
+        Sales::CorrectVisit.call(
+          appointment: appt, actor: current_user, reason: params[:reason],
+          payments: params.fetch(:payments, []).map { |p| p.permit(:method, :amount_cents, :code).to_h },
+          staff_profile_ids: params[:staff_profile_ids],
+          tip_cents: params[:tip_cents], transaction_fee_cents: params[:transaction_fee_cents],
+          deposit: params[:deposit]&.permit(:amount_cents, :method)&.to_h
+        )
+        render json: appointment_json(appt.reload, detail: true)
+      rescue Sales::CorrectVisit::Invalid, Sales::VisitCorrection::Invalid, Sales::AllocateTips::Invalid,
+             Sales::RecordPayment::Invalid, GiftCards::RedeemCard::Invalid => e
+        code, number = e.message.split(":", 2)
+        details = code == "split_total_mismatch" ? { due_cents: number.to_i } : {}
+        details = { available_cents: number.to_i } if code == "insufficient_balance"
+        render json: { error: { code:, details: } }, status: :unprocessable_content
+      rescue Sales::CorrectVisit::Conflict => e
+        render json: { error: { code: e.message } }, status: :conflict
+      end
+
+      # Addendum §2: delete a completed visit entered in error. Owner only —
+      # it voids money already recorded.
+      def delete_visit
+        require_owner!
+        appt = find_appointment
+        Sales::DeleteVisit.call(appointment: appt, actor: current_user, reason: params[:reason])
+        head :no_content
+      rescue Sales::VisitCorrection::Invalid => e
+        render json: { error: { code: e.message } }, status: :unprocessable_content
+      end
+
       # Feedback 3.2: a deposit taken before the visit, held until checkout.
       def deposit
         require_booking!
@@ -282,6 +317,7 @@ module Api
           "no_suitable_room" => "No room of the required type or capacity is free.",
           "therapist_not_on_shift" => "That therapist is not on shift for the whole appointment.",
           "therapist_on_break" => "That therapist is on a break at that time.",
+          "therapist_outside_working_hours" => "That time is outside the therapist's working hours.",
           "requested_therapist_unavailable" => "That therapist is not free at that time.",
           "outside_business_hours" => "That time is outside opening hours.",
           "location_closed" => "The location is closed that day."
@@ -292,7 +328,7 @@ module Api
       # next times rather than a different person.
       def suggestions(code)
         return {} unless params.dig(:appointment, :requested_staff_profile_id).present?
-        return {} unless %w[slot_taken therapist_not_on_shift therapist_on_break].include?(code)
+        return {} unless %w[slot_taken therapist_not_on_shift therapist_on_break therapist_outside_working_hours].include?(code)
 
         location = Location.find(create_params[:location_id])
         variants = ServiceVariant.where(id: create_params[:service_variant_ids]).includes(:service)
@@ -327,6 +363,22 @@ module Api
           json[:location] = { id: appt.location_id, name: appt.location.name }
           json[:appointment_note] = appt.appointment_note
           json[:fee_charged_cents] = appt.fee_charged_cents
+          # Addendum §6: enough to approve the named therapist from the panel.
+          if appt.status == "pending_approval" && (request = appt.approval_request)&.status == "pending"
+            json[:approval_request] = {
+              id: request.id, status: request.status,
+              requested_therapist: { id: request.requested_staff_profile_id,
+                                     display_name: request.requested_staff_profile.display_name },
+              auto_approves_at: local_iso(request.auto_approves_at, loc)
+            }
+          end
+          # A no-preference booking already holds a free therapist. Telling the
+          # desk who lets them confirm in one tap instead of guessing who is free.
+          if !appt.staff_assignment_confirmed? && current_user.can_create_appointments?
+            json[:held_by] = appt.staff_profiles.map { |sp| { id: sp.id, display_name: sp.display_name } }
+          end
+          # Addendum §2: a settled visit can be corrected from the panel.
+          json[:order] = appt.order&.then { |o| { id: o.id, status: o.status } }
           json[:deposit] = appt.deposit&.then { |d|
             { id: d.id, amount_cents: d.amount_cents, method: d.method, status: d.status,
               reference: d.reference, fee_cents: d.fee_cents, refunded_cents: d.refunded_cents,

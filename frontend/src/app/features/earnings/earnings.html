@@ -81,8 +81,14 @@
             <h3 class="sub-head">{{ r.display_name }} · {{ r.period.from }} → {{ r.period.to }}</h3>
             <p class="sub-hint">
               A 60-minute massage booked with a 30-minute add-on is paid as one 90-minute session,
-              not as two lines.
+              not as two lines. Type a different number in Quantity to correct it — the earnings
+              follow at the therapist's rate, and the change is kept as a dated correction.
             </p>
+            @if (quantityNotice()) {
+              <ui-banner tone="success" data-testid="earn-qty-notice">{{
+                quantityNotice()
+              }}</ui-banner>
+            }
             <ui-table label="Earnings">
               <table data-testid="earn-table">
                 <thead>
@@ -96,7 +102,23 @@
                   @for (row of r.sessions; track row.duration_minutes) {
                     <tr [attr.data-testid]="'earn-row-' + row.duration_minutes">
                       <td>{{ row.duration_minutes }} minutes</td>
-                      <td class="num">{{ row.quantity }}</td>
+                      <td class="num">
+                        <!-- Addendum §4: the count is typed into, saved on Enter or leaving. -->
+                        <input
+                          class="earn-qty"
+                          type="number"
+                          min="0"
+                          step="1"
+                          inputmode="numeric"
+                          [value]="row.quantity"
+                          (keydown.enter)="$any($event.target).blur()"
+                          (change)="
+                            setQuantity(row.duration_minutes, row.quantity, $any($event.target))
+                          "
+                          [attr.aria-label]="row.duration_minutes + '-minute sessions'"
+                          [attr.data-testid]="'earn-qty-' + row.duration_minutes"
+                        />
+                      </td>
                       <td class="num">${{ row.earnings_cents / 100 | number: '1.2-2' }}</td>
                     </tr>
                   }

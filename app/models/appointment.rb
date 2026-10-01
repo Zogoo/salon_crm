@@ -3,7 +3,9 @@ class Appointment < ApplicationRecord
   # resources are free again (BR-21) — the same predicate the Postgres partial
   # exclusion constraints used.
   ACTIVE_STATUSES = %w[pending_approval scheduled checked_in in_progress completed].freeze
-  STATUSES = (ACTIVE_STATUSES + %w[cancelled late_cancelled no_show]).freeze
+  # "deleted" is a completed visit removed as entered in error (Addendum §2):
+  # kept for the audit trail, shown nowhere else.
+  STATUSES = (ACTIVE_STATUSES + %w[cancelled late_cancelled no_show deleted]).freeze
 
   belongs_to :client
   belongs_to :location

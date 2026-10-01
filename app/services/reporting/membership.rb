@@ -34,7 +34,11 @@ module Reporting
 
     private
 
-    def window = @from.beginning_of_day..@to.end_of_day
+    # The salon's days, not UTC's: after 19:00 in Chicago UTC is already tomorrow.
+    def window
+      tz = Location.where(id: @location_ids).first&.tz || Time.zone
+      tz.local(@from.year, @from.month, @from.day).beginning_of_day..tz.local(@to.year, @to.month, @to.day).end_of_day
+    end
 
     def transactions(kind)
       MembershipCreditTransaction.where(kind:, occurred_at: window)

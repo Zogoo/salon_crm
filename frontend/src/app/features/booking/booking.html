@@ -94,9 +94,11 @@
         }
 
         @if (needsTwoClients()) {
+          <!-- Addendum §7: often only one of the couple is known when booking. -->
           <ui-field
             label="Second client"
-            hint="This service seats two, so it needs a second name."
+            [optional]="true"
+            hint="Add them now if you know who it is, or leave it — the booking saves without them."
             data-testid="second-client"
           >
             <app-client-picker
@@ -191,7 +193,7 @@
           </ui-field>
           <ui-field
             label="Therapist"
-            hint="Only therapists on shift that day are listed. Asking for someone by name holds the slot and needs approval."
+            hint="Only therapists working that day are listed, with their hours. Asking for someone by name holds the slot and needs approval."
           >
             <select [(ngModel)]="requestedStaffId" data-testid="therapist-select">
               <option [ngValue]="null">No preference (assign later)</option>
